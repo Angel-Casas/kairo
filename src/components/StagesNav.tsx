@@ -1,17 +1,55 @@
+import type { Project } from '../domain/types'
+
 export type Stage = 'script' | 'scenes' | 'images' | 'animation' | 'export'
 
-const STAGES: { id: Stage; label: string; available: boolean }[] = [
-  { id: 'script', label: '1. Script', available: true },
-  { id: 'scenes', label: '2. Scenes', available: false },
-  { id: 'images', label: '3. Images', available: false },
-  { id: 'animation', label: '4. Animation', available: false },
-  { id: 'export', label: '5. Export', available: false },
-]
+export interface StageItem {
+  id: Stage
+  label: string
+  available: boolean
+  hint: string | null
+}
+
+/** Which stages are usable for a given project state. */
+export function buildStages(project: Project): StageItem[] {
+  const scriptLocked = project.script.locked
+  const hasScenes = project.scenes.length > 0
+  return [
+    { id: 'script', label: '1. Script', available: true, hint: null },
+    {
+      id: 'scenes',
+      label: '2. Scenes',
+      available: scriptLocked,
+      hint: scriptLocked ? null : 'Lock the script first',
+    },
+    {
+      id: 'images',
+      label: '3. Images',
+      available: false,
+      hint: hasScenes
+        ? 'Coming in a later slice'
+        : 'Break the script into scenes first',
+    },
+    {
+      id: 'animation',
+      label: '4. Animation',
+      available: false,
+      hint: 'Coming in a later slice',
+    },
+    {
+      id: 'export',
+      label: '5. Export',
+      available: false,
+      hint: 'Coming in a later slice',
+    },
+  ]
+}
 
 export function StagesNav({
+  stages,
   active,
   onSelect,
 }: {
+  stages: StageItem[]
   active: Stage
   onSelect: (stage: Stage) => void
 }) {
@@ -27,7 +65,7 @@ export function StagesNav({
         flexWrap: 'wrap',
       }}
     >
-      {STAGES.map((stage) => (
+      {stages.map((stage) => (
         <button
           key={stage.id}
           type="button"
@@ -36,7 +74,7 @@ export function StagesNav({
           onClick={() => {
             onSelect(stage.id)
           }}
-          title={stage.available ? undefined : 'Coming in a later slice'}
+          title={stage.hint ?? undefined}
           style={{
             background:
               active === stage.id ? 'var(--color-surface)' : 'transparent',

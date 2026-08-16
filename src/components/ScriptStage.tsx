@@ -13,7 +13,7 @@ import { TextModelPicker } from './ModelPicker'
 export function ScriptStage() {
   const project = useProjectStore((s) => s.project)
   const updateScriptText = useProjectStore((s) => s.updateScriptText)
-  const flushScript = useProjectStore((s) => s.flushScript)
+  const flushProject = useProjectStore((s) => s.flushProject)
   const setScriptLocked = useProjectStore((s) => s.setScriptLocked)
   const generateScript = useProjectStore((s) => s.generateScript)
   const genStatus = useProjectStore((s) => s.scriptGenStatus)
@@ -57,7 +57,7 @@ export function ScriptStage() {
         onChange={(e) => {
           updateScriptText(e.target.value)
         }}
-        onBlur={() => void flushScript()}
+        onBlur={() => void flushProject()}
         disabled={script.locked}
         placeholder="Write your narration script here, or generate one below."
         aria-label="Script text"

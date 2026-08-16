@@ -66,6 +66,8 @@ export interface Project {
   }
   /** Free-form style guidance carried into every image prompt for consistency. */
   styleNotes: string
+  /** Selected artistic style preset (ADR-008); picker UI arrives in Slice 5. */
+  stylePresetId: string | null
   scenes: Scene[]
   costLog: CostLogEntry[]
   createdAt: string
@@ -111,10 +113,37 @@ export function createProject(title: string, now: () => string): Project {
     format: 'short',
     script: { text: '', locked: false },
     styleNotes: '',
+    stylePresetId: null,
     scenes: [],
     costLog: [],
     createdAt: at,
     updatedAt: at,
     schemaVersion: PROJECT_SCHEMA_VERSION,
+  }
+}
+
+export function createScene(order: number): Scene {
+  return {
+    id: crypto.randomUUID(),
+    order,
+    textExcerpt: '',
+    visualDescription: '',
+    imageVersions: [],
+    activeImageVersionId: null,
+    videoVersions: [],
+    activeVideoVersionId: null,
+  }
+}
+
+/**
+ * Fill defaults for fields added after a project was first stored, so
+ * projects saved by older builds load cleanly (additive changes only —
+ * breaking changes require a schemaVersion bump + real migration).
+ */
+export function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    styleNotes: project.styleNotes ?? '',
+    stylePresetId: project.stylePresetId ?? null,
   }
 }

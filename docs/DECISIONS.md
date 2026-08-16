@@ -147,3 +147,33 @@ last avoids paying twice. Same for translating strings that are still changing.
 **Alternatives rejected.** Design-system-first (contradicts Angel's direction;
 risks rework), i18n-from-day-one (infrastructure overhead while copy is
 unstable).
+
+---
+
+## ADR-008 — Visual style presets with pregenerated thumbnails (2026-08-16)
+
+**Context.** Angel's product insight: users choosing an artistic style for
+their images should SEE the styles, not just read their names.
+
+**Decision.** Kairo ships a curated catalog of artistic style presets
+(~15-20: watercolor, anime, oil painting, pixel art, claymation,
+photorealistic, etc.). Each preset has an id, display name, a prompt
+fragment, and a small pregenerated thumbnail. All thumbnails depict the SAME
+reference subject so users compare styles, not pictures. The picker UI lands
+in Slice 5 (image stage); the domain field (`Project.stylePresetId`) is added
+in Slice 4 to avoid a schema migration later.
+
+**Thumbnail pipeline.** Generated once with Angel's key via the NanoGPT image
+API (one-time cost roughly $0.20 for ~20 styles), optimized to small webp
+(~256px), committed as static assets under `public/styles/`. Users never pay
+for them. Regenerating the catalog is a documented script, not a manual
+process.
+
+**Interaction with style notes.** Preset and free-text style notes compose:
+the preset's prompt fragment sets the base look; `styleNotes` fine-tunes it.
+Both are prepended to every scene image prompt for cross-scene consistency.
+
+**Alternatives rejected.** Text-only style list (exactly the UX gap Angel
+identified); generating style previews per-user at runtime (charges every
+user for the same pictures); licensing stock style images (inconsistent
+subjects defeat comparison, plus licensing complexity for an AGPL repo).

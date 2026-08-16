@@ -17,3 +17,18 @@ export function scriptSystemPrompt(): string {
 export function scriptUserPrompt(instructions: string): string {
   return `Write the narration script for a short video about: ${instructions}`
 }
+
+export function sceneBreakdownSystemPrompt(): string {
+  return [
+    'You split narration scripts for short vertical videos into scenes.',
+    'Respond with ONLY a JSON array, no prose, no code fences. Each element:',
+    '{"textExcerpt": "<the exact part of the script this scene covers>",',
+    '"visualDescription": "<one vivid sentence describing the image for this',
+    'scene: subject, setting, mood, composition. No camera jargon.>"}',
+    'Use 5-10 scenes. Cover the whole script in order without gaps.',
+  ].join(' ')
+}
+
+export function sceneBreakdownUserPrompt(script: string): string {
+  return `Split this script into scenes:\n\n${script}`
+}

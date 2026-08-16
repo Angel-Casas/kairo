@@ -17,6 +17,13 @@ export const CHARS_PER_TOKEN = 4
  */
 export const SCRIPT_OUTPUT_TOKEN_BUDGET = 300
 
+/**
+ * Output budget for a scene breakdown: 5-10 scenes × (~25-token excerpt +
+ * ~35-token visual description + JSON overhead) ≈ 600 tokens worst case;
+ * 800 leaves headroom. Enforced via max_tokens like all budgets.
+ */
+export const SCENES_OUTPUT_TOKEN_BUDGET = 800
+
 export function estimateTokensFromText(text: string): number {
   if (text.length === 0) return 0
   return Math.ceil(text.length / CHARS_PER_TOKEN)

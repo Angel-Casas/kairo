@@ -76,7 +76,7 @@ describe('project store — script editing', () => {
   it('updates script text and persists on flush', async () => {
     const project = await seedProject()
     useProjectStore.getState().updateScriptText('Hello world')
-    await useProjectStore.getState().flushScript()
+    await useProjectStore.getState().flushProject()
     const repo = await getRepository()
     const stored = await repo.getProject(project.id)
     expect(stored?.script.text).toBe('Hello world')
@@ -166,5 +166,140 @@ describe('project store — script generation', () => {
     await useProjectStore.getState().setScriptLocked(true)
     const ok = await useProjectStore.getState().generateScript(MODEL, 'x')
     expect(ok).toBe(false)
+  })
+})
+
+async function seedLockedProject() {
+  const project = await seedProject('Scened')
+  useProjectStore.getState().updateScriptText('A tale of two castles.')
+  await useProjectStore.getState().flushProject()
+  await useProjectStore.getState().setScriptLocked(true)
+  return project
+}
+
+const BREAKDOWN = JSON.stringify([
+  { textExcerpt: 'A tale', visualDescription: 'A castle at dawn' },
+  {
+    textExcerpt: 'of two castles.',
+    visualDescription: 'Two castles facing off',
+  },
+])
+
+describe('project store — scene breakdown generation', () => {
+  it('replaces scenes, records job + cost log with actuals', async () => {
+    const project = await seedLockedProject()
+    server.use(
+      http.post(`${BASE}/v1/chat/completions`, () =>
+        HttpResponse.json({
+          model: MODEL.id,
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: '```json\n' + BREAKDOWN + '\n```',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 200, completion_tokens: 150 },
+        }),
+      ),
+    )
+
+    const ok = await useProjectStore.getState().generateScenes(MODEL)
+    expect(ok).toBe(true)
+
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.scenes).toHaveLength(2)
+    expect(stored?.scenes[0]?.order).toBe(0)
+    expect(stored?.scenes[0]?.visualDescription).toBe('A castle at dawn')
+    expect(stored?.scenes[1]?.order).toBe(1)
+    expect(stored?.costLog).toHaveLength(1)
+    expect(stored?.costLog[0]?.note).toBe('Scene breakdown')
+    expect(stored?.costLog[0]?.actualUsd).toBeGreaterThan(0)
+  })
+
+  it('fails the job on unparseable output without touching scenes', async () => {
+    const project = await seedLockedProject()
+    server.use(
+      http.post(`${BASE}/v1/chat/completions`, () =>
+        HttpResponse.json({
+          model: MODEL.id,
+          choices: [
+            { message: { role: 'assistant', content: 'I refuse to answer.' } },
+          ],
+        }),
+      ),
+    )
+
+    const ok = await useProjectStore.getState().generateScenes(MODEL)
+    expect(ok).toBe(false)
+    expect(useProjectStore.getState().scenesGenStatus).toBe('error')
+    expect(useProjectStore.getState().scenesGenError).toMatch(/scene list/)
+
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    expect(stored?.scenes).toHaveLength(0)
+    const jobs = await repo.getJobsByProject(project.id)
+    expect(jobs[jobs.length - 1]?.state).toBe('failed')
+  })
+
+  it('refuses to generate scenes while the script is unlocked', async () => {
+    await seedProject()
+    useProjectStore.getState().updateScriptText('text')
+    const ok = await useProjectStore.getState().generateScenes(MODEL)
+    expect(ok).toBe(false)
+  })
+})
+
+describe('project store — manual scene editing', () => {
+  it('adds, updates, and persists scenes', async () => {
+    const project = await seedLockedProject()
+    await useProjectStore.getState().addScene()
+    const scene = useProjectStore.getState().project?.scenes[0]
+    expect(scene).toBeDefined()
+    useProjectStore
+      .getState()
+      .updateScene(scene?.id ?? '', { visualDescription: 'A misty forest' })
+    await useProjectStore.getState().flushProject()
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.scenes[0]?.visualDescription).toBe('A misty forest')
+  })
+
+  it('removes scenes and renumbers orders', async () => {
+    const project = await seedLockedProject()
+    await useProjectStore.getState().addScene()
+    await useProjectStore.getState().addScene()
+    await useProjectStore.getState().addScene()
+    const ids = (useProjectStore.getState().project?.scenes ?? []).map(
+      (s) => s.id,
+    )
+    await useProjectStore.getState().removeScene(ids[1] ?? '')
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.scenes).toHaveLength(2)
+    expect(stored?.scenes.map((s) => s.order)).toEqual([0, 1])
+    expect(stored?.scenes.map((s) => s.id)).toEqual([ids[0], ids[2]])
+  })
+
+  it('moves scenes up and down within bounds', async () => {
+    await seedLockedProject()
+    await useProjectStore.getState().addScene()
+    await useProjectStore.getState().addScene()
+    const [first, second] = useProjectStore.getState().project?.scenes ?? []
+    await useProjectStore.getState().moveScene(second?.id ?? '', -1)
+    let scenes = useProjectStore.getState().project?.scenes ?? []
+    expect(scenes[0]?.id).toBe(second?.id)
+    expect(scenes[1]?.id).toBe(first?.id)
+    // Moving the top scene up is a no-op.
+    await useProjectStore.getState().moveScene(second?.id ?? '', -1)
+    scenes = useProjectStore.getState().project?.scenes ?? []
+    expect(scenes[0]?.id).toBe(second?.id)
+  })
+
+  it('persists style notes', async () => {
+    const project = await seedLockedProject()
+    useProjectStore.getState().updateStyleNotes('watercolor, warm tones')
+    await useProjectStore.getState().flushProject()
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.styleNotes).toBe('watercolor, warm tones')
   })
 })

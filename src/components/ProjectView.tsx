@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '../state/project'
 import { CostSummary } from './CostSummary'
+import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
-import { StagesNav, type Stage } from './StagesNav'
+import { buildStages, StagesNav, type Stage } from './StagesNav'
 
 export function ProjectView({
   projectId,
@@ -15,7 +16,7 @@ export function ProjectView({
   const status = useProjectStore((s) => s.projectStatus)
   const loadProject = useProjectStore((s) => s.loadProject)
   const closeProject = useProjectStore((s) => s.closeProject)
-  const flushScript = useProjectStore((s) => s.flushScript)
+  const flushProject = useProjectStore((s) => s.flushProject)
   const [stage, setStage] = useState<Stage>('script')
 
   useEffect(() => {
@@ -24,6 +25,14 @@ export function ProjectView({
       closeProject()
     }
   }, [projectId, loadProject, closeProject])
+
+  // If the active stage becomes unavailable (e.g. script unlocked while on
+  // Scenes), fall back to the script stage.
+  useEffect(() => {
+    if (project === null) return
+    const item = buildStages(project).find((s) => s.id === stage)
+    if (item !== undefined && !item.available) setStage('script')
+  }, [project, stage])
 
   if (status !== 'ready') {
     return <p style={{ color: 'var(--color-text-muted)' }}>Loading project…</p>
@@ -54,7 +63,7 @@ export function ProjectView({
         <button
           type="button"
           onClick={() => {
-            void flushScript().then(onBack)
+            void flushProject().then(onBack)
           }}
         >
           ← All projects
@@ -63,9 +72,14 @@ export function ProjectView({
           {project.title}
         </h2>
       </div>
-      <StagesNav active={stage} onSelect={setStage} />
+      <StagesNav
+        stages={buildStages(project)}
+        active={stage}
+        onSelect={setStage}
+      />
       <CostSummary />
       {stage === 'script' && <ScriptStage />}
+      {stage === 'scenes' && <ScenesStage />}
     </section>
   )
 }

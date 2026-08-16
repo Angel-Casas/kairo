@@ -2,6 +2,21 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 4 — Scene breakdown stage (2026-08-16)
+
+- Scenes stage, unlocked by locking the script; stage availability is now
+  state-driven with hints on disabled stages.
+- AI breakdown: locked script → 5-10 scenes as JSON, parsed defensively
+  (fences/prose tolerated, malformed output rejected with a clear error),
+  replace-confirmation, enforced 800-token budget, job + cost log with actuals.
+- Scene editing: cards with script excerpt + visual description (autosaved),
+  add/remove/reorder with automatic renumbering.
+- Project-level visual style notes (persisted; feeds image prompts in Slice 5).
+- ADR-008 recorded: style preset gallery with pregenerated same-subject
+  thumbnails (Angel's idea); `stylePresetId` domain field added now,
+  `normalizeProject` backfills older stored projects.
+- Tests: 93 unit, 9 e2e.
+
 ## Slice 3.2 — Visible project spend (2026-08-16, from Angel's feedback)
 
 - New `CostSummary` in the project view: total spend (actuals preferred,

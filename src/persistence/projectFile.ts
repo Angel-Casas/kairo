@@ -1,5 +1,9 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
-import { PROJECT_SCHEMA_VERSION, type Project } from '../domain/types'
+import {
+  normalizeProject,
+  PROJECT_SCHEMA_VERSION,
+  type Project,
+} from '../domain/types'
 import type { BlobStore } from './blobStore'
 
 /**
@@ -77,6 +81,7 @@ export async function importProject(
 
   const oldId = parsed.id
   const newId = crypto.randomUUID()
+  parsed = normalizeProject(parsed)
   const rerooted: Project = {
     ...parsed,
     id: newId,

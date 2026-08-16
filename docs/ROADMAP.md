@@ -49,14 +49,22 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       in `src/domain/prompts.ts`; repo singleton extracted to
       `src/state/repo.ts`; real `REPO_URL` wired. 70 unit tests + 7 e2e.
 
-- [ ] **Slice 4 — Scene breakdown stage.** Split the locked script into an editable
-      list of scenes (text excerpt + visual description each); model-assisted breakdown
-      with manual add/remove/reorder/edit; per-project style notes that carry into
-      image prompts (consistency across scenes).
+- [x] **Slice 4 — Scene breakdown stage.** _(done 2026-08-16)_ Scenes stage
+      gated on locked script (state-driven `buildStages`); AI breakdown to JSON
+      parsed defensively (`parseSceneBreakdown`, heavily unit-tested), replace
+      confirm, upfront "up to ~$" estimate with enforced 800-token budget, job +
+      cost log with actuals; editable scene cards (excerpt + visual description,
+      autosaved), add/remove/reorder with order renumbering; project style notes
+      persisted; `stylePresetId` field added ahead of ADR-008's Slice 5 picker;
+      `normalizeProject` fills defaults for older stored projects. 93 unit
+      tests + 9 e2e.
 
 - [ ] **Slice 5 — Image stage.** Per-scene image generation with model picker and
       cost estimate; regeneration as versions (never overwrite — ADR pt. "never lose
-      paid assets"); pick the active version; vertical 9:16 framing.
+      paid assets"); pick the active version; vertical 9:16 framing; **style preset
+      gallery (ADR-008)**: curated styles with pregenerated same-subject thumbnails
+      (assets produced once via a documented script with Angel's key), composing
+      with free-text style notes in every image prompt.
 
 - [ ] **Slice 6 — Animation stage.** Image-to-video per scene; async job handling
       with polling via the unified video status endpoint; **resumable across tab
