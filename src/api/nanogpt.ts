@@ -43,6 +43,37 @@ export interface VideoModel {
   description: string
   supportsTextToVideo: boolean
   supportsImageToVideo: boolean
+  /**
+   * Price range extracted from the model's pricing object. Video pricing
+   * shapes vary by model (per-video, per-second, per-resolution tiers), so
+   * we surface min–max of every numeric price found; null when none exist.
+   * The authoritative amount is still what the API charges at submission.
+   */
+  priceRangeUsd: { min: number; max: number } | null
+  /** Resolutions the model advertises (e.g. "480p", "720p", "1080p"). */
+  resolutions: string[]
+}
+
+/** Recursively collect numeric leaves of a pricing object (skips currency). */
+export function extractPriceRange(
+  pricing: unknown,
+): { min: number; max: number } | null {
+  const values: number[] = []
+  const walk = (node: unknown): void => {
+    if (typeof node === 'number' && Number.isFinite(node) && node > 0) {
+      values.push(node)
+      return
+    }
+    if (typeof node === 'object' && node !== null) {
+      for (const [key, value] of Object.entries(node)) {
+        if (key === 'currency' || key === 'unit') continue
+        walk(value)
+      }
+    }
+  }
+  walk(pricing)
+  if (values.length === 0) return null
+  return { min: Math.min(...values), max: Math.max(...values) }
 }
 
 export interface ChatMessage {
@@ -82,6 +113,8 @@ export interface VideoGenerationParams {
   /** Duration in seconds, as a string per the API (e.g. "5", "8"). */
   duration?: string
   aspectRatio?: string
+  /** Resolution tier, e.g. "480p" — a major cost driver on most models. */
+  resolution?: string
   /** For image-to-video: a data URL of the source image. */
   imageDataUrl?: string
 }
@@ -223,7 +256,7 @@ export class NanoGptClient {
     }))
   }
 
-  /** GET /v1/video-models — video models and their capabilities. */
+  /** GET /v1/video-models — video models, capabilities, and pricing hints. */
   async listVideoModels(): Promise<VideoModel[]> {
     const data = (await this.request(
       'GET',
@@ -233,7 +266,9 @@ export class NanoGptClient {
         id: string
         name?: string
         description?: string
+        pricing?: unknown
         capabilities?: { text_to_video?: boolean; image_to_video?: boolean }
+        supported_parameters?: { resolutions?: string[] }
       }[]
     }
     return data.data.map((m) => ({
@@ -242,6 +277,8 @@ export class NanoGptClient {
       description: m.description ?? '',
       supportsTextToVideo: m.capabilities?.text_to_video ?? false,
       supportsImageToVideo: m.capabilities?.image_to_video ?? false,
+      priceRangeUsd: extractPriceRange(m.pricing),
+      resolutions: m.supported_parameters?.resolutions ?? [],
     }))
   }
 
@@ -315,6 +352,9 @@ export class NanoGptClient {
       ...(params.duration !== undefined ? { duration: params.duration } : {}),
       ...(params.aspectRatio !== undefined
         ? { aspect_ratio: params.aspectRatio }
+        : {}),
+      ...(params.resolution !== undefined
+        ? { resolution: params.resolution }
         : {}),
       ...(params.imageDataUrl !== undefined
         ? { imageDataUrl: params.imageDataUrl }

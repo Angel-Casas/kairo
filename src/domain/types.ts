@@ -101,8 +101,24 @@ export interface GenerationJob {
   remoteJobId: string | null
   error: string | null
   estimatedUsd: number | null
+  /**
+   * The prompt sent, kept so async jobs can be finalized after a reload
+   * (added in Slice 6; older stored jobs normalize to null).
+   */
+  prompt: string | null
+  /** Actual cost charged at submission, when the provider reports it. */
+  submittedCostUsd: number | null
   createdAt: string
   updatedAt: string
+}
+
+/** Fill defaults for job fields added after a job was first stored. */
+export function normalizeJob(job: GenerationJob): GenerationJob {
+  return {
+    ...job,
+    prompt: job.prompt ?? null,
+    submittedCostUsd: job.submittedCostUsd ?? null,
+  }
 }
 
 export function createProject(title: string, now: () => string): Project {

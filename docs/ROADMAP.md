@@ -70,10 +70,17 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       append-only `AssetVersion`s with active-version switching, jobs + cost log
       actuals, generate-all-missing with total cost + progress. 110 unit tests + 11 e2e. _Angel: run the thumbnail script and commit public/styles/._
 
-- [ ] **Slice 6 — Animation stage.** Image-to-video per scene; async job handling
-      with polling via the unified video status endpoint; **resumable across tab
-      close** (the hardest requirement in the app — plan this slice carefully); failed
-      jobs surface clearly and are retryable.
+- [x] **Slice 6 — Animation stage.** _(done 2026-08-16)_ Image-to-video per
+      scene: active image → data URL → `/generate-video` (9:16, duration
+      picker), actual cost captured at submission and logged immediately;
+      polling via the unified status endpoint (10s interval, transient-error
+      tolerance, 10-strike failure cap); completed clips downloaded into OPFS
+      as append-only versions with switching + inline players; **resume after
+      tab close** via jobs persisted with runId/prompt/cost (additive fields +
+      `normalizeJob`), `resumeVideoJobs` on project load, never-submitted jobs
+      failed cleanly; animate-all; honest "charged at submission" cost message
+      where no upfront price exists; `VideoModelPicker` filtered to
+      image-to-video models. 116 unit tests + 14 e2e (incl. reload-resume).
 
 - [ ] **Slice 7 — Export.** Zip of numbered clips + script text file; optional
       stitched draft MP4 via ffmpeg.wasm (ADR-004); export works for incomplete

@@ -13,6 +13,9 @@ export interface StageItem {
 export function buildStages(project: Project): StageItem[] {
   const scriptLocked = project.script.locked
   const hasScenes = project.scenes.length > 0
+  const hasActiveImage = project.scenes.some(
+    (s) => s.activeImageVersionId !== null,
+  )
   return [
     { id: 'script', label: '1. Script', available: true, hint: null },
     {
@@ -31,8 +34,11 @@ export function buildStages(project: Project): StageItem[] {
     {
       id: 'animation',
       label: '4. Animation',
-      available: false,
-      hint: 'Coming in a later slice',
+      available: scriptLocked && hasActiveImage,
+      hint:
+        scriptLocked && hasActiveImage
+          ? null
+          : 'Generate at least one scene image first',
     },
     {
       id: 'export',

@@ -20,6 +20,8 @@ function job(state: JobState): GenerationJob {
     remoteJobId: state === 'queued' ? null : 'remote-1',
     error: null,
     estimatedUsd: 0.1,
+    prompt: null,
+    submittedCostUsd: null,
     createdAt: '2026-08-16T11:00:00.000Z',
     updatedAt: '2026-08-16T11:00:00.000Z',
   }

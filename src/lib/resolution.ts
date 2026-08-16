@@ -44,6 +44,31 @@ export function pickPortraitResolution(model: ImageModel): string | null {
   return square?.raw ?? candidates[0]?.raw ?? null
 }
 
+/**
+ * Rank a video resolution tier for cheapest-first sorting: "480p" → 480,
+ * "2k" → 2000, "4k" → 4000, "1792x1024" → larger dimension. Unparseable
+ * tiers rank last (assumed expensive/unknown).
+ */
+export function videoResolutionRank(resolution: string): number {
+  const trimmed = resolution.trim().toLowerCase()
+  const pMatch = /^(\d+)p$/.exec(trimmed)
+  if (pMatch !== null) return Number(pMatch[1])
+  const kMatch = /^(\d+(?:\.\d+)?)k$/.exec(trimmed)
+  if (kMatch !== null) return Number(kMatch[1]) * 1000
+  const dims = parse(trimmed)
+  if (dims !== null) return Math.max(dims.w, dims.h)
+  return Number.MAX_SAFE_INTEGER
+}
+
+/** Sort video resolutions cheapest (lowest) first. */
+export function sortVideoResolutionsCheapestFirst(
+  resolutions: string[],
+): string[] {
+  return [...resolutions].sort(
+    (a, b) => videoResolutionRank(a) - videoResolutionRank(b),
+  )
+}
+
 /** Per-image USD price for a resolution, tolerating x/* separator drift. */
 export function getPerImagePriceUsd(
   model: ImageModel,

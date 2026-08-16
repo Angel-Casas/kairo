@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { ImageModel, TextModel } from '../api/nanogpt'
+import type { ImageModel, TextModel, VideoModel } from '../api/nanogpt'
 import {
   buildImagePrompt,
+  buildVideoPrompt,
   sceneBreakdownSystemPrompt,
   sceneBreakdownUserPrompt,
   scriptSystemPrompt,
@@ -9,8 +10,14 @@ import {
 } from '../domain/prompts'
 import { parseSceneBreakdown } from '../domain/sceneParser'
 import { getStylePreset } from '../domain/stylePresets'
+import { applyJobEvent, isActiveJobState } from '../domain/transitions'
 import { createScene } from '../domain/types'
-import type { AssetVersion, Project, Scene } from '../domain/types'
+import type {
+  AssetVersion,
+  GenerationJob,
+  Project,
+  Scene,
+} from '../domain/types'
 import {
   computeActualChatCostUsd,
   estimateChatCostUsd,
@@ -76,6 +83,31 @@ interface ProjectState {
     model: ImageModel,
     resolution: string | null,
   ) => Promise<void>
+  /** Per-scene video generation status, keyed by scene id. */
+  sceneVideoStatus: Record<
+    string,
+    { generating: boolean; error: string | null }
+  >
+  setActiveVideoVersion: (sceneId: string, versionId: string) => Promise<void>
+  /**
+   * Submit an image-to-video job for a scene's active image. Charged at
+   * submission; polling continues in the background (and resumes after a
+   * reload). Returns true if the submission succeeded.
+   */
+  generateSceneVideo: (
+    sceneId: string,
+    model: VideoModel,
+    duration: string,
+    resolution: string | null,
+  ) => Promise<boolean>
+  /** Submit video jobs for every scene with an image but no video. */
+  generateAllVideos: (
+    model: VideoModel,
+    duration: string,
+    resolution: string | null,
+  ) => Promise<void>
+  /** Resume polling for interrupted video jobs (called on project load). */
+  resumeVideoJobs: () => Promise<void>
 }
 
 async function persistProject(project: Project): Promise<void> {
@@ -92,6 +124,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   scenesGenError: null,
   sceneImageStatus: {},
   allImagesProgress: null,
+  sceneVideoStatus: {},
 
   loadProject: async (id: string) => {
     set({
@@ -102,15 +135,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       scenesGenError: null,
       sceneImageStatus: {},
       allImagesProgress: null,
+      sceneVideoStatus: {},
     })
     const repo = await getRepository()
     const project = await repo.getProject(id)
     set({ project: project ?? null, projectStatus: 'ready' })
+    await get().resumeVideoJobs()
   },
 
   closeProject: () => {
     if (autosaveTimer !== null) clearTimeout(autosaveTimer)
     autosaveTimer = null
+    stopAllVideoPollers()
     set({ project: null, projectStatus: 'idle' })
   },
 
@@ -549,6 +585,181 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
     set({ allImagesProgress: null })
   },
+
+  setActiveVideoVersion: async (sceneId: string, versionId: string) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      scenes: project.scenes.map((s) =>
+        s.id === sceneId && s.videoVersions.some((v) => v.id === versionId)
+          ? { ...s, activeVideoVersionId: versionId }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+  },
+
+  generateSceneVideo: async (
+    sceneId: string,
+    model: VideoModel,
+    duration: string,
+    resolution: string | null,
+  ) => {
+    const { project } = get()
+    const apiKey = useSettingsStore.getState().apiKey
+    if (project === null || apiKey === null) return false
+    const scene = project.scenes.find((s) => s.id === sceneId)
+    const imageVersion = scene?.imageVersions.find(
+      (v) => v.id === scene.activeImageVersionId,
+    )
+    if (scene === undefined || imageVersion === undefined) return false
+
+    setSceneVideoStatus(set, get, sceneId, { generating: true, error: null })
+
+    const repo = await getRepository()
+    const imageBlob = await repo.blobs.get(imageVersion.blobPath)
+    if (imageBlob === null) {
+      setSceneVideoStatus(set, get, sceneId, {
+        generating: false,
+        error: 'The source image could not be read from storage.',
+      })
+      return false
+    }
+    const prompt = buildVideoPrompt(scene.visualDescription)
+
+    let job: GenerationJob = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      sceneId,
+      kind: 'video',
+      model: model.id,
+      state: 'queued',
+      remoteJobId: null,
+      error: null,
+      estimatedUsd: null,
+      prompt,
+      submittedCostUsd: null,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    await repo.putJob(job)
+
+    try {
+      const imageDataUrl = await blobToDataUrl(imageBlob)
+      const submission = await getClient(apiKey).generateVideo({
+        model: model.id,
+        prompt,
+        duration,
+        aspectRatio: '9:16',
+        ...(resolution !== null ? { resolution } : {}),
+        imageDataUrl,
+      })
+      job = applyJobEvent(
+        job,
+        { type: 'submit', remoteJobId: submission.runId },
+        nowIso,
+      )
+      job = { ...job, submittedCostUsd: submission.costUsd }
+      await repo.putJob(job)
+      job = applyJobEvent(job, { type: 'poll' }, nowIso)
+      await repo.putJob(job)
+
+      // The money leaves the account at submission — log it now.
+      const current = get().project
+      if (current !== null && current.id === job.projectId) {
+        const updated: Project = {
+          ...current,
+          costLog: [
+            ...current.costLog,
+            {
+              id: crypto.randomUUID(),
+              at: nowIso(),
+              kind: 'video',
+              model: model.id,
+              estimatedUsd: submission.costUsd,
+              actualUsd: submission.costUsd,
+              note: 'Scene animation',
+            },
+          ],
+          updatedAt: nowIso(),
+        }
+        set({ project: updated })
+        await persistProject(updated)
+      }
+
+      scheduleVideoPoll(job, get, set, VIDEO_POLL_INITIAL_MS)
+      return true
+    } catch (error) {
+      job = applyJobEvent(
+        job,
+        {
+          type: 'fail',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        nowIso,
+      )
+      await repo.putJob(job)
+      setSceneVideoStatus(set, get, sceneId, {
+        generating: false,
+        error:
+          error instanceof Error ? error.message : 'Video submission failed.',
+      })
+      return false
+    }
+  },
+
+  generateAllVideos: async (
+    model: VideoModel,
+    duration: string,
+    resolution: string | null,
+  ) => {
+    const { project, generateSceneVideo } = get()
+    if (project === null) return
+    const pending = [...project.scenes]
+      .sort((a, b) => a.order - b.order)
+      .filter(
+        (s) => s.activeImageVersionId !== null && s.videoVersions.length === 0,
+      )
+    for (const scene of pending) {
+      await generateSceneVideo(scene.id, model, duration, resolution)
+    }
+  },
+
+  resumeVideoJobs: async () => {
+    const { project } = get()
+    if (project === null) return
+    const repo = await getRepository()
+    const jobs = await repo.getJobsByProject(project.id)
+    for (const job of jobs) {
+      if (job.kind !== 'video' || !isActiveJobState(job.state)) continue
+      if (videoPollers.has(job.id)) continue
+      if (job.remoteJobId === null) {
+        // Interrupted before NanoGPT accepted it — nothing to resume.
+        const failed = applyJobEvent(
+          job,
+          { type: 'fail', error: 'Interrupted before submission.' },
+          nowIso,
+        )
+        await repo.putJob(failed)
+        continue
+      }
+      let active = job
+      if (active.state === 'submitted') {
+        active = applyJobEvent(active, { type: 'poll' }, nowIso)
+        await repo.putJob(active)
+      }
+      if (active.sceneId !== null) {
+        setSceneVideoStatus(set, get, active.sceneId, {
+          generating: true,
+          error: null,
+        })
+      }
+      scheduleVideoPoll(active, get, set, VIDEO_POLL_INITIAL_MS)
+    }
+  },
 }))
 
 function scheduleAutosave(get: () => ProjectState): void {
@@ -558,4 +769,206 @@ function scheduleAutosave(get: () => ProjectState): void {
     const current = get().project
     if (current !== null) void persistProject(current)
   }, AUTOSAVE_DELAY_MS)
+}
+
+// -- Video polling machinery ------------------------------------------------
+
+let VIDEO_POLL_MS = 10_000
+let VIDEO_POLL_INITIAL_MS = 1_000
+/** Consecutive poll errors tolerated before the job is marked failed. */
+const VIDEO_POLL_MAX_ERRORS = 10
+
+/** Test-only: speed up polling. */
+export function __setVideoPollIntervalForTests(ms: number): void {
+  VIDEO_POLL_MS = ms
+  VIDEO_POLL_INITIAL_MS = ms
+}
+
+const videoPollers = new Map<string, ReturnType<typeof setTimeout>>()
+const videoPollErrors = new Map<string, number>()
+
+function stopAllVideoPollers(): void {
+  for (const timer of videoPollers.values()) clearTimeout(timer)
+  videoPollers.clear()
+  videoPollErrors.clear()
+}
+
+type SetState = (partial: Partial<ProjectState>) => void
+type GetState = () => ProjectState
+
+function setSceneVideoStatus(
+  set: SetState,
+  get: GetState,
+  sceneId: string,
+  status: { generating: boolean; error: string | null },
+): void {
+  set({ sceneVideoStatus: { ...get().sceneVideoStatus, [sceneId]: status } })
+}
+
+function clearSceneVideoStatus(
+  set: SetState,
+  get: GetState,
+  sceneId: string,
+): void {
+  const { [sceneId]: _gone, ...rest } = get().sceneVideoStatus
+  set({ sceneVideoStatus: rest })
+}
+
+function scheduleVideoPoll(
+  job: GenerationJob,
+  get: GetState,
+  set: SetState,
+  delayMs: number,
+): void {
+  const timer = setTimeout(() => {
+    void pollVideoJobTick(job, get, set)
+  }, delayMs)
+  videoPollers.set(job.id, timer)
+}
+
+async function pollVideoJobTick(
+  job: GenerationJob,
+  get: GetState,
+  set: SetState,
+): Promise<void> {
+  const apiKey = useSettingsStore.getState().apiKey
+  const state = get()
+  // Project closed or switched: stop quietly; resumeVideoJobs picks it up
+  // again next time the project is opened.
+  if (
+    apiKey === null ||
+    state.project === null ||
+    state.project.id !== job.projectId ||
+    job.remoteJobId === null
+  ) {
+    videoPollers.delete(job.id)
+    videoPollErrors.delete(job.id)
+    return
+  }
+  const repo = await getRepository()
+
+  try {
+    const status = await getClient(apiKey).getVideoStatus(job.remoteJobId)
+
+    if (status.status === 'COMPLETED') {
+      if (status.videoUrl === null) {
+        throw new Error('The job completed but no video URL was returned.')
+      }
+      const response = await fetch(status.videoUrl)
+      if (!response.ok) {
+        throw new Error('The finished video could not be downloaded.')
+      }
+      const blob = await response.blob()
+      const versionId = crypto.randomUUID()
+      const blobPath = `${job.projectId}/${versionId}`
+      await repo.blobs.put(blobPath, blob)
+
+      const done = applyJobEvent(job, { type: 'succeed' }, nowIso)
+      await repo.putJob(done)
+
+      const current = get().project
+      if (
+        current !== null &&
+        current.id === job.projectId &&
+        job.sceneId !== null
+      ) {
+        const version: AssetVersion = {
+          id: versionId,
+          kind: 'video',
+          model: job.model,
+          prompt: job.prompt ?? '',
+          costUsd: job.submittedCostUsd ?? status.costUsd,
+          blobPath,
+          mimeType: blob.type.length > 0 ? blob.type : 'video/mp4',
+          createdAt: nowIso(),
+        }
+        const sceneId = job.sceneId
+        const updated: Project = {
+          ...current,
+          scenes: current.scenes.map((s) =>
+            s.id === sceneId
+              ? {
+                  ...s,
+                  videoVersions: [...s.videoVersions, version],
+                  activeVideoVersionId: version.id,
+                }
+              : s,
+          ),
+          updatedAt: nowIso(),
+        }
+        set({ project: updated })
+        clearSceneVideoStatus(set, get, sceneId)
+        await persistProject(updated)
+      }
+      videoPollers.delete(job.id)
+      videoPollErrors.delete(job.id)
+      return
+    }
+
+    if (status.status === 'FAILED' || status.status === 'CANCELED') {
+      const message =
+        status.error ??
+        (status.status === 'CANCELED'
+          ? 'The video job was canceled.'
+          : 'The video job failed on the provider side.')
+      const failed = applyJobEvent(
+        job,
+        { type: 'fail', error: message },
+        nowIso,
+      )
+      await repo.putJob(failed)
+      if (job.sceneId !== null) {
+        setSceneVideoStatus(set, get, job.sceneId, {
+          generating: false,
+          error: message,
+        })
+      }
+      videoPollers.delete(job.id)
+      videoPollErrors.delete(job.id)
+      return
+    }
+
+    // Still IN_QUEUE / IN_PROGRESS: bump the job and poll again.
+    videoPollErrors.delete(job.id)
+    const bumped = applyJobEvent(job, { type: 'poll' }, nowIso)
+    await repo.putJob(bumped)
+    scheduleVideoPoll(bumped, get, set, VIDEO_POLL_MS)
+  } catch (error) {
+    const errors = (videoPollErrors.get(job.id) ?? 0) + 1
+    videoPollErrors.set(job.id, errors)
+    if (errors >= VIDEO_POLL_MAX_ERRORS) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Could not reach NanoGPT to check the video status.'
+      const failed = applyJobEvent(
+        job,
+        { type: 'fail', error: message },
+        nowIso,
+      )
+      await repo.putJob(failed)
+      if (job.sceneId !== null) {
+        setSceneVideoStatus(set, get, job.sceneId, {
+          generating: false,
+          error: message,
+        })
+      }
+      videoPollers.delete(job.id)
+      videoPollErrors.delete(job.id)
+      return
+    }
+    // Transient (network hiccup): try again.
+    scheduleVideoPoll(job, get, set, VIDEO_POLL_MS)
+  }
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  const mime = blob.type.length > 0 ? blob.type : 'image/png'
+  return `data:${mime};base64,${btoa(binary)}`
 }

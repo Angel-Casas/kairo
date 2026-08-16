@@ -20,6 +20,8 @@ function makeJob(projectId: string): GenerationJob {
     remoteJobId: null,
     error: null,
     estimatedUsd: null,
+    prompt: null,
+    submittedCostUsd: null,
     createdAt: now(),
     updatedAt: now(),
   }

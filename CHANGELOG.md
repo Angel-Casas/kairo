@@ -2,6 +2,40 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 6.1 — Video cost transparency (2026-08-16, from Angel's real-usage feedback)
+
+- Video model picker now shows each model's price range parsed from NanoGPT's
+  pricing data ("≈$0.72–$1.80 per clip (depends on settings)"); models without
+  listed pricing say so explicitly. Trigger: $1.80/clip surprised a $5 budget.
+- Resolution is now user-controlled and **defaults to the cheapest tier** —
+  previously Kairo sent no resolution and the provider silently picked its
+  default (the likely cause of $1.80 charges vs. the $0.72 listed price).
+- Every video submission (single and animate-all) now requires an explicit
+  confirmation stating model, resolution, duration, and the price picture
+  before money moves.
+- New LESSONS rule: the more a generation kind can cost, the stronger its
+  cost UX must be — surface pricing, expose cost-driving parameters defaulted
+  cheap, and confirm before any submission that can exceed ~$0.50.
+
+## Slice 6 — Animation stage (2026-08-16)
+
+- Image-to-video per scene: the active image is sent as a data URL with a
+  motion prompt derived from the visual description, 9:16, selectable
+  duration. NanoGPT charges at submission — Kairo logs the exact amount then,
+  not later.
+- Background polling of the unified status endpoint (10s; tolerates transient
+  network errors, fails the job after 10 consecutive); completed clips are
+  downloaded straight into OPFS as append-only versions with inline players
+  and version switching; failures show the provider error and are retryable.
+- Resumable by design: jobs persist runId, prompt, and submitted cost
+  (additive fields + normalizeJob backfill); reopening a project resumes
+  polling for interrupted jobs and collects finished clips; jobs interrupted
+  before submission are failed cleanly (no charge, no orphan).
+- Animate-all for scenes with an image and no clip; video model picker
+  filtered to image-to-video capable models.
+- Tests: 116 unit (incl. interrupt/resume, submission-rejected, provider-
+  failed paths), 14 e2e (incl. reload-mid-generation resume).
+
 ## Maintenance — refactor/review session (2026-08-16)
 
 - Extracted `src/state/generationJob.ts` (`withGenerationJob`): the persisted

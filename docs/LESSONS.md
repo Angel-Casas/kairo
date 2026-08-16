@@ -63,3 +63,24 @@ slice is called done. When the API reports usage/actuals, record them
 (actualUsd in the cost log), estimates alone are not enough. And any UI fed
 by a live catalog must be tested against realistic catalog sizes (hundreds),
 not single-item mocks.
+
+### 2026-08-16 — $1.80 video clips surprised a $5 budget
+
+**What happened:** Angel animated 3 scenes at $1.80 each on a $5 balance.
+The video model picker showed no prices, Kairo sent no resolution (so the
+provider defaulted to an expensive tier — the model's listed $0.72 applied
+to a cheaper resolution), and one click submitted a charge with no
+confirmation. "Cost unknown, charged at submission" was honest but not
+protective.
+
+**Root cause:** The expensive generation kind got the WEAKEST cost UX in the
+app. Pricing data existed on the models endpoint but wasn't parsed; the main
+cost driver (resolution) wasn't user-controlled; and there was no friction
+between click and charge.
+
+**Rule going forward:** The more a generation kind can cost, the STRONGER its
+cost UX must be: (a) surface whatever pricing data the provider exposes, even
+imperfect ranges; (b) every parameter that drives cost (resolution, duration)
+must be user-visible and default to the cheapest option — never inherit a
+provider default silently; (c) any submission that can exceed ~$0.50 gets an
+explicit confirmation stating the price picture before money moves.

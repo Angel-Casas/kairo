@@ -128,7 +128,7 @@ describe('model listings', () => {
     expect(models[0]?.resolutions).toEqual(['1024x1024'])
   })
 
-  it('parses video models with capabilities', async () => {
+  it('parses video models with capabilities, price range, and resolutions', async () => {
     server.use(
       http.get(`${BASE}/v1/video-models`, () =>
         HttpResponse.json({
@@ -137,13 +137,36 @@ describe('model listings', () => {
             {
               id: 'vid-model',
               capabilities: { text_to_video: true, image_to_video: true },
+              pricing: {
+                currency: 'USD',
+                per_video: { '480p': 0.72, '1080p': 1.8 },
+              },
+              supported_parameters: { resolutions: ['480p', '1080p'] },
             },
+            { id: 'bare-vid' },
           ],
         }),
       ),
     )
     const models = await client().listVideoModels()
     expect(models[0]?.supportsImageToVideo).toBe(true)
+    expect(models[0]?.priceRangeUsd).toEqual({ min: 0.72, max: 1.8 })
+    expect(models[0]?.resolutions).toEqual(['480p', '1080p'])
+    expect(models[1]?.priceRangeUsd).toBeNull()
+    expect(models[1]?.resolutions).toEqual([])
+  })
+
+  it('extractPriceRange walks nested pricing shapes and skips metadata', async () => {
+    const { extractPriceRange } = await import('./nanogpt')
+    expect(
+      extractPriceRange({
+        currency: 'USD',
+        tiers: [{ price: 0.5 }, { price: 2 }],
+        per_second: 0.1,
+      }),
+    ).toEqual({ min: 0.1, max: 2 })
+    expect(extractPriceRange({ currency: 'USD' })).toBeNull()
+    expect(extractPriceRange(undefined)).toBeNull()
   })
 })
 

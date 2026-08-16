@@ -30,6 +30,8 @@ function job(
     remoteJobId: null,
     error: null,
     estimatedUsd: null,
+    prompt: null,
+    submittedCostUsd: null,
     createdAt: '2026-08-16T11:00:00.000Z',
     updatedAt: '2026-08-16T11:00:00.000Z',
     ...overrides,

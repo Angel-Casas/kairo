@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ImageModel, TextModel } from '../api/nanogpt'
+import type { ImageModel, TextModel, VideoModel } from '../api/nanogpt'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
 
@@ -129,6 +129,48 @@ export function TextModelPicker({
           ? `${m.name} — ${formatUsd(m.promptPricePerMTok)} in / ${formatUsd(m.completionPricePerMTok)} out per MTok`
           : `${m.name} — price unlisted`
       }
+      onSelect={onSelect}
+      onRetry={() => void load(true)}
+    />
+  )
+}
+
+export function VideoModelPicker({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: string | null
+  onSelect: (model: VideoModel) => void
+}) {
+  const models = useModelsStore((s) => s.videoModels)
+  const status = useModelsStore((s) => s.videoModelsStatus)
+  const load = useModelsStore((s) => s.loadVideoModels)
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  // Animation is image-to-video; hide models that can't do it.
+  const capable = useMemo(
+    () => models.filter((m) => m.supportsImageToVideo),
+    [models],
+  )
+
+  return (
+    <PickerShell
+      models={capable}
+      status={status}
+      selectedId={selectedId}
+      ariaLabel="Video model"
+      optionLabel={(m) => {
+        if (m.priceRangeUsd === null) {
+          return `${m.name} — price varies (charged at submission)`
+        }
+        const { min, max } = m.priceRangeUsd
+        return min === max
+          ? `${m.name} — ≈${formatUsd(min)} per clip`
+          : `${m.name} — ≈${formatUsd(min)}–${formatUsd(max)} per clip (depends on settings)`
+      }}
       onSelect={onSelect}
       onRetry={() => void load(true)}
     />

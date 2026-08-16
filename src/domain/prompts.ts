@@ -34,6 +34,20 @@ export function sceneBreakdownUserPrompt(script: string): string {
 }
 
 /**
+ * Motion prompt for animating a scene image into a clip. The image already
+ * carries the style; the prompt describes what should MOVE.
+ */
+export function buildVideoPrompt(visualDescription: string): string {
+  const description = visualDescription.trim()
+  return [
+    description,
+    'subtle natural motion, gentle cinematic camera drift, keep the original style and composition',
+  ]
+    .filter((p) => p.length > 0)
+    .join('. ')
+}
+
+/**
  * Compose the image prompt for a scene: style preset fragment (base look),
  * then project style notes (fine-tuning), then the scene's visual
  * description. Empty parts are skipped.

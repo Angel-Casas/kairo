@@ -43,6 +43,22 @@ describe('pickPortraitResolution', () => {
   })
 })
 
+describe('video resolution ranking', () => {
+  it('sorts tiers cheapest first across formats', async () => {
+    const { sortVideoResolutionsCheapestFirst } = await import('./resolution')
+    expect(
+      sortVideoResolutionsCheapestFirst(['4k', '1080p', '480p', '2k', '720p']),
+    ).toEqual(['480p', '720p', '1080p', '2k', '4k'])
+  })
+
+  it('ranks dimension strings by their larger side and unknowns last', async () => {
+    const { sortVideoResolutionsCheapestFirst } = await import('./resolution')
+    expect(
+      sortVideoResolutionsCheapestFirst(['auto', '1792x1024', '480p']),
+    ).toEqual(['480p', '1792x1024', 'auto'])
+  })
+})
+
 describe('getPerImagePriceUsd', () => {
   it('looks up the resolution price with separator drift', () => {
     const m = model({ perImageUsd: { '1024*1792': 0.02, '1024*1024': 0.01 } })

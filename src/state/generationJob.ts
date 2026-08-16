@@ -17,6 +17,7 @@ export async function withGenerationJob<T>(params: {
   kind: GenerationKind
   model: string
   estimatedUsd: number | null
+  prompt?: string
   run: () => Promise<T>
 }): Promise<JobOutcome<T>> {
   const repo = await getRepository()
@@ -30,6 +31,8 @@ export async function withGenerationJob<T>(params: {
     remoteJobId: null,
     error: null,
     estimatedUsd: params.estimatedUsd,
+    prompt: params.prompt ?? null,
+    submittedCostUsd: null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   }

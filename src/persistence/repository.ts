@@ -1,4 +1,4 @@
-import { normalizeProject } from '../domain/types'
+import { normalizeJob, normalizeProject } from '../domain/types'
 import type { GenerationJob, Project } from '../domain/types'
 import type { BlobStore } from './blobStore'
 import type { KairoDB } from './db'
@@ -56,10 +56,12 @@ export class Repository {
   }
 
   async getJobsByProject(projectId: string): Promise<GenerationJob[]> {
-    return this.db.getAllFromIndex('jobs', 'by-project', projectId)
+    const jobs = await this.db.getAllFromIndex('jobs', 'by-project', projectId)
+    return jobs.map(normalizeJob)
   }
 
   async listAllJobs(): Promise<GenerationJob[]> {
-    return this.db.getAll('jobs')
+    const jobs = await this.db.getAll('jobs')
+    return jobs.map(normalizeJob)
   }
 }
