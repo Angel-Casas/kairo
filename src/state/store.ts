@@ -1,19 +1,8 @@
 import { create } from 'zustand'
 import { createProject, type Project } from '../domain/types'
-import { createBlobStore } from '../persistence/blobStore'
-import { openKairoDB } from '../persistence/db'
-import { Repository } from '../persistence/repository'
+import { getRepository } from './repo'
 
 const nowIso = () => new Date().toISOString()
-
-let repositoryPromise: Promise<Repository> | null = null
-
-export function getRepository(): Promise<Repository> {
-  repositoryPromise ??= openKairoDB().then(
-    (db) => new Repository(db, createBlobStore()),
-  )
-  return repositoryPromise
-}
 
 interface AppState {
   loaded: boolean

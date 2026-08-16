@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiKeySettings } from './components/ApiKeySettings'
 import { ProjectList } from './components/ProjectList'
+import { ProjectView } from './components/ProjectView'
 import { formatUsd } from './lib/format'
 import { useAppStore } from './state/store'
 import { useSettingsStore } from './state/settings'
@@ -68,18 +69,13 @@ function App() {
         ) : !loaded ? (
           <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
         ) : selectedProject !== undefined ? (
-          <section>
-            <button type="button" onClick={() => select(null)}>
-              ← All projects
-            </button>
-            <h2 style={{ fontSize: 'var(--text-lg)' }}>
-              {selectedProject.title}
-            </h2>
-            <p style={{ color: 'var(--color-text-muted)' }}>
-              The pipeline (script → scenes → images → animation → export)
-              arrives in the next slices.
-            </p>
-          </section>
+          <ProjectView
+            projectId={selectedProject.id}
+            onBack={() => {
+              select(null)
+              void init()
+            }}
+          />
         ) : (
           <>
             {apiKey === null && (

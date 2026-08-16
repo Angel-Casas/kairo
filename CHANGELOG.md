@@ -2,6 +2,21 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 3 — Script stage (2026-08-16)
+
+- Pipeline shell: stage navigation (Script → Scenes → Images → Animation →
+  Export) with Script live and later stages disabled.
+- Script editor: debounced autosave to IndexedDB (+ flush on blur), character
+  count, lock/unlock with a downstream-impact confirmation.
+- AI generation: reusable text-model picker with real per-MTok prices,
+  estimated cost shown before generating (models without listed pricing show
+  "cost unknown" — never a fake $0.00), overwrite guard for existing text.
+- Generations run through persisted `GenerationJob`s (Slice 1 state machine)
+  and append cost log entries — the project spend history starts here.
+- Prompt templates live in `src/domain/prompts.ts` (model-facing, English).
+- Wired the real repo URL into `src/config.ts`.
+- Tests: 70 unit, 7 e2e (all NanoGPT endpoints mocked).
+
 ## Slice 2 — NanoGPT client & key management (2026-08-16)
 
 - Typed `NanoGptClient` covering check-balance, model listings (text with

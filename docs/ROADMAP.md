@@ -39,10 +39,15 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       mocked via Playwright routes). _Note: `REPO_URL` in src/config.ts still a
       placeholder — set it to the real GitHub repo URL._
 
-- [ ] **Slice 3 — Script stage.** Write a script manually or generate one with a
-      chosen text model; edit and lock the script. First real use of the **cost
-      estimate before every generation** pattern — establish it well here, every later
-      stage copies it.
+- [x] **Slice 3 — Script stage.** _(done 2026-08-16)_ Pipeline shell
+      (`StagesNav`, Script active, later stages visible-but-disabled); script
+      editor with debounced autosave + flush-on-blur, lock/unlock with
+      downstream warning; reusable `TextModelPicker` showing per-MTok prices;
+      generate panel with **upfront cost estimate** (`estimateChatCostUsd` —
+      unknown pricing shows "unknown", never $0.00), overwrite confirmation,
+      generation through a persisted `GenerationJob` + cost log entry; prompts
+      in `src/domain/prompts.ts`; repo singleton extracted to
+      `src/state/repo.ts`; real `REPO_URL` wired. 70 unit tests + 7 e2e.
 
 - [ ] **Slice 4 — Scene breakdown stage.** Split the locked script into an editable
       list of scenes (text excerpt + visual description each); model-assisted breakdown

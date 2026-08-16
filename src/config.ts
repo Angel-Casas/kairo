@@ -17,5 +17,4 @@ export const NANOGPT_REFERRAL_URL = 'https://nano-gpt.com/r/BnfJfghE'
 export const NANOGPT_API_KEYS_URL = 'https://nano-gpt.com/api'
 
 /** Public source repository (the "verify it yourself" link). */
-// TODO(angel): replace with the real GitHub repo URL once public.
-export const REPO_URL = 'https://github.com/'
+export const REPO_URL = 'https://github.com/Angel-Casas/kairo'

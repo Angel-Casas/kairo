@@ -16,9 +16,11 @@ test('project lifecycle: create → rename → survives reload → delete', asyn
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByText('Renamed test')).toBeVisible()
 
-  // Open the project (placeholder view), then back
+  // Open the project (pipeline view), then back
   await page.getByRole('button', { name: /Renamed test/ }).click()
-  await expect(page.getByText(/pipeline/)).toBeVisible()
+  await expect(
+    page.getByRole('navigation', { name: 'Pipeline stages' }),
+  ).toBeVisible()
   await page.getByRole('button', { name: '← All projects' }).click()
 
   // Survives a full reload (IndexedDB persistence)
