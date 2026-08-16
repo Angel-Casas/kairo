@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '../state/project'
 import { CostSummary } from './CostSummary'
+import { ImagesStage } from './ImagesStage'
 import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
 import { buildStages, StagesNav, type Stage } from './StagesNav'
@@ -80,6 +81,7 @@ export function ProjectView({
       <CostSummary />
       {stage === 'script' && <ScriptStage />}
       {stage === 'scenes' && <ScenesStage />}
+      {stage === 'images' && <ImagesStage />}
     </section>
   )
 }

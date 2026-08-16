@@ -70,8 +70,10 @@ test('generation shows an upfront estimate, fills the editor, and locks', async 
   await page
     .getByLabel('Generation instructions')
     .fill('The James Webb telescope')
-  await page.getByLabel('Filter models').fill('Mock')
-  await page.getByLabel('Text model').selectOption('mock/writer-1')
+  await page.getByLabel('Filter text models').fill('Mock')
+  await page
+    .getByLabel('Text model', { exact: true })
+    .selectOption('mock/writer-1')
   await expect(page.getByLabel('Estimated cost')).toContainText(
     'Estimated cost: up to ~$',
   )

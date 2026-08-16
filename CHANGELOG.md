@@ -2,6 +2,22 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 5 — Image stage (2026-08-16)
+
+- Style preset gallery (ADR-008): 16 curated artistic styles with prompt
+  fragments; thumbnail cards (name-tiles until pregenerated thumbnails are
+  committed); `scripts/generate-style-thumbnails.mjs` generates them once with
+  the same reference subject.
+- Per-scene image generation: image-model picker with per-image pricing,
+  automatic portrait resolution for 9:16 (handles x/* separator drift in
+  NanoGPT pricing keys), exact cost before every generation.
+- Results stored immediately in OPFS as append-only versions — regeneration
+  never destroys a paid image; active-version switching per scene.
+- Generate-all-missing with upfront total cost and progress display.
+- Prompt composition: style preset fragment + project style notes + scene
+  visual description + 9:16 framing hint.
+- Tests: 110 unit, 11 e2e (image results mocked with a real tiny PNG).
+
 ## Slice 4 — Scene breakdown stage (2026-08-16)
 
 - Scenes stage, unlocked by locking the script; stage availability is now

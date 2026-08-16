@@ -303,3 +303,170 @@ describe('project store — manual scene editing', () => {
     expect(stored?.styleNotes).toBe('watercolor, warm tones')
   })
 })
+
+import type { ImageModel } from '../api/nanogpt'
+
+const IMAGE_MODEL: ImageModel = {
+  id: 'img/model',
+  name: 'Image Model',
+  description: '',
+  perImageUsd: { '768*1344': 0.012 },
+  resolutions: ['768x1344'],
+  supportsImageToImage: false,
+}
+
+const PNG_B64 = btoa('fake-png-bytes')
+
+async function seedSceneProject() {
+  const project = await seedLockedProject()
+  await useProjectStore.getState().addScene()
+  const scene = useProjectStore.getState().project?.scenes[0]
+  useProjectStore
+    .getState()
+    .updateScene(scene?.id ?? '', { visualDescription: 'A castle at dawn' })
+  await useProjectStore.getState().flushProject()
+  return { project, sceneId: scene?.id ?? '' }
+}
+
+describe('project store — image generation', () => {
+  it('stores a base64 image as a new active version with cost log', async () => {
+    const { project, sceneId } = await seedSceneProject()
+    server.use(
+      http.post(`${BASE}/v1/images`, () =>
+        HttpResponse.json({ data: [{ b64_json: PNG_B64 }] }),
+      ),
+    )
+    await useProjectStore.getState().setStylePreset('watercolor')
+
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(true)
+
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    const scene = stored?.scenes[0]
+    expect(scene?.imageVersions).toHaveLength(1)
+    const version = scene?.imageVersions[0]
+    expect(scene?.activeImageVersionId).toBe(version?.id)
+    expect(version?.costUsd).toBe(0.012)
+    expect(version?.prompt).toContain('watercolor')
+    expect(version?.prompt).toContain('A castle at dawn')
+    const blob = await repo.blobs.get(version?.blobPath ?? '')
+    expect(blob).not.toBeNull()
+    expect(stored?.costLog.at(-1)?.actualUsd).toBe(0.012)
+    const jobs = await repo.getJobsByProject(project.id)
+    expect(jobs.at(-1)?.state).toBe('succeeded')
+    expect(jobs.at(-1)?.kind).toBe('image')
+  })
+
+  it('downloads URL results into the blob store', async () => {
+    const { project, sceneId } = await seedSceneProject()
+    server.use(
+      http.post(`${BASE}/v1/images`, () =>
+        HttpResponse.json({ data: [{ url: 'https://cdn.test/img.png' }] }),
+      ),
+      http.get('https://cdn.test/img.png', () =>
+        HttpResponse.arrayBuffer(
+          new TextEncoder().encode('png-from-url').buffer,
+          {
+            headers: { 'content-type': 'image/png' },
+          },
+        ),
+      ),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(true)
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    const version = stored?.scenes[0]?.imageVersions[0]
+    const blob = await repo.blobs.get(version?.blobPath ?? '')
+    expect(blob).not.toBeNull()
+  })
+
+  it('regeneration appends a version; the paid original survives', async () => {
+    const { project, sceneId } = await seedSceneProject()
+    server.use(
+      http.post(`${BASE}/v1/images`, () =>
+        HttpResponse.json({ data: [{ b64_json: PNG_B64 }] }),
+      ),
+    )
+    await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    const scene = stored?.scenes[0]
+    expect(scene?.imageVersions).toHaveLength(2)
+    expect(scene?.activeImageVersionId).toBe(scene?.imageVersions[1]?.id)
+    // Both blobs exist — nothing paid was lost.
+    for (const version of scene?.imageVersions ?? []) {
+      expect(await repo.blobs.get(version.blobPath)).not.toBeNull()
+    }
+    // Switching back works.
+    await useProjectStore
+      .getState()
+      .setActiveImageVersion(sceneId, scene?.imageVersions[0]?.id ?? '')
+    const after = await repo.getProject(project.id)
+    expect(after?.scenes[0]?.activeImageVersionId).toBe(
+      scene?.imageVersions[0]?.id,
+    )
+  })
+
+  it('marks the job failed and surfaces the error without a version', async () => {
+    const { project, sceneId } = await seedSceneProject()
+    server.use(
+      http.post(`${BASE}/v1/images`, () =>
+        HttpResponse.json({ message: 'model overloaded' }, { status: 503 }),
+      ),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(false)
+    expect(useProjectStore.getState().sceneImageStatus[sceneId]?.error).toBe(
+      'model overloaded',
+    )
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    expect(stored?.scenes[0]?.imageVersions).toHaveLength(0)
+    const jobs = await repo.getJobsByProject(project.id)
+    expect(jobs.at(-1)?.state).toBe('failed')
+  })
+
+  it('generateAllImages only fills scenes without versions', async () => {
+    const { sceneId } = await seedSceneProject()
+    await useProjectStore.getState().addScene()
+    const second = useProjectStore.getState().project?.scenes[1]
+    useProjectStore
+      .getState()
+      .updateScene(second?.id ?? '', { visualDescription: 'A dragon in fog' })
+    await useProjectStore.getState().flushProject()
+
+    let calls = 0
+    server.use(
+      http.post(`${BASE}/v1/images`, () => {
+        calls += 1
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    // Pre-fill the first scene.
+    await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(calls).toBe(1)
+
+    await useProjectStore.getState().generateAllImages(IMAGE_MODEL, '768x1344')
+    // Only the second scene needed one.
+    expect(calls).toBe(2)
+    const scenes = useProjectStore.getState().project?.scenes ?? []
+    expect(scenes.every((s) => s.imageVersions.length === 1)).toBe(true)
+    expect(useProjectStore.getState().allImagesProgress).toBeNull()
+  })
+})

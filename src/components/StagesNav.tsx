@@ -24,10 +24,9 @@ export function buildStages(project: Project): StageItem[] {
     {
       id: 'images',
       label: '3. Images',
-      available: false,
-      hint: hasScenes
-        ? 'Coming in a later slice'
-        : 'Break the script into scenes first',
+      available: scriptLocked && hasScenes,
+      hint:
+        scriptLocked && hasScenes ? null : 'Break the script into scenes first',
     },
     {
       id: 'animation',

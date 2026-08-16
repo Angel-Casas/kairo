@@ -59,12 +59,16 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       `normalizeProject` fills defaults for older stored projects. 93 unit
       tests + 9 e2e.
 
-- [ ] **Slice 5 — Image stage.** Per-scene image generation with model picker and
-      cost estimate; regeneration as versions (never overwrite — ADR pt. "never lose
-      paid assets"); pick the active version; vertical 9:16 framing; **style preset
-      gallery (ADR-008)**: curated styles with pregenerated same-subject thumbnails
-      (assets produced once via a documented script with Angel's key), composing
-      with free-text style notes in every image prompt.
+- [x] **Slice 5 — Image stage.** _(done 2026-08-16)_ Style preset gallery
+      (ADR-008): 16 curated presets in `src/domain/stylePresets.ts`, selectable
+      cards that degrade to name-tiles until thumbnails exist,
+      `scripts/generate-style-thumbnails.mjs` for Angel to pregenerate them
+      (~$0.20 one-time). Per-scene image generation: filterable image-model
+      picker with per-image prices, portrait-resolution auto-pick for 9:16
+      (`pickPortraitResolution`, x/* separator drift handled), exact cost shown
+      before every click, results (b64 or URL) downloaded straight into OPFS as
+      append-only `AssetVersion`s with active-version switching, jobs + cost log
+      actuals, generate-all-missing with total cost + progress. 110 unit tests + 11 e2e. _Angel: run the thumbnail script and commit public/styles/._
 
 - [ ] **Slice 6 — Animation stage.** Image-to-video per scene; async job handling
       with polling via the unified video status endpoint; **resumable across tab

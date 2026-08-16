@@ -32,3 +32,22 @@ export function sceneBreakdownSystemPrompt(): string {
 export function sceneBreakdownUserPrompt(script: string): string {
   return `Split this script into scenes:\n\n${script}`
 }
+
+/**
+ * Compose the image prompt for a scene: style preset fragment (base look),
+ * then project style notes (fine-tuning), then the scene's visual
+ * description. Empty parts are skipped.
+ */
+export function buildImagePrompt(params: {
+  stylePromptFragment: string | null
+  styleNotes: string
+  visualDescription: string
+}): string {
+  const parts = [
+    params.stylePromptFragment?.trim() ?? '',
+    params.styleNotes.trim(),
+    params.visualDescription.trim(),
+    'vertical 9:16 composition',
+  ].filter((p) => p.length > 0)
+  return parts.join('. ')
+}

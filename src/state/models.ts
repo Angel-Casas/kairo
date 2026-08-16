@@ -1,10 +1,10 @@
 import { create } from 'zustand'
-import type { TextModel } from '../api/nanogpt'
+import type { ImageModel, TextModel } from '../api/nanogpt'
 import { getClient } from './settings'
 import { useSettingsStore } from './settings'
 
 /**
- * Cached model catalog. Loaded once per session on demand; a manual reload
+ * Cached model catalogs. Loaded once per session on demand; a manual reload
  * is available from the UI if NanoGPT's catalog changes mid-session.
  */
 
@@ -14,11 +14,16 @@ interface ModelsState {
   textModels: TextModel[]
   textModelsStatus: CatalogStatus
   loadTextModels: (force?: boolean) => Promise<void>
+  imageModels: ImageModel[]
+  imageModelsStatus: CatalogStatus
+  loadImageModels: (force?: boolean) => Promise<void>
 }
 
 export const useModelsStore = create<ModelsState>((set, get) => ({
   textModels: [],
   textModelsStatus: 'idle',
+  imageModels: [],
+  imageModelsStatus: 'idle',
 
   loadTextModels: async (force = false) => {
     const { textModelsStatus } = get()
@@ -36,6 +41,25 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
       set({ textModels: models, textModelsStatus: 'ready' })
     } catch {
       set({ textModelsStatus: 'error' })
+    }
+  },
+
+  loadImageModels: async (force = false) => {
+    const { imageModelsStatus } = get()
+    if (
+      !force &&
+      (imageModelsStatus === 'ready' || imageModelsStatus === 'loading')
+    ) {
+      return
+    }
+    const apiKey = useSettingsStore.getState().apiKey
+    if (apiKey === null) return
+    set({ imageModelsStatus: 'loading' })
+    try {
+      const models = await getClient(apiKey).listImageModels()
+      set({ imageModels: models, imageModelsStatus: 'ready' })
+    } catch {
+      set({ imageModelsStatus: 'error' })
     }
   },
 }))

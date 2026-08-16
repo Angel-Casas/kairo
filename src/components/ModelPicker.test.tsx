@@ -32,7 +32,7 @@ describe('TextModelPicker', () => {
     render(<TextModelPicker selectedId={null} onSelect={() => undefined} />)
     expect(screen.getAllByRole('option')).toHaveLength(4) // placeholder + 3
 
-    await user.type(screen.getByLabelText('Filter models'), 'writer')
+    await user.type(screen.getByLabelText('Filter text models'), 'writer')
     const options = screen.getAllByRole('option')
     const labels = options.map((o) => o.textContent ?? '')
     expect(labels.some((l) => l.includes('Alpha Writer'))).toBe(true)
@@ -43,7 +43,7 @@ describe('TextModelPicker', () => {
   it('keeps the selected model in the list even when filtered out', async () => {
     const user = userEvent.setup()
     render(<TextModelPicker selectedId="b/beta" onSelect={() => undefined} />)
-    await user.type(screen.getByLabelText('Filter models'), 'writer')
+    await user.type(screen.getByLabelText('Filter text models'), 'writer')
     const labels = screen.getAllByRole('option').map((o) => o.textContent ?? '')
     expect(labels.some((l) => l.includes('Beta Coder'))).toBe(true)
   })

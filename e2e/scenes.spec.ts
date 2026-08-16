@@ -79,7 +79,9 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
   await page.getByRole('button', { name: '2. Scenes' }).click()
 
   // Generate with upfront estimate.
-  await page.getByLabel('Text model').selectOption('mock/writer-1')
+  await page
+    .getByLabel('Text model', { exact: true })
+    .selectOption('mock/writer-1')
   await expect(page.getByLabel('Estimated cost')).toContainText('up to ~$')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
@@ -128,7 +130,9 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
   ).not.toBeVisible()
 
   // Regenerating over existing scenes requires confirmation.
-  await page.getByLabel('Text model').selectOption('mock/writer-1')
+  await page
+    .getByLabel('Text model', { exact: true })
+    .selectOption('mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('button', { name: 'Replace and generate' }).click()
