@@ -34,6 +34,19 @@ test('API key flow: onboarding → validate → balance → survives reload → 
   await expect(page.getByLabel('NanoGPT balance')).toHaveText('Balance: $12.34')
   await expect(page.getByText(/needs your NanoGPT API key/)).not.toBeVisible()
 
+  // Account usage loads on demand.
+  await page.route('https://nano-gpt.com/api/v1/usage**', (route) =>
+    route.fulfill({
+      json: { object: 'usage', totals: { requests: 42, netCostUsd: 3.21 } },
+    }),
+  )
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Load usage' }).click()
+  await expect(page.getByLabel('Account usage totals')).toContainText(
+    '42 requests, $3.21 net spend',
+  )
+  await page.getByRole('button', { name: 'Back to projects' }).click()
+
   // Remove the key.
   await page.getByRole('button', { name: 'Settings' }).click()
   await page

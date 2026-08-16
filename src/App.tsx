@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ApiKeySettings } from './components/ApiKeySettings'
 import { ProjectList } from './components/ProjectList'
 import { ProjectView } from './components/ProjectView'
+import { useOnlineStatus } from './components/useOnlineStatus'
 import { formatUsd } from './lib/format'
 import { useAppStore } from './state/store'
 import { useSettingsStore } from './state/settings'
@@ -18,6 +19,7 @@ function App() {
   const balanceUsd = useSettingsStore((s) => s.balanceUsd)
   const initSettings = useSettingsStore((s) => s.initSettings)
   const [view, setView] = useState<View>('projects')
+  const online = useOnlineStatus()
 
   useEffect(() => {
     void init()
@@ -45,6 +47,20 @@ function App() {
             gap: 'var(--space-4)',
           }}
         >
+          {!online && (
+            <span
+              role="status"
+              style={{
+                color: 'var(--color-text-muted)',
+                fontSize: 'var(--text-sm)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius)',
+                padding: 'var(--space-1) var(--space-2)',
+              }}
+            >
+              Offline — generation needs a connection; your work is safe here.
+            </span>
+          )}
           {apiKey !== null && balanceUsd !== null && (
             <span
               aria-label="NanoGPT balance"

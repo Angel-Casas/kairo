@@ -16,6 +16,7 @@ export function buildStages(project: Project): StageItem[] {
   const hasActiveImage = project.scenes.some(
     (s) => s.activeImageVersionId !== null,
   )
+  const hasClip = project.scenes.some((s) => s.activeVideoVersionId !== null)
   return [
     { id: 'script', label: '1. Script', available: true, hint: null },
     {
@@ -43,8 +44,8 @@ export function buildStages(project: Project): StageItem[] {
     {
       id: 'export',
       label: '5. Export',
-      available: false,
-      hint: 'Coming in a later slice',
+      available: hasClip,
+      hint: hasClip ? null : 'Animate at least one scene first',
     },
   ]
 }

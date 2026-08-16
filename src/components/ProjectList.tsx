@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Project } from '../domain/types'
 import { useAppStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -6,7 +6,10 @@ import { ConfirmDialog } from './ConfirmDialog'
 export function ProjectList() {
   const projects = useAppStore((s) => s.projects)
   const createNewProject = useAppStore((s) => s.createNewProject)
+  const importProjectFile = useAppStore((s) => s.importProjectFile)
+  const importError = useAppStore((s) => s.importError)
   const [title, setTitle] = useState('')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   return (
     <section>
@@ -28,7 +31,32 @@ export function ProjectList() {
         <button type="submit" disabled={title.trim().length === 0}>
           Create project
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            fileInputRef.current?.click()
+          }}
+        >
+          Import project (.kairo)
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".kairo,application/zip"
+          aria-label="Import project file"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file !== undefined) void importProjectFile(file)
+            e.target.value = ''
+          }}
+        />
       </form>
+      {importError !== null && (
+        <p role="alert" style={{ color: 'var(--color-danger)' }}>
+          {importError}
+        </p>
+      )}
       {projects.length === 0 ? (
         <p style={{ color: 'var(--color-text-muted)' }}>
           No projects yet. Create one to get started.

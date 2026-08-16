@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 interface ConfirmDialogProps {
   title: string
   message: string
@@ -13,6 +15,21 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const cancelRef = useRef<HTMLButtonElement | null>(null)
+
+  // Move focus into the dialog on open (onto the safe choice) and let
+  // Escape cancel — basic dialog a11y.
+  useEffect(() => {
+    cancelRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onCancel])
+
   return (
     <div
       role="dialog"
@@ -45,7 +62,7 @@ export function ConfirmDialog({
             justifyContent: 'flex-end',
           }}
         >
-          <button type="button" onClick={onCancel}>
+          <button ref={cancelRef} type="button" onClick={onCancel}>
             Cancel
           </button>
           <button

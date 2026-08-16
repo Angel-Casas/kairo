@@ -82,13 +82,25 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       where no upfront price exists; `VideoModelPicker` filtered to
       image-to-video models. 116 unit tests + 14 e2e (incl. reload-resume).
 
-- [ ] **Slice 7 — Export.** Zip of numbered clips + script text file; optional
-      stitched draft MP4 via ffmpeg.wasm (ADR-004); export works for incomplete
-      projects (whatever is ready gets exported).
+- [x] **Slice 7 — Export.** _(done 2026-08-16)_ Export stage gated on first
+      clip: clips zip (`scene-01.mp4`… + `script.txt`, extension from mime,
+      works for incomplete projects with missing-scene summary); stitched
+      draft MP4 via lazily-loaded ffmpeg.wasm (~31 MB CDN core on first use,
+      stream-copy concat with clear mixed-codec error); `.kairo` project
+      backup button + import button on the project list (finishing Slice 1's
+      round-trip functions). 125 unit tests + 17 e2e (incl. real download
+      verification and a backup export→import round trip). _Stitched draft is
+      manual-test only — Angel: try it on a real project._
 
-- [ ] **Slice 8 — Hardening.** PWA installability + offline app shell; empty/
-      error/loading states pass; project cost dashboard (usage endpoint); a11y
-      basics. Function-complete checkpoint — everything works end to end.
+- [x] **Slice 8 — Hardening.** _(done 2026-08-16)_ Offline app shell verified
+      by an e2e that cuts the network and reloads (service worker precache);
+      header offline indicator; React error boundary (crash → recovery screen,
+      data safe in IndexedDB/OPFS); account usage section in Settings
+      (requests + net spend via the usage endpoint, completing the money
+      story: per-generation → per-project → per-account); a11y basics:
+      `:focus-visible` outlines, dialog focus-on-open + Escape-to-cancel.
+      130 unit tests + 18 e2e. **FUNCTION-COMPLETE — the whole pipeline works
+      end to end.** Remaining slices are polish and reach.
 
 - [ ] **Slice 9 — Design pass (ADR-007).** The dedicated aesthetics slice, done
       last: visual identity, real token values, component styling sweep, layout

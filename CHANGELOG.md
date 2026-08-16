@@ -2,6 +2,34 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 8 — Hardening (2026-08-16) — FUNCTION-COMPLETE
+
+- Offline: app shell loads with no network (service worker precache, verified
+  by e2e); header indicator explains that generation needs a connection while
+  local work stays available.
+- Crash safety: React error boundary shows a recovery screen instead of a
+  white page — all state is in IndexedDB/OPFS, so reload always recovers.
+- Account usage in Settings: requests + net spend for the current key, on
+  demand, completing per-generation → per-project → per-account cost
+  visibility.
+- A11y basics: visible :focus-visible outlines, ConfirmDialog focuses Cancel
+  on open and cancels on Escape, aria-modal announced.
+- Tests: 130 unit, 18 e2e (incl. offline reload).
+
+## Slice 7 — Export stage (2026-08-16)
+
+- Clips zip: scene clips numbered in order plus script.txt, built straight
+  from OPFS with fflate; works for incomplete projects and says which scenes
+  are missing.
+- Stitched draft MP4: ffmpeg.wasm loaded lazily from CDN on first use
+  (~31 MB, never on normal loads), stream-copy concatenation with a clear
+  error path for mixed-codec projects.
+- Project backup: .kairo download on the Export stage and an Import button on
+  the project list — completing the Slice 1 export/import functions with UI.
+- Export stage unlocks at the first finished clip.
+- Tests: 125 unit, 17 e2e including download content verification and a full
+  backup export→import round trip.
+
 ## Slice 6.1 — Video cost transparency (2026-08-16, from Angel's real-usage feedback)
 
 - Video model picker now shows each model's price range parsed from NanoGPT's

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useProjectStore } from '../state/project'
 import { AnimationStage } from './AnimationStage'
 import { CostSummary } from './CostSummary'
+import { ExportStage } from './ExportStage'
 import { ImagesStage } from './ImagesStage'
 import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
@@ -85,6 +86,7 @@ export function ProjectView({
       {stage === 'scenes' && <ScenesStage />}
       {stage === 'images' && <ImagesStage />}
       {stage === 'animation' && <AnimationStage />}
+      {stage === 'export' && <ExportStage />}
     </section>
   )
 }

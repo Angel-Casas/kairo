@@ -10,9 +10,13 @@ device. The code is open (AGPL-3.0) so you can verify that yourself.
 
 ## Status
 
-Early development — Slice 0 (foundation) done. See `docs/ROADMAP.md` for the
-plan, `docs/DECISIONS.md` for architecture decisions, and `CLAUDE.md` for
-project conventions.
+**Function-complete.** The full pipeline works end to end: script (write or
+generate) → scene breakdown → styled images with versions → animated clips
+(resumable async jobs) → export (clips zip, stitched draft, project backup).
+Costs are shown before every generation and actuals are logged per project
+and per account. Remaining work: visual design pass, i18n, deployment. See
+`docs/ROADMAP.md` for the plan, `docs/DECISIONS.md` for architecture
+decisions, and `CLAUDE.md` for project conventions.
 
 ## Development
 

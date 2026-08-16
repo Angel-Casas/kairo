@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { maskApiKey } from '../api/nanogpt'
+import { maskApiKey, type UsageTotals } from '../api/nanogpt'
 import { NANOGPT_REFERRAL_URL, REPO_URL } from '../config'
 import { formatUsd } from '../lib/format'
-import { useSettingsStore } from '../state/settings'
+import { getClient, useSettingsStore } from '../state/settings'
 
 export function ApiKeySettings() {
   const apiKey = useSettingsStore((s) => s.apiKey)
@@ -90,11 +90,63 @@ export function ApiKeySettings() {
               {keyError}
             </p>
           )}
+          <AccountUsage apiKey={apiKey} />
           <button type="button" onClick={removeKey}>
             Remove key from this device
           </button>
         </>
       )}
     </section>
+  )
+}
+
+function AccountUsage({ apiKey }: { apiKey: string }) {
+  const [usage, setUsage] = useState<UsageTotals | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+
+  const load = async () => {
+    setStatus('loading')
+    try {
+      setUsage(await getClient(apiKey).getUsage())
+      setStatus('idle')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius)',
+        padding: 'var(--space-3)',
+        margin: 'var(--space-4) 0',
+      }}
+    >
+      <h3 style={{ marginTop: 0, fontSize: 'var(--text-base)' }}>
+        Account usage (this key)
+      </h3>
+      {usage !== null ? (
+        <p aria-label="Account usage totals" style={{ margin: 0 }}>
+          {usage.requests} requests, {formatUsd(usage.netCostUsd)} net spend.{' '}
+          <button type="button" onClick={() => void load()}>
+            Refresh
+          </button>
+        </p>
+      ) : (
+        <button
+          type="button"
+          disabled={status === 'loading'}
+          onClick={() => void load()}
+        >
+          {status === 'loading' ? 'Loading…' : 'Load usage'}
+        </button>
+      )}
+      {status === 'error' && (
+        <p role="alert" style={{ color: 'var(--color-danger)' }}>
+          Usage could not be loaded. Check your connection and try again.
+        </p>
+      )}
+    </div>
   )
 }
