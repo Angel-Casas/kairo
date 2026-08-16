@@ -20,19 +20,24 @@ Status marks: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Slice 1 — Domain model & persistence.** _(done 2026-08-16)_ Domain types
       (`Project`/`Scene`/`AssetVersion`/`GenerationJob` + append-only cost log);
       job state machine as pure functions (`queued → submitted → polling →
-    succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
+succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       IndexedDB via `idb` (migration scaffold, v1) + `BlobStore` interface (OPFS
       impl + in-memory for tests/fallback); `.kairo` project export/import (zip
       via `fflate`, new-id-on-import, round-trip tested); `zustand` app store;
       bare project list UI (create/rename/delete-with-confirm). 35 unit tests +
       3 e2e (incl. reload persistence).
 
-- [ ] **Slice 2 — NanoGPT client & key management.** Typed API client (chat
-      completions, image gen, video gen + unified status polling, models + pricing,
-      check-balance, usage); MSW mocks for all of it; key entry screen with validation
-      via check-balance; key stored locally, never logged; balance display; onboarding
-      path for keyless users via the affiliate link (ADR-005 — verify referral mechanics
-      against NanoGPT docs first).
+- [x] **Slice 2 — NanoGPT client & key management.** _(done 2026-08-16)_ Typed
+      `NanoGptClient` (check-balance, text/image/video model listings with
+      pricing, chat completions, image gen, async video gen + unified status
+      polling, usage) with endpoint shapes verified against the docs; typed
+      errors, key never logged/leaked; MSW-mocked unit tests for every method;
+      settings store (key in localStorage, validate-on-save via check-balance,
+      revoked-key detection); settings UI with masked key, balance display in
+      header + refresh, referral onboarding link for keyless users (ADR-005 —
+      real link wired: nano-gpt.com/r/BnfJfghE). 57 unit tests + 5 e2e (network
+      mocked via Playwright routes). _Note: `REPO_URL` in src/config.ts still a
+      placeholder — set it to the real GitHub repo URL._
 
 - [ ] **Slice 3 — Script stage.** Write a script manually or generate one with a
       chosen text model; edit and lock the script. First real use of the **cost

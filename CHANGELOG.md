@@ -2,6 +2,23 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 2 — NanoGPT client & key management (2026-08-16)
+
+- Typed `NanoGptClient` covering check-balance, model listings (text with
+  per-MTok pricing, image with per-image pricing, video with capabilities),
+  OpenAI-compatible chat completions, image generation, async video generation
+  with unified status polling, and usage totals. Endpoint shapes verified
+  against the NanoGPT docs; typed `NanoGptError`/`InvalidApiKeyError`; the API
+  key is never logged or embedded in errors.
+- Settings store: key persisted in localStorage, validated via check-balance
+  before saving, masked display, revoked-key detection, balance refresh that
+  tolerates network errors.
+- UI: settings screen with onboarding for keyless users (referral link),
+  balance in the header, "needs your key" banner on the project list.
+- `src/config.ts`: single auditable constants file (base URL, referral URL).
+- Tests: 57 unit (client + settings store, all HTTP mocked with MSW), 5 e2e
+  (NanoGPT mocked via Playwright network routes).
+
 ## Slice 1 — Domain model & persistence (2026-08-16)
 
 - Domain types: `Project`, `Scene`, `AssetVersion` (append-only versions),
