@@ -148,7 +148,7 @@ describe('model listings', () => {
 })
 
 describe('chatComplete', () => {
-  it('sends OpenAI-shaped body and extracts the first choice', async () => {
+  it('sends OpenAI-shaped body with max_tokens and extracts choice + usage', async () => {
     let body: unknown
     server.use(
       http.post(`${BASE}/v1/chat/completions`, async ({ request }) => {
@@ -156,14 +156,36 @@ describe('chatComplete', () => {
         return HttpResponse.json({
           model: 'some/model',
           choices: [{ message: { role: 'assistant', content: 'Hello!' } }],
+          usage: { prompt_tokens: 117, completion_tokens: 192 },
         })
       }),
     )
-    const result = await client().chatComplete('some/model', [
-      { role: 'user', content: 'Hi' },
-    ])
+    const result = await client().chatComplete(
+      'some/model',
+      [{ role: 'user', content: 'Hi' }],
+      { maxTokens: 300 },
+    )
     expect(result.content).toBe('Hello!')
-    expect(body).toMatchObject({ model: 'some/model', stream: false })
+    expect(result.usage).toEqual({ promptTokens: 117, completionTokens: 192 })
+    expect(body).toMatchObject({
+      model: 'some/model',
+      stream: false,
+      max_tokens: 300,
+    })
+  })
+
+  it('returns null usage when the API omits it', async () => {
+    server.use(
+      http.post(`${BASE}/v1/chat/completions`, () =>
+        HttpResponse.json({
+          choices: [{ message: { role: 'assistant', content: 'Hi' } }],
+        }),
+      ),
+    )
+    const result = await client().chatComplete('m', [
+      { role: 'user', content: 'x' },
+    ])
+    expect(result.usage).toBeNull()
   })
 
   it('throws on unexpected response shapes', async () => {

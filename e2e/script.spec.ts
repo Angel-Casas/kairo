@@ -34,6 +34,7 @@ test.beforeEach(async ({ page }) => {
             },
           },
         ],
+        usage: { prompt_tokens: 117, completion_tokens: 192 },
       },
     }),
   )
@@ -69,9 +70,10 @@ test('generation shows an upfront estimate, fills the editor, and locks', async 
   await page
     .getByLabel('Generation instructions')
     .fill('The James Webb telescope')
+  await page.getByLabel('Filter models').fill('Mock')
   await page.getByLabel('Text model').selectOption('mock/writer-1')
   await expect(page.getByLabel('Estimated cost')).toContainText(
-    'Estimated cost: ~$',
+    'Estimated cost: up to ~$',
   )
 
   await page.getByRole('button', { name: 'Generate script' }).click()

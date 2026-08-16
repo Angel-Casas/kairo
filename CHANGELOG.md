@@ -2,6 +2,18 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 3.1 — Cost accuracy fixes (2026-08-16, from Angel's real-usage feedback)
+
+- Script output budget lowered 1000 → 300 tokens and now actually enforced by
+  sending `max_tokens`, so the estimate is a true ceiling (labeled "up to ~").
+  Real request that prompted this: estimate ~$0.003 vs actual $0.000592.
+- Actual costs now recorded: chat responses' token usage is parsed and priced
+  (`computeActualChatCostUsd`), stored as `actualUsd` in the cost log.
+- Model picker gained a filter box (NanoGPT lists hundreds of models); the
+  selected model stays choosable even when filtered out.
+- New LESSONS.md entry: estimates must be derived + enforced + validated
+  against a real request; catalog-fed UIs must be tested at realistic sizes.
+
 ## Slice 3 — Script stage (2026-08-16)
 
 - Pipeline shell: stage navigation (Script → Scenes → Images → Animation →

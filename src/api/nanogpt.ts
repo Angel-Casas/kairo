@@ -50,9 +50,16 @@ export interface ChatMessage {
   content: string
 }
 
+export interface ChatUsage {
+  promptTokens: number
+  completionTokens: number
+}
+
 export interface ChatCompletionResult {
   content: string
   model: string
+  /** Real token usage reported by the API, when available. */
+  usage: ChatUsage | null
 }
 
 export interface ImageGenerationParams {
@@ -242,20 +249,33 @@ export class NanoGptClient {
   async chatComplete(
     model: string,
     messages: ChatMessage[],
+    options?: { maxTokens?: number },
   ): Promise<ChatCompletionResult> {
     const data = (await this.request('POST', '/v1/chat/completions', {
       model,
       messages,
       stream: false,
+      ...(options?.maxTokens !== undefined
+        ? { max_tokens: options.maxTokens }
+        : {}),
     })) as {
       model?: string
       choices?: { message?: { content?: string } }[]
+      usage?: { prompt_tokens?: number; completion_tokens?: number }
     }
     const content = data.choices?.[0]?.message?.content
     if (typeof content !== 'string') {
       throw new NanoGptError(200, 'Unexpected chat completion response shape.')
     }
-    return { content, model: data.model ?? model }
+    const usage =
+      typeof data.usage?.prompt_tokens === 'number' &&
+      typeof data.usage.completion_tokens === 'number'
+        ? {
+            promptTokens: data.usage.prompt_tokens,
+            completionTokens: data.usage.completion_tokens,
+          }
+        : null
+    return { content, model: data.model ?? model, usage }
   }
 
   /** POST /v1/images — normalized image generation. */

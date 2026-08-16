@@ -9,8 +9,13 @@
 
 export const CHARS_PER_TOKEN = 4
 
-/** Output budget we request for a short-form script generation. */
-export const SCRIPT_OUTPUT_TOKEN_BUDGET = 1000
+/**
+ * Output budget we request for a short-form script generation. A ≤60s script
+ * is 120-150 words (~160-200 tokens); 300 leaves headroom without inflating
+ * the estimate. This value is ALSO sent as max_tokens, so the estimate is a
+ * true ceiling, not a guess (verified against real spend, 2026-08-16).
+ */
+export const SCRIPT_OUTPUT_TOKEN_BUDGET = 300
 
 export function estimateTokensFromText(text: string): number {
   if (text.length === 0) return 0
@@ -46,4 +51,31 @@ export function estimateChatCostUsd(params: ChatCostParams): number | null {
     (params.outputTokenBudget / 1_000_000) *
     (params.completionPricePerMTok ?? 0)
   return inputCost + outputCost
+}
+
+export interface ActualChatCostParams {
+  promptTokens: number
+  completionTokens: number
+  promptPricePerMTok: number | null
+  completionPricePerMTok: number | null
+}
+
+/**
+ * Actual USD cost computed from the API's reported token usage. Null when the
+ * model exposes no pricing. (Provider-side discounts may make the billed
+ * amount slightly lower — this is the list-price cost.)
+ */
+export function computeActualChatCostUsd(
+  params: ActualChatCostParams,
+): number | null {
+  if (
+    params.promptPricePerMTok === null &&
+    params.completionPricePerMTok === null
+  ) {
+    return null
+  }
+  return (
+    (params.promptTokens / 1_000_000) * (params.promptPricePerMTok ?? 0) +
+    (params.completionTokens / 1_000_000) * (params.completionPricePerMTok ?? 0)
+  )
 }

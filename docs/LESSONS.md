@@ -40,3 +40,26 @@ that does not permit unlink; git relies on deleting its lock files.
 (or a Cowork session running on the computer). Claude prepares files and
 suggests the commit message instead of running git through the device bridge.
 If git ever complains about `index.lock`, delete it manually: `rm .git/index.lock`.
+
+### 2026-08-16 — Cost estimate was ~5× the real cost
+
+**What happened:** The script stage estimated ~$0.003 for a generation that
+actually cost $0.000592 (Angel verified against NanoGPT's request log:
+117→192 tokens on Qwen3.8 27B). The output budget was set to 1000 tokens when
+a ≤60s script is ~200, and `max_tokens` was not even sent, so the "budget"
+constrained nothing. The model picker was also unusable: hundreds of models
+in one flat dropdown, including non-chat endpoints.
+
+**Root cause:** Estimate parameters were picked by feel instead of being
+derived from the actual output size the prompt asks for, and never checked
+against a real request. UI built against a 1-model mock never met the real
+catalog size.
+
+**Rule going forward:** Every cost estimate must (a) derive its output budget
+from what the prompt actually requests, (b) enforce that budget via the API's
+cap (`max_tokens` or equivalent) so the estimate is a true ceiling labeled
+"up to ~", and (c) be validated against at least one real request before the
+slice is called done. When the API reports usage/actuals, record them
+(actualUsd in the cost log), estimates alone are not enough. And any UI fed
+by a live catalog must be tested against realistic catalog sizes (hundreds),
+not single-item mocks.

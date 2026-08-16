@@ -167,7 +167,7 @@ export function ScriptStage() {
                   ? 'Pick a model to see the estimated cost.'
                   : estimatedUsd === null
                     ? 'Cost unknown for this model.'
-                    : `Estimated cost: ~${formatUsd(estimatedUsd)}`}
+                    : `Estimated cost: up to ~${formatUsd(estimatedUsd)}`}
               </span>
             </div>
             {genStatus === 'error' && genError !== null && (

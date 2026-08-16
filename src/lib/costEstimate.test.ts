@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeActualChatCostUsd,
   estimateChatCostUsd,
   estimateTokensFromText,
   SCRIPT_OUTPUT_TOKEN_BUDGET,
@@ -35,8 +36,8 @@ describe('estimateChatCostUsd', () => {
       promptPricePerMTok: 0,
       completionPricePerMTok: 5,
     })
-    // 1000 tokens at $5/MTok = $0.005
-    expect(cost).toBeCloseTo(0.005, 9)
+    // 300 tokens at $5/MTok = $0.0015
+    expect(cost).toBeCloseTo(0.0015, 9)
   })
 
   it('treats a missing side of pricing as zero when the other exists', () => {
@@ -56,6 +57,31 @@ describe('estimateChatCostUsd', () => {
       estimateChatCostUsd({
         promptText: 'hello',
         outputTokenBudget: 1000,
+        promptPricePerMTok: null,
+        completionPricePerMTok: null,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('computeActualChatCostUsd', () => {
+  it('matches a real NanoGPT request (Qwen3.8 27B, 117→192 tokens)', () => {
+    // Real request from 2026-08-16 billed $0.000592 (after a small discount);
+    // list price: 117/1M*$0.40 + 192/1M*$3.00 = $0.0006228.
+    const cost = computeActualChatCostUsd({
+      promptTokens: 117,
+      completionTokens: 192,
+      promptPricePerMTok: 0.4,
+      completionPricePerMTok: 3,
+    })
+    expect(cost).toBeCloseTo(0.0006228, 7)
+  })
+
+  it('returns null when the model has no pricing', () => {
+    expect(
+      computeActualChatCostUsd({
+        promptTokens: 100,
+        completionTokens: 100,
         promptPricePerMTok: null,
         completionPricePerMTok: null,
       }),

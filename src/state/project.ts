@@ -4,6 +4,7 @@ import { applyJobEvent } from '../domain/transitions'
 import { scriptSystemPrompt, scriptUserPrompt } from '../domain/prompts'
 import type { GenerationJob, Project } from '../domain/types'
 import {
+  computeActualChatCostUsd,
   estimateChatCostUsd,
   SCRIPT_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
@@ -134,12 +135,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await repo.putJob(job)
 
     try {
-      const result = await getClient(apiKey).chatComplete(model.id, [
-        { role: 'system', content: scriptSystemPrompt() },
-        { role: 'user', content: scriptUserPrompt(instructions) },
-      ])
+      const result = await getClient(apiKey).chatComplete(
+        model.id,
+        [
+          { role: 'system', content: scriptSystemPrompt() },
+          { role: 'user', content: scriptUserPrompt(instructions) },
+        ],
+        { maxTokens: SCRIPT_OUTPUT_TOKEN_BUDGET },
+      )
       job = applyJobEvent(job, { type: 'succeed' }, nowIso)
       await repo.putJob(job)
+
+      const actualUsd =
+        result.usage === null
+          ? null
+          : computeActualChatCostUsd({
+              promptTokens: result.usage.promptTokens,
+              completionTokens: result.usage.completionTokens,
+              promptPricePerMTok: model.promptPricePerMTok,
+              completionPricePerMTok: model.completionPricePerMTok,
+            })
 
       const current = get().project
       if (current === null) return false
@@ -154,7 +169,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             kind: 'text',
             model: model.id,
             estimatedUsd,
-            actualUsd: null,
+            actualUsd,
             note: 'Script generation',
           },
         ],

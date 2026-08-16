@@ -107,6 +107,7 @@ describe('project store — script generation', () => {
           choices: [
             { message: { role: 'assistant', content: '  A great script.  ' } },
           ],
+          usage: { prompt_tokens: 117, completion_tokens: 192 },
         }),
       ),
     )
@@ -124,6 +125,12 @@ describe('project store — script generation', () => {
     expect(stored?.costLog).toHaveLength(1)
     expect(stored?.costLog[0]?.kind).toBe('text')
     expect(stored?.costLog[0]?.estimatedUsd).toBeGreaterThan(0)
+    // Actual cost from usage: 117/1M*$2 + 192/1M*$10 = $0.002154
+    expect(stored?.costLog[0]?.actualUsd).toBeCloseTo(0.002154, 7)
+    // The estimate is a ceiling: actual must not exceed it.
+    expect(stored?.costLog[0]?.actualUsd ?? 0).toBeLessThanOrEqual(
+      stored?.costLog[0]?.estimatedUsd ?? 0,
+    )
 
     const jobs = await repo.getJobsByProject(project.id)
     expect(jobs).toHaveLength(1)
