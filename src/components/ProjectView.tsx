@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '../state/project'
+import { CostSummary } from './CostSummary'
 import { ScriptStage } from './ScriptStage'
 import { StagesNav, type Stage } from './StagesNav'
 
@@ -63,6 +64,7 @@ export function ProjectView({
         </h2>
       </div>
       <StagesNav active={stage} onSelect={setStage} />
+      <CostSummary />
       {stage === 'script' && <ScriptStage />}
     </section>
   )

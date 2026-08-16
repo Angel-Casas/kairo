@@ -2,6 +2,13 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 3.2 — Visible project spend (2026-08-16, from Angel's feedback)
+
+- New `CostSummary` in the project view: total spend (actuals preferred,
+  estimates as fallback) with an expandable per-generation breakdown showing
+  estimate vs. actual side by side. Previously actuals were recorded but not
+  displayed anywhere before Slice 8.
+
 ## Slice 3.1 — Cost accuracy fixes (2026-08-16, from Angel's real-usage feedback)
 
 - Script output budget lowered 1000 → 300 tokens and now actually enforced by

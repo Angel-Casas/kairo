@@ -81,6 +81,14 @@ test('generation shows an upfront estimate, fills the editor, and locks', async 
     'Generated narration about space.',
   )
 
+  // Spend summary appears with the actual cost from usage:
+  // 117/1M*$2 + 192/1M*$10 = $0.002154
+  await expect(page.getByLabel('Project spend')).toContainText(
+    'Project spend: $0.0022 (1 generation)',
+  )
+  await page.getByRole('button', { name: 'Details' }).click()
+  await expect(page.getByText(/actual \$0\.0022/)).toBeVisible()
+
   // Regenerating over existing text requires confirmation.
   await page.getByRole('button', { name: 'Generate script' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
