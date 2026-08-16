@@ -17,11 +17,15 @@ Status marks: `[ ]` not started · `[~]` in progress · `[x]` done
       helpers. Commands filled into CLAUDE.md. _Still to do by Angel: create the
       GitHub repo and push._
 
-- [ ] **Slice 1 — Domain model & persistence.** `Project` / `Scene` / `AssetVersion`
-      types; the scene state machine (`pending → generating → ready | failed`);
-      IndexedDB (project docs) + OPFS (binaries) persistence layer; project
-      export/import as a file. **Thorough unit tests — this is the most-tested code in
-      the app.** No UI beyond a bare project list.
+- [x] **Slice 1 — Domain model & persistence.** _(done 2026-08-16)_ Domain types
+      (`Project`/`Scene`/`AssetVersion`/`GenerationJob` + append-only cost log);
+      job state machine as pure functions (`queued → submitted → polling →
+    succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
+      IndexedDB via `idb` (migration scaffold, v1) + `BlobStore` interface (OPFS
+      impl + in-memory for tests/fallback); `.kairo` project export/import (zip
+      via `fflate`, new-id-on-import, round-trip tested); `zustand` app store;
+      bare project list UI (create/rename/delete-with-confirm). 35 unit tests +
+      3 e2e (incl. reload persistence).
 
 - [ ] **Slice 2 — NanoGPT client & key management.** Typed API client (chat
       completions, image gen, video gen + unified status polling, models + pricing,

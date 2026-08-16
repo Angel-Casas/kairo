@@ -28,3 +28,15 @@ note that it was promoted.
 ## Entries
 
 _None yet — project started 2026-08-16. May this file grow slowly._
+
+### 2026-08-16 — Device-bridge git leaves stale lock files
+
+**What happened:** Committing from the cloud session onto the local Kairo folder
+worked, but the mount forbids file deletion, so git left `.git/index.lock` (and
+tmp object files) behind, which blocks future git write operations.
+**Root cause:** Cowork cloud sessions write to the local folder through a mount
+that does not permit unlink; git relies on deleting its lock files.
+**Rule going forward:** Git commits/pushes are run by Angel in a local terminal
+(or a Cowork session running on the computer). Claude prepares files and
+suggests the commit message instead of running git through the device bridge.
+If git ever complains about `index.lock`, delete it manually: `rm .git/index.lock`.
