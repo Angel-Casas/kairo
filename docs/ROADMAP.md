@@ -104,3 +104,9 @@ sync across devices; community template sharing.
 Every ~4 slices: a dedicated refactor/review session — no new features, just code
 health, dependency updates, and a LESSONS.md review. Keep a CHANGELOG.md from
 Slice 0 onward.
+
+- 2026-08-16 (after Slice 5): extracted `withGenerationJob` (deduplicated job
+  lifecycle across all three generators), moved `buildStages` to
+  `src/domain/stages.ts` (lint warnings now zero), shared e2e fixtures in
+  `e2e/helpers.ts`. Deps current except TypeScript 7 / @types/node 26 majors —
+  deferred to a future maintenance pass. LESSONS rules audited: all compliant.

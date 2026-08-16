@@ -2,6 +2,19 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Maintenance — refactor/review session (2026-08-16)
+
+- Extracted `src/state/generationJob.ts` (`withGenerationJob`): the persisted
+  queued → submitted → succeeded/failed lifecycle, previously duplicated in
+  script, scene-breakdown, and image generation, now lives in one place —
+  Slice 6's video generation will build on it too.
+- Moved `buildStages` into `src/domain/stages.ts`; lint warnings down to zero.
+- Deduplicated e2e setup into `e2e/helpers.ts` (shared NanoGPT mocks, key
+  onboarding, project creation).
+- Dependency audit: everything current except TypeScript 7 and @types/node 26
+  majors, deliberately deferred. LESSONS.md rules audited against the code —
+  all compliant. No behavior changes; full suite stayed green throughout.
+
 ## Slice 5 — Image stage (2026-08-16)
 
 - Style preset gallery (ADR-008): 16 curated artistic styles with prompt

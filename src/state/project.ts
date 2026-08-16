@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { ImageModel, TextModel } from '../api/nanogpt'
-import { applyJobEvent } from '../domain/transitions'
 import {
   buildImagePrompt,
   sceneBreakdownSystemPrompt,
@@ -8,15 +7,10 @@ import {
   scriptSystemPrompt,
   scriptUserPrompt,
 } from '../domain/prompts'
-import { parseSceneBreakdown, SceneParseError } from '../domain/sceneParser'
+import { parseSceneBreakdown } from '../domain/sceneParser'
 import { getStylePreset } from '../domain/stylePresets'
 import { createScene } from '../domain/types'
-import type {
-  AssetVersion,
-  GenerationJob,
-  Project,
-  Scene,
-} from '../domain/types'
+import type { AssetVersion, Project, Scene } from '../domain/types'
 import {
   computeActualChatCostUsd,
   estimateChatCostUsd,
@@ -24,6 +18,7 @@ import {
   SCRIPT_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { getPerImagePriceUsd } from '../lib/resolution'
+import { withGenerationJob } from './generationJob'
 import { getClient } from './settings'
 import { getRepository } from './repo'
 import { useSettingsStore } from './settings'
@@ -160,7 +155,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
     set({ scriptGenStatus: 'generating', scriptGenError: null })
 
-    const repo = await getRepository()
     const promptText = `${scriptSystemPrompt()}\n${scriptUserPrompt(instructions)}`
     const estimatedUsd = estimateChatCostUsd({
       promptText,
@@ -169,84 +163,61 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       completionPricePerMTok: model.completionPricePerMTok,
     })
 
-    let job: GenerationJob = {
-      id: crypto.randomUUID(),
+    const outcome = await withGenerationJob({
       projectId: project.id,
       sceneId: null,
       kind: 'text',
       model: model.id,
-      state: 'queued',
-      remoteJobId: null,
-      error: null,
       estimatedUsd,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    }
-    await repo.putJob(job)
-    job = applyJobEvent(job, { type: 'submit', remoteJobId: null }, nowIso)
-    await repo.putJob(job)
+      run: () =>
+        getClient(apiKey).chatComplete(
+          model.id,
+          [
+            { role: 'system', content: scriptSystemPrompt() },
+            { role: 'user', content: scriptUserPrompt(instructions) },
+          ],
+          { maxTokens: SCRIPT_OUTPUT_TOKEN_BUDGET },
+        ),
+    })
 
-    try {
-      const result = await getClient(apiKey).chatComplete(
-        model.id,
-        [
-          { role: 'system', content: scriptSystemPrompt() },
-          { role: 'user', content: scriptUserPrompt(instructions) },
-        ],
-        { maxTokens: SCRIPT_OUTPUT_TOKEN_BUDGET },
-      )
-      job = applyJobEvent(job, { type: 'succeed' }, nowIso)
-      await repo.putJob(job)
-
-      const actualUsd =
-        result.usage === null
-          ? null
-          : computeActualChatCostUsd({
-              promptTokens: result.usage.promptTokens,
-              completionTokens: result.usage.completionTokens,
-              promptPricePerMTok: model.promptPricePerMTok,
-              completionPricePerMTok: model.completionPricePerMTok,
-            })
-
-      const current = get().project
-      if (current === null) return false
-      const updated: Project = {
-        ...current,
-        script: { ...current.script, text: result.content.trim() },
-        costLog: [
-          ...current.costLog,
-          {
-            id: crypto.randomUUID(),
-            at: nowIso(),
-            kind: 'text',
-            model: model.id,
-            estimatedUsd,
-            actualUsd,
-            note: 'Script generation',
-          },
-        ],
-        updatedAt: nowIso(),
-      }
-      set({ project: updated, scriptGenStatus: 'idle' })
-      await persistProject(updated)
-      return true
-    } catch (error) {
-      job = applyJobEvent(
-        job,
-        {
-          type: 'fail',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-        nowIso,
-      )
-      await repo.putJob(job)
-      set({
-        scriptGenStatus: 'error',
-        scriptGenError:
-          error instanceof Error ? error.message : 'Generation failed.',
-      })
+    if (!outcome.ok) {
+      set({ scriptGenStatus: 'error', scriptGenError: outcome.error.message })
       return false
     }
+    const result = outcome.value
+
+    const actualUsd =
+      result.usage === null
+        ? null
+        : computeActualChatCostUsd({
+            promptTokens: result.usage.promptTokens,
+            completionTokens: result.usage.completionTokens,
+            promptPricePerMTok: model.promptPricePerMTok,
+            completionPricePerMTok: model.completionPricePerMTok,
+          })
+
+    const current = get().project
+    if (current === null) return false
+    const updated: Project = {
+      ...current,
+      script: { ...current.script, text: result.content.trim() },
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'text',
+          model: model.id,
+          estimatedUsd,
+          actualUsd,
+          note: 'Script generation',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    set({ project: updated, scriptGenStatus: 'idle' })
+    await persistProject(updated)
+    return true
   },
 
   updateStyleNotes: (text: string) => {
@@ -335,7 +306,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
     set({ scenesGenStatus: 'generating', scenesGenError: null })
 
-    const repo = await getRepository()
     const promptText = `${sceneBreakdownSystemPrompt()}\n${sceneBreakdownUserPrompt(project.script.text)}`
     const estimatedUsd = estimateChatCostUsd({
       promptText,
@@ -344,97 +314,71 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       completionPricePerMTok: model.completionPricePerMTok,
     })
 
-    let job: GenerationJob = {
-      id: crypto.randomUUID(),
+    const outcome = await withGenerationJob({
       projectId: project.id,
       sceneId: null,
       kind: 'text',
       model: model.id,
-      state: 'queued',
-      remoteJobId: null,
-      error: null,
       estimatedUsd,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    }
-    await repo.putJob(job)
-    job = applyJobEvent(job, { type: 'submit', remoteJobId: null }, nowIso)
-    await repo.putJob(job)
+      run: async () => {
+        const result = await getClient(apiKey).chatComplete(
+          model.id,
+          [
+            { role: 'system', content: sceneBreakdownSystemPrompt() },
+            {
+              role: 'user',
+              content: sceneBreakdownUserPrompt(project.script.text),
+            },
+          ],
+          { maxTokens: SCENES_OUTPUT_TOKEN_BUDGET },
+        )
+        return { parsed: parseSceneBreakdown(result.content), result }
+      },
+    })
 
-    try {
-      const result = await getClient(apiKey).chatComplete(
-        model.id,
-        [
-          { role: 'system', content: sceneBreakdownSystemPrompt() },
-          {
-            role: 'user',
-            content: sceneBreakdownUserPrompt(project.script.text),
-          },
-        ],
-        { maxTokens: SCENES_OUTPUT_TOKEN_BUDGET },
-      )
-      const parsed = parseSceneBreakdown(result.content)
-      job = applyJobEvent(job, { type: 'succeed' }, nowIso)
-      await repo.putJob(job)
-
-      const actualUsd =
-        result.usage === null
-          ? null
-          : computeActualChatCostUsd({
-              promptTokens: result.usage.promptTokens,
-              completionTokens: result.usage.completionTokens,
-              promptPricePerMTok: model.promptPricePerMTok,
-              completionPricePerMTok: model.completionPricePerMTok,
-            })
-
-      const current = get().project
-      if (current === null) return false
-      const scenes: Scene[] = parsed.map((p, index) => ({
-        ...createScene(index),
-        textExcerpt: p.textExcerpt,
-        visualDescription: p.visualDescription,
-      }))
-      const updated: Project = {
-        ...current,
-        scenes,
-        costLog: [
-          ...current.costLog,
-          {
-            id: crypto.randomUUID(),
-            at: nowIso(),
-            kind: 'text',
-            model: model.id,
-            estimatedUsd,
-            actualUsd,
-            note: 'Scene breakdown',
-          },
-        ],
-        updatedAt: nowIso(),
-      }
-      set({ project: updated, scenesGenStatus: 'idle' })
-      await persistProject(updated)
-      return true
-    } catch (error) {
-      job = applyJobEvent(
-        job,
-        {
-          type: 'fail',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-        nowIso,
-      )
-      await repo.putJob(job)
-      set({
-        scenesGenStatus: 'error',
-        scenesGenError:
-          error instanceof SceneParseError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : 'Scene breakdown failed.',
-      })
+    if (!outcome.ok) {
+      set({ scenesGenStatus: 'error', scenesGenError: outcome.error.message })
       return false
     }
+    const { parsed, result } = outcome.value
+
+    const actualUsd =
+      result.usage === null
+        ? null
+        : computeActualChatCostUsd({
+            promptTokens: result.usage.promptTokens,
+            completionTokens: result.usage.completionTokens,
+            promptPricePerMTok: model.promptPricePerMTok,
+            completionPricePerMTok: model.completionPricePerMTok,
+          })
+
+    const current = get().project
+    if (current === null) return false
+    const scenes: Scene[] = parsed.map((p, index) => ({
+      ...createScene(index),
+      textExcerpt: p.textExcerpt,
+      visualDescription: p.visualDescription,
+    }))
+    const updated: Project = {
+      ...current,
+      scenes,
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'text',
+          model: model.id,
+          estimatedUsd,
+          actualUsd,
+          note: 'Scene breakdown',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    set({ project: updated, scenesGenStatus: 'idle' })
+    await persistProject(updated)
+    return true
   },
   setStylePreset: async (presetId: string | null) => {
     const { project } = get()
@@ -493,123 +437,99 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
     const priceUsd = getPerImagePriceUsd(model, resolution)
 
-    let job: GenerationJob = {
-      id: crypto.randomUUID(),
+    const outcome = await withGenerationJob({
       projectId: project.id,
       sceneId,
       kind: 'image',
       model: model.id,
-      state: 'queued',
-      remoteJobId: null,
-      error: null,
       estimatedUsd: priceUsd,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    }
-    await repo.putJob(job)
-    job = applyJobEvent(job, { type: 'submit', remoteJobId: null }, nowIso)
-    await repo.putJob(job)
+      run: async () => {
+        const images = await getClient(apiKey).generateImage({
+          model: model.id,
+          prompt,
+          ...(resolution !== null ? { resolution } : { aspectRatio: '9:16' }),
+          n: 1,
+        })
+        const image = images[0]
+        if (image === undefined) throw new Error('No image was returned.')
 
-    try {
-      const images = await getClient(apiKey).generateImage({
-        model: model.id,
-        prompt,
-        ...(resolution !== null ? { resolution } : { aspectRatio: '9:16' }),
-        n: 1,
-      })
-      const image = images[0]
-      if (image === undefined) throw new Error('No image was returned.')
-
-      let blob: Blob
-      if (image.b64Json !== null) {
-        const binary = atob(image.b64Json)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i += 1) {
-          bytes[i] = binary.charCodeAt(i)
+        let blob: Blob
+        if (image.b64Json !== null) {
+          const binary = atob(image.b64Json)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i)
+          }
+          blob = new Blob([bytes.buffer], { type: 'image/png' })
+        } else if (image.url !== null) {
+          const response = await fetch(image.url)
+          if (!response.ok) {
+            throw new Error('The generated image could not be downloaded.')
+          }
+          blob = await response.blob()
+        } else {
+          throw new Error('The response contained no image data.')
         }
-        blob = new Blob([bytes.buffer], { type: 'image/png' })
-      } else if (image.url !== null) {
-        const response = await fetch(image.url)
-        if (!response.ok) {
-          throw new Error('The generated image could not be downloaded.')
-        }
-        blob = await response.blob()
-      } else {
-        throw new Error('The response contained no image data.')
-      }
 
-      const versionId = crypto.randomUUID()
-      const blobPath = `${project.id}/${versionId}`
-      await repo.blobs.put(blobPath, blob)
+        const versionId = crypto.randomUUID()
+        const blobPath = `${project.id}/${versionId}`
+        await repo.blobs.put(blobPath, blob)
+        return { blob, versionId, blobPath }
+      },
+    })
 
-      job = applyJobEvent(job, { type: 'succeed' }, nowIso)
-      await repo.putJob(job)
-
-      const current = get().project
-      if (current === null) return false
-      const version: AssetVersion = {
-        id: versionId,
-        kind: 'image',
-        model: model.id,
-        prompt,
-        costUsd: priceUsd,
-        blobPath,
-        mimeType: blob.type.length > 0 ? blob.type : 'image/png',
-        createdAt: nowIso(),
-      }
-      const updated: Project = {
-        ...current,
-        scenes: current.scenes.map((s) =>
-          s.id === sceneId
-            ? {
-                ...s,
-                imageVersions: [...s.imageVersions, version],
-                activeImageVersionId: version.id,
-              }
-            : s,
-        ),
-        costLog: [
-          ...current.costLog,
-          {
-            id: crypto.randomUUID(),
-            at: nowIso(),
-            kind: 'image',
-            model: model.id,
-            estimatedUsd: priceUsd,
-            actualUsd: priceUsd,
-            note: 'Scene image',
-          },
-        ],
-        updatedAt: nowIso(),
-      }
-      const { [sceneId]: _done, ...restStatus } = get().sceneImageStatus
-      set({ project: updated, sceneImageStatus: restStatus })
-      await persistProject(updated)
-      return true
-    } catch (error) {
-      job = applyJobEvent(
-        job,
-        {
-          type: 'fail',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-        nowIso,
-      )
-      await repo.putJob(job)
+    if (!outcome.ok) {
       set({
         sceneImageStatus: {
           ...get().sceneImageStatus,
-          [sceneId]: {
-            generating: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Image generation failed.',
-          },
+          [sceneId]: { generating: false, error: outcome.error.message },
         },
       })
       return false
     }
+    const { blob, versionId, blobPath } = outcome.value
+
+    const current = get().project
+    if (current === null) return false
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'image',
+      model: model.id,
+      prompt,
+      costUsd: priceUsd,
+      blobPath,
+      mimeType: blob.type.length > 0 ? blob.type : 'image/png',
+      createdAt: nowIso(),
+    }
+    const updated: Project = {
+      ...current,
+      scenes: current.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              imageVersions: [...s.imageVersions, version],
+              activeImageVersionId: version.id,
+            }
+          : s,
+      ),
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'image',
+          model: model.id,
+          estimatedUsd: priceUsd,
+          actualUsd: priceUsd,
+          note: 'Scene image',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    const { [sceneId]: _done, ...restStatus } = get().sceneImageStatus
+    set({ project: updated, sceneImageStatus: restStatus })
+    await persistProject(updated)
+    return true
   },
 
   generateAllImages: async (model: ImageModel, resolution: string | null) => {

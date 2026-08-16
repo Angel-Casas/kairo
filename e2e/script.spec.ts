@@ -1,53 +1,20 @@
 import { expect, test } from '@playwright/test'
-
-const API = 'https://nano-gpt.com/api'
+import {
+  createAndOpenProject,
+  mockBalance,
+  mockChatCompletion,
+  mockTextModels,
+  setUpApiKey,
+} from './helpers'
 
 test.beforeEach(async ({ page }) => {
-  // Every NanoGPT endpoint is mocked — e2e never spends real money.
-  await page.route(`${API}/check-balance`, (route) =>
-    route.fulfill({ json: { usd_balance: '25.00' } }),
-  )
-  await page.route(`${API}/v1/models?detailed=true`, (route) =>
-    route.fulfill({
-      json: {
-        object: 'list',
-        data: [
-          {
-            id: 'mock/writer-1',
-            name: 'Mock Writer',
-            description: 'test model',
-            pricing: { prompt: 2, completion: 10 },
-          },
-        ],
-      },
-    }),
-  )
-  await page.route(`${API}/v1/chat/completions`, (route) =>
-    route.fulfill({
-      json: {
-        model: 'mock/writer-1',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: 'Generated narration about space.',
-            },
-          },
-        ],
-        usage: { prompt_tokens: 117, completion_tokens: 192 },
-      },
-    }),
-  )
+  await mockBalance(page)
+  await mockTextModels(page)
+  await mockChatCompletion(page, 'Generated narration about space.')
 
-  // Set up a key and a project.
   await page.goto('/')
-  await page.getByRole('button', { name: 'Set up your key' }).click()
-  await page.getByLabel('NanoGPT API key').fill('e2e-key-0001')
-  await page.getByRole('button', { name: 'Validate & save' }).click()
-  await page.getByRole('button', { name: 'Back to projects' }).click()
-  await page.getByLabel('New project title').fill('Script test')
-  await page.getByRole('button', { name: 'Create project' }).click()
-  await page.getByRole('button', { name: /Script test/ }).click()
+  await setUpApiKey(page)
+  await createAndOpenProject(page, 'Script test')
   await expect(
     page.getByRole('navigation', { name: 'Pipeline stages' }),
   ).toBeVisible()

@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test'
-
-const API = 'https://nano-gpt.com/api'
-
-// 1x1 red pixel PNG.
-const TINY_PNG_B64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+import {
+  createAndOpenProject,
+  mockBalance,
+  mockChatCompletion,
+  mockImageGeneration,
+  mockImageModels,
+  mockTextModels,
+  setUpApiKey,
+} from './helpers'
 
 const BREAKDOWN = [
   {
@@ -18,70 +21,16 @@ const BREAKDOWN = [
 ]
 
 test.beforeEach(async ({ page }) => {
-  // All NanoGPT calls mocked — no real spend.
-  await page.route(`${API}/check-balance`, (route) =>
-    route.fulfill({ json: { usd_balance: '25.00' } }),
-  )
-  await page.route(`${API}/v1/models?detailed=true`, (route) =>
-    route.fulfill({
-      json: {
-        object: 'list',
-        data: [
-          {
-            id: 'mock/writer-1',
-            name: 'Mock Writer',
-            pricing: { prompt: 2, completion: 10 },
-          },
-        ],
-      },
-    }),
-  )
-  await page.route(`${API}/v1/image-models?detailed=true`, (route) =>
-    route.fulfill({
-      json: {
-        object: 'list',
-        data: [
-          {
-            id: 'mock/painter-1',
-            name: 'Mock Painter',
-            pricing: { per_image: { '768*1344': 0.012 }, currency: 'USD' },
-            capabilities: { image_to_image: false },
-            supported_parameters: { resolutions: ['768x1344'] },
-          },
-        ],
-        meta: { count: 1, generated_at: '2026-08-16T00:00:00Z' },
-      },
-    }),
-  )
-  await page.route(`${API}/v1/chat/completions`, (route) =>
-    route.fulfill({
-      json: {
-        model: 'mock/writer-1',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: JSON.stringify(BREAKDOWN),
-            },
-          },
-        ],
-        usage: { prompt_tokens: 100, completion_tokens: 100 },
-      },
-    }),
-  )
-  await page.route(`${API}/v1/images`, (route) =>
-    route.fulfill({ json: { data: [{ b64_json: TINY_PNG_B64 }] } }),
-  )
+  await mockBalance(page)
+  await mockTextModels(page)
+  await mockImageModels(page)
+  await mockChatCompletion(page, JSON.stringify(BREAKDOWN))
+  await mockImageGeneration(page)
 
   // Key + project + locked script + scenes.
   await page.goto('/')
-  await page.getByRole('button', { name: 'Set up your key' }).click()
-  await page.getByLabel('NanoGPT API key').fill('e2e-key-0003')
-  await page.getByRole('button', { name: 'Validate & save' }).click()
-  await page.getByRole('button', { name: 'Back to projects' }).click()
-  await page.getByLabel('New project title').fill('Images test')
-  await page.getByRole('button', { name: 'Create project' }).click()
-  await page.getByRole('button', { name: /Images test/ }).click()
+  await setUpApiKey(page)
+  await createAndOpenProject(page, 'Images test')
   await page
     .getByLabel('Script text')
     .fill('A lighthouse stands on the cliff. Waves crash below.')

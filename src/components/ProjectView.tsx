@@ -4,7 +4,8 @@ import { CostSummary } from './CostSummary'
 import { ImagesStage } from './ImagesStage'
 import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
-import { buildStages, StagesNav, type Stage } from './StagesNav'
+import { buildStages, type Stage } from '../domain/stages'
+import { StagesNav } from './StagesNav'
 
 export function ProjectView({
   projectId,

@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test'
-
-const API = 'https://nano-gpt.com/api'
+import {
+  createAndOpenProject,
+  mockBalance,
+  mockChatCompletion,
+  mockTextModels,
+  setUpApiKey,
+} from './helpers'
 
 const BREAKDOWN = [
   {
@@ -18,50 +23,17 @@ const BREAKDOWN = [
 ]
 
 test.beforeEach(async ({ page }) => {
-  // All NanoGPT calls mocked — no real spend.
-  await page.route(`${API}/check-balance`, (route) =>
-    route.fulfill({ json: { usd_balance: '25.00' } }),
-  )
-  await page.route(`${API}/v1/models?detailed=true`, (route) =>
-    route.fulfill({
-      json: {
-        object: 'list',
-        data: [
-          {
-            id: 'mock/writer-1',
-            name: 'Mock Writer',
-            pricing: { prompt: 2, completion: 10 },
-          },
-        ],
-      },
-    }),
-  )
-  await page.route(`${API}/v1/chat/completions`, (route) =>
-    route.fulfill({
-      json: {
-        model: 'mock/writer-1',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: '```json\n' + JSON.stringify(BREAKDOWN) + '\n```',
-            },
-          },
-        ],
-        usage: { prompt_tokens: 210, completion_tokens: 160 },
-      },
-    }),
+  await mockBalance(page)
+  await mockTextModels(page)
+  await mockChatCompletion(
+    page,
+    '```json\n' + JSON.stringify(BREAKDOWN) + '\n```',
   )
 
   // Key + project + locked script.
   await page.goto('/')
-  await page.getByRole('button', { name: 'Set up your key' }).click()
-  await page.getByLabel('NanoGPT API key').fill('e2e-key-0002')
-  await page.getByRole('button', { name: 'Validate & save' }).click()
-  await page.getByRole('button', { name: 'Back to projects' }).click()
-  await page.getByLabel('New project title').fill('Scenes test')
-  await page.getByRole('button', { name: 'Create project' }).click()
-  await page.getByRole('button', { name: /Scenes test/ }).click()
+  await setUpApiKey(page)
+  await createAndOpenProject(page, 'Scenes test')
   await page
     .getByLabel('Script text')
     .fill('The James Webb telescope sees the universe in infrared.')
