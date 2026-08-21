@@ -5,6 +5,7 @@ import { formatUsd } from '../lib/format'
 import { sortVideoResolutionsCheapestFirst } from '../lib/resolution'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
+import { GenerationHistory } from './GenerationHistory'
 import { VideoModelPicker } from './ModelPicker'
 import { useBlobUrl } from './useBlobUrl'
 
@@ -407,6 +408,12 @@ function SceneVideoCard({
             </div>
           </div>
         )}
+
+        <GenerationHistory
+          versions={scene.videoVersions}
+          activeVersionId={scene.activeVideoVersionId}
+          label={`Scene ${String(index + 1)} clip`}
+        />
       </div>
     </li>
   )

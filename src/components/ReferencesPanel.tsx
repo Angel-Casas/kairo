@@ -5,6 +5,7 @@ import { formatUsd } from '../lib/format'
 import { getPerImagePriceUsd, pickPortraitResolution } from '../lib/resolution'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
+import { GenerationHistory } from './GenerationHistory'
 import { ImageModelPicker } from './ModelPicker'
 import { referenceDisplayName } from './referenceDisplay'
 import { useBlobUrl } from './useBlobUrl'
@@ -416,6 +417,29 @@ function ReferenceCard({
             </div>
           </div>
         )}
+
+        <GenerationHistory
+          versions={reference.imageVersions}
+          activeVersionId={reference.activeImageVersionId}
+          label={`Reference ${displayName}`}
+          onRegenerate={(prompt) => {
+            if (model !== null) {
+              void generateReferenceImage(
+                reference.id,
+                model,
+                resolution,
+                prompt,
+              )
+            }
+          }}
+          regenerateDisabled={model === null || generating}
+          regenerateDisabledHint={
+            model === null
+              ? 'Pick the image model in this panel first.'
+              : 'Another generation is running.'
+          }
+          regenerateCostUsd={perImageUsd}
+        />
       </div>
 
       {confirmingDelete && (

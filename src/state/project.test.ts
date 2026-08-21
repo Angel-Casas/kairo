@@ -770,3 +770,100 @@ describe('project store — image generation', () => {
     expect(useProjectStore.getState().allImagesProgress).toBeNull()
   })
 })
+
+describe('project store — prompt override (Slice 11)', () => {
+  it('sends a scene override verbatim without recomposition', async () => {
+    const { project, sceneId } = await seedSceneProject()
+    await useProjectStore.getState().setStylePreset('watercolor')
+
+    let sentPrompt = ''
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        const body = (await request.json()) as { prompt?: string }
+        sentPrompt = body.prompt ?? ''
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+
+    const override = 'my hand-tuned prompt, nothing else'
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344', override)
+    expect(ok).toBe(true)
+    // Verbatim: no style preset, no framing suffix — exactly the override.
+    expect(sentPrompt).toBe(override)
+
+    const stored = await (await getRepository()).getProject(project.id)
+    const scene = stored?.scenes[0]
+    expect(scene?.imageVersions.at(-1)?.prompt).toBe(override)
+    expect(stored?.costLog.at(-1)?.note).toBe('Scene image')
+  })
+
+  it('override still attaches ticked reference images for i2i models', async () => {
+    const { sceneId } = await seedSceneProject()
+    await useProjectStore.getState().addReference('character')
+    const referenceId =
+      useProjectStore.getState().project?.references[0]?.id ?? ''
+    await useProjectStore
+      .getState()
+      .importReferenceImage(
+        referenceId,
+        new Blob(['ref-image'], { type: 'image/png' }),
+      )
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, I2I_MODEL, '768x1344', 'override prompt')
+    expect(ok).toBe(true)
+    expect(body.prompt).toBe('override prompt')
+    expect(body.input_references as string[]).toHaveLength(1)
+  })
+
+  it('refuses an empty override', async () => {
+    const { sceneId } = await seedSceneProject()
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344', '   ')
+    expect(ok).toBe(false)
+  })
+
+  it('sends a reference override verbatim', async () => {
+    const { project } = await seedSceneProject()
+    await useProjectStore.getState().addReference('character')
+    const referenceId =
+      useProjectStore.getState().project?.references[0]?.id ?? ''
+    // No descriptor set — the override must not require one.
+
+    let sentPrompt = ''
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        const body = (await request.json()) as { prompt?: string }
+        sentPrompt = body.prompt ?? ''
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateReferenceImage(
+        referenceId,
+        IMAGE_MODEL,
+        '768x1344',
+        'tuned reference prompt',
+      )
+    expect(ok).toBe(true)
+    expect(sentPrompt).toBe('tuned reference prompt')
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.references[0]?.imageVersions.at(-1)?.prompt).toBe(
+      'tuned reference prompt',
+    )
+    expect(stored?.costLog.at(-1)?.note).toBe('Reference image')
+  })
+})

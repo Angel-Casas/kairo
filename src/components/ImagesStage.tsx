@@ -4,6 +4,7 @@ import type { Scene } from '../domain/types'
 import { formatUsd } from '../lib/format'
 import { getPerImagePriceUsd, pickPortraitResolution } from '../lib/resolution'
 import { useProjectStore } from '../state/project'
+import { GenerationHistory } from './GenerationHistory'
 import { ImageModelPicker } from './ModelPicker'
 import { StyleGallery } from './StyleGallery'
 import { useBlobUrl } from './useBlobUrl'
@@ -351,6 +352,26 @@ function SceneImageCard({
             </div>
           </div>
         )}
+
+        <GenerationHistory
+          versions={scene.imageVersions}
+          activeVersionId={scene.activeImageVersionId}
+          label={`Scene ${String(index + 1)} image`}
+          onRegenerate={(prompt) => {
+            if (model !== null) {
+              void generateSceneImage(scene.id, model, resolution, prompt)
+            }
+          }}
+          regenerateDisabled={
+            model === null || generating || allImagesProgress !== null
+          }
+          regenerateDisabledHint={
+            model === null
+              ? 'Pick an image model above first.'
+              : 'Another generation is running.'
+          }
+          regenerateCostUsd={perImageUsd}
+        />
       </div>
     </li>
   )

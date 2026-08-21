@@ -2,6 +2,23 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 11 — Generation history viewer (2026-08-21)
+
+- Expandable "History (N)" on every asset: scene images, clips, and reference
+  images — one reusable `GenerationHistory` component. Each version shows the
+  exact prompt sent, model, actual cost, date, and an active marker; imported
+  reference versions are labeled honestly (imported file, free, no prompt).
+- Copy prompt with clipboard feedback on every stored prompt.
+- Edit & regenerate for images: the stored prompt prefilled in an editor and
+  sent VERBATIM (new `promptOverride` on `generateSceneImage` and
+  `generateReferenceImage` — no recomposition of style/references), through
+  the normal job + cost-log machinery with upfront price. Reference image
+  attachment still follows scene ticks and model capability.
+- Clips are view/copy only; motion-prompt editing deferred to Slice 11.1 so
+  the expensive generation kind gets the full confirmation treatment.
+- Tests: 165 unit (component + override paths), 22 e2e (history contents,
+  verbatim regeneration asserted on the request body, clipboard).
+
 ## Slice 10 — References (2026-08-21)
 
 - One concept for cross-scene subject consistency (ADR-009), merging the

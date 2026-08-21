@@ -87,11 +87,16 @@ interface ProjectState {
   ) => Promise<void>
   /** Import a user-provided image file as a new reference image version. */
   importReferenceImage: (referenceId: string, file: Blob) => Promise<boolean>
-  /** Generate a reference image from its descriptor as a NEW version. */
+  /**
+   * Generate a reference image from its descriptor as a NEW version.
+   * `promptOverride` (Slice 11) sends the given prompt VERBATIM instead of
+   * composing style + descriptor — surgical iteration on a past prompt.
+   */
   generateReferenceImage: (
     referenceId: string,
     model: ImageModel,
     resolution: string | null,
+    promptOverride?: string,
   ) => Promise<boolean>
   /** Per-scene image generation status, keyed by scene id. */
   sceneImageStatus: Record<
@@ -102,11 +107,17 @@ interface ProjectState {
   allImagesProgress: { done: number; total: number } | null
   setStylePreset: (presetId: string | null) => Promise<void>
   setActiveImageVersion: (sceneId: string, versionId: string) => Promise<void>
-  /** Generate one image for a scene as a NEW version. Returns true on success. */
+  /**
+   * Generate one image for a scene as a NEW version. Returns true on success.
+   * `promptOverride` (Slice 11) sends the given prompt VERBATIM instead of
+   * composing style + references + description; reference image attachment
+   * still follows the scene's ticks and the model's capability.
+   */
   generateSceneImage: (
     sceneId: string,
     model: ImageModel,
     resolution: string | null,
+    promptOverride?: string,
   ) => Promise<boolean>
   /** Generate images sequentially for every scene without one. */
   generateAllImages: (
@@ -594,12 +605,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     referenceId: string,
     model: ImageModel,
     resolution: string | null,
+    promptOverride?: string,
   ) => {
     const { project } = get()
     const apiKey = useSettingsStore.getState().apiKey
     if (project === null || apiKey === null) return false
     const reference = project.references.find((r) => r.id === referenceId)
-    if (reference === undefined || reference.descriptor.trim().length === 0) {
+    if (reference === undefined) return false
+    if (promptOverride !== undefined) {
+      if (promptOverride.trim().length === 0) return false
+    } else if (reference.descriptor.trim().length === 0) {
       return false
     }
 
@@ -611,13 +626,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
 
     const repo = await getRepository()
-    // The reference image carries the project style so scenes built on it match.
-    const prompt = buildImagePrompt({
-      stylePromptFragment:
-        getStylePreset(project.stylePresetId)?.promptFragment ?? null,
-      styleNotes: project.styleNotes,
-      visualDescription: reference.descriptor,
-    })
+    // The reference image carries the project style so scenes built on it
+    // match; an override (Slice 11) is sent verbatim instead.
+    const prompt =
+      promptOverride ??
+      buildImagePrompt({
+        stylePromptFragment:
+          getStylePreset(project.stylePresetId)?.promptFragment ?? null,
+        styleNotes: project.styleNotes,
+        visualDescription: reference.descriptor,
+      })
     const priceUsd = getPerImagePriceUsd(model, resolution)
 
     const outcome = await withGenerationJob({
@@ -729,12 +747,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     sceneId: string,
     model: ImageModel,
     resolution: string | null,
+    promptOverride?: string,
   ) => {
     const { project } = get()
     const apiKey = useSettingsStore.getState().apiKey
     if (project === null || apiKey === null) return false
     const scene = project.scenes.find((s) => s.id === sceneId)
-    if (scene === undefined || scene.visualDescription.trim().length === 0) {
+    if (scene === undefined) return false
+    if (promptOverride !== undefined) {
+      if (promptOverride.trim().length === 0) return false
+    } else if (scene.visualDescription.trim().length === 0) {
       return false
     }
 
@@ -750,13 +772,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const sceneReferences = project.references.filter((r) =>
       scene.referenceIds.includes(r.id),
     )
-    const prompt = buildImagePrompt({
-      stylePromptFragment:
-        getStylePreset(project.stylePresetId)?.promptFragment ?? null,
-      styleNotes: project.styleNotes,
-      referenceDescriptors: sceneReferences.map((r) => r.descriptor),
-      visualDescription: scene.visualDescription,
-    })
+    // An override (Slice 11) is sent verbatim — no recomposition. Reference
+    // image attachment below is a separate input and still applies.
+    const prompt =
+      promptOverride ??
+      buildImagePrompt({
+        stylePromptFragment:
+          getStylePreset(project.stylePresetId)?.promptFragment ?? null,
+        styleNotes: project.styleNotes,
+        referenceDescriptors: sceneReferences.map((r) => r.descriptor),
+        visualDescription: scene.visualDescription,
+      })
     const priceUsd = getPerImagePriceUsd(model, resolution)
 
     // Attach active reference images for image-to-image capable models

@@ -131,9 +131,23 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       175 unit + e2e tests total (154 unit, 21 e2e incl. request-body
       assertion of `input_references`).
 
-- [ ] **Slice 11 — Generation history viewer.** Surface the exact prompt
-      behind every image/clip version (already stored on AssetVersion) with
-      copy/tweak — iteration becomes surgical instead of from-scratch.
+- [x] **Slice 11 — Generation history viewer.** _(done 2026-08-21)_ Every
+      version's exact prompt, model, actual cost, and date surfaced in a
+      reusable expandable History list on the Images stage, the Animation
+      stage, and reference cards (Slice 10). Copy-prompt everywhere; images
+      additionally get "Edit & regenerate": the stored prompt prefilled,
+      edited text sent VERBATIM (no recomposition — `promptOverride` on
+      `generateSceneImage`/`generateReferenceImage`) through the normal job +
+      cost-log path; reference image attachment still follows scene ticks.
+      Imported versions honestly labeled ("imported file", free, no prompt).
+      Clips are view/copy only in this slice — motion-prompt editing deferred
+      to Slice 11.1 (expensive kind ⇒ needs the full cost-confirmation
+      treatment). 165 unit + 22 e2e.
+
+- [ ] **Slice 11.1 — Clip motion-prompt editing.** Edit & regenerate for
+      video versions, behind the Slice 6.1 confirmation dialog (model,
+      resolution, duration, price picture) since clips are the expensive
+      generation kind.
 
 - [ ] **Slice 12 — Style-from-image.** Upload a reference image; a
       vision-capable model names the palette, light, and lens and writes the
