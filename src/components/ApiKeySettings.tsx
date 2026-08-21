@@ -116,10 +116,9 @@ function AccountUsage({ apiKey }: { apiKey: string }) {
 
   return (
     <div
+      className="card"
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        padding: 'var(--space-3)',
+        padding: 'var(--space-4)',
         margin: 'var(--space-4) 0',
       }}
     >

@@ -148,13 +148,16 @@ interface ProjectState {
   /**
    * Submit an image-to-video job for a scene's active image. Charged at
    * submission; polling continues in the background (and resumes after a
-   * reload). Returns true if the submission succeeded.
+   * reload). Returns true if the submission succeeded. `promptOverride`
+   * (Slice 11.1) sends the given motion prompt VERBATIM instead of deriving
+   * it from the visual description — callers must confirm cost first.
    */
   generateSceneVideo: (
     sceneId: string,
     model: VideoModel,
     duration: string,
     resolution: string | null,
+    promptOverride?: string,
   ) => Promise<boolean>
   /** Submit video jobs for every scene with an image but no video. */
   generateAllVideos: (
@@ -1031,6 +1034,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     model: VideoModel,
     duration: string,
     resolution: string | null,
+    promptOverride?: string,
   ) => {
     const { project } = get()
     const apiKey = useSettingsStore.getState().apiKey
@@ -1040,6 +1044,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       (v) => v.id === scene.activeImageVersionId,
     )
     if (scene === undefined || imageVersion === undefined) return false
+    if (promptOverride !== undefined && promptOverride.trim().length === 0) {
+      return false
+    }
 
     setSceneVideoStatus(set, get, sceneId, { generating: true, error: null })
 
@@ -1052,7 +1059,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       })
       return false
     }
-    const prompt = buildVideoPrompt(scene.visualDescription)
+    // An override (Slice 11.1) is sent verbatim — no re-derivation.
+    const prompt = promptOverride ?? buildVideoPrompt(scene.visualDescription)
 
     let job: GenerationJob = {
       id: crypto.randomUUID(),

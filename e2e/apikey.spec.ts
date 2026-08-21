@@ -45,7 +45,7 @@ test('API key flow: onboarding → validate → balance → survives reload → 
   await expect(page.getByLabel('Account usage totals')).toContainText(
     '42 requests, $3.21 net spend',
   )
-  await page.getByRole('button', { name: 'Back to projects' }).click()
+  await page.getByRole('button', { name: 'Close settings' }).click()
 
   // Remove the key.
   await page.getByRole('button', { name: 'Settings' }).click()
@@ -53,7 +53,7 @@ test('API key flow: onboarding → validate → balance → survives reload → 
     .getByRole('button', { name: 'Remove key from this device' })
     .click()
   await expect(page.getByLabel('NanoGPT API key')).toBeVisible()
-  await page.getByRole('button', { name: 'Back to projects' }).click()
+  await page.getByRole('button', { name: 'Close settings' }).click()
   await expect(page.getByText(/needs your NanoGPT API key/)).toBeVisible()
 })
 

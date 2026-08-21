@@ -144,10 +144,14 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       to Slice 11.1 (expensive kind ⇒ needs the full cost-confirmation
       treatment). 165 unit + 22 e2e.
 
-- [ ] **Slice 11.1 — Clip motion-prompt editing.** Edit & regenerate for
-      video versions, behind the Slice 6.1 confirmation dialog (model,
-      resolution, duration, price picture) since clips are the expensive
-      generation kind.
+- [x] **Slice 11.1 — Clip motion-prompt editing.** _(done 2026-08-21)_
+      Edit & regenerate on clip history versions: the stored motion prompt
+      prefilled, edited text sent VERBATIM (`promptOverride` on
+      `generateSceneVideo`), and — because clips are the expensive kind —
+      the generate button opens the Slice 6.1 confirmation dialog (model,
+      resolution, duration, price picture) before any submission; the history
+      row itself says the price is confirmed before money moves. 172 unit +
+      25 e2e (dialog-gating and verbatim body asserted).
 
 - [x] **Slice 12 — Style-from-image.** _(done 2026-08-21)_ "Describe a style
       from an image" on the Scenes stage: local image (png/jpeg/webp,
@@ -163,9 +167,22 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       _Angel: validate the estimate against one real request with a cheap
       vision model (LESSONS rule)._
 
-- [ ] **Slice 13 — Design pass (ADR-007).** The dedicated aesthetics slice:
-      visual identity, real token values, component styling sweep, layout
-      refinement, motion where it earns its keep.
+- [x] **Slice 13 — Design pass (ADR-010).** _(done 2026-08-21)_ The visual
+      identity, set in stone after several canvas rounds with Angel: blended
+      color-bubble backdrop + diagonal hatch over a solid ground, glass
+      panels, pill controls, Instrument Sans. Ten palettes (5 dark / 5 light)
+      in `src/domain/themes.ts`, applied as CSS custom properties by
+      `applyTheme()`; top navbar with Kairo left, balance + project spend
+      centered (hidden on small screens), palette dropdown + light/dark
+      toggle + Settings right (space reserved for the Slice 14 language
+      dropdown). Mode and per-mode palette persist in localStorage and follow
+      `prefers-color-scheme` by default. Component sweep: `.card` glass
+      panels, `.primary` CTAs, pill stage nav. 182 unit + 28 e2e.
+      _Animations/transitions deliberately deferred to the next job — the
+      whole UI should move, and the backdrop was built static-first for it._
+      _13.1 follow-up (same day): the light/dark toggle merged into a single
+      all-palettes swatch dropdown (picking a palette picks its mode), and
+      settings became a fullscreen overlay with a gear→X navbar button._
 
 - [ ] **Slice 14 — i18n & ship (ADR-007).** Extract strings, add target
       languages; README with screenshots; deploy to GitHub Pages; skim NanoGPT ToS

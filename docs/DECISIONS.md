@@ -222,3 +222,81 @@ has reference images — punishes model choice; honesty note instead.
 schema fields (backfilled by `normalizeProject`, no version bump);
 `.kairo` import re-roots reference image blob paths; the video stage is
 unaffected (clips inherit identity from the scene image they animate).
+
+## ADR-010 — Design system: blended bubbles, glass panels, ten palettes (2026-08-21)
+
+**Context.** ADR-007 deferred aesthetics to a dedicated slice. Angel wanted a
+pastel-modern look that does not read as template output: several exploration
+rounds on a design canvas converged on the Aurora Glass direction (Dusk
+variant), then — guided by screenshots from his Bonsai project — on a backdrop
+of very large soft color fields ("bubbles") that blend into the ground color,
+plus a fine diagonal hatch to break the uniformity. Two earlier directions
+were explicitly rejected: small blurred blobs ("classic AI-agent look") and
+any background with straight edges or a visible division between color fields.
+
+**Decision.**
+
+- **Backdrop.** A fixed full-viewport layer (`AppBackground`) with five huge
+  radial-gradient divs over a solid ground color, under a repeating 133°
+  1px/4px hatch. Every gradient is explicitly sized `50% 50% at 50% 50%` so it
+  reaches zero alpha inside its own box — the default farthest-corner sizing
+  leaves nonzero alpha at the div edges and paints hard seams (this bug
+  shipped twice on the canvas before being caught in Angel's screenshots).
+- **Themes.** Ten palettes — five dark (Emberlight, Lagoon, Orchid, Citrus,
+  North Sea), five light (Golden Hour, Sea Glass, Peony, Meadow, Lilac Dawn) —
+  live in `src/domain/themes.ts` as the single source of truth. `applyTheme()`
+  writes them as CSS custom properties on `<html>` plus `data-theme`/
+  `data-mode`; `src/index.css` carries the default dark values so the first
+  paint before React mounts is already correct. Components keep the ADR-007
+  token rule: variables only, no ad-hoc hex or magic numbers.
+- **Theme state.** Mode (dark/light) and one palette _per mode_ are user
+  choices in the navbar, persisted in localStorage (`kairo.ui.mode`,
+  `kairo.ui.theme.dark`, `kairo.ui.theme.light`); with no stored mode the app
+  follows `prefers-color-scheme`. Switching modes returns to that mode's own
+  last palette.
+- **Surfaces.** Panels are translucent white "glass" cards (`.card`:
+  `--color-surface` + border + 22px radius + soft shadow) over the backdrop;
+  controls are pill-shaped (`--radius-pill`), with one `.primary` CTA style
+  (solid, high-contrast) per surface for the main action. Inputs, selects,
+  and textareas share the glass treatment globally in index.css.
+- **Chrome.** A top navbar: app name left; balance + open-project spend in
+  the middle (hidden under 860px — small screens keep the CostSummary inside
+  the project view); palette dropdown, light/dark toggle, and Settings gear
+  right, with room reserved for the Slice 14 language dropdown.
+- **Type.** Instrument Sans via Google Fonts with the system stack as offline
+  fallback (the PWA must not depend on the font loading).
+
+**Alternatives considered.** A CSS framework or component library (rejected:
+the point is a distinctive look, and the app's surface is small); per-theme
+surface/border colors (rejected for now: white-alpha surfaces work across all
+ten palettes and keep the theme objects small); storing one global palette
+(rejected: a palette is only meaningful within its mode, so each mode keeps
+its own).
+
+**Consequences.** Animations and transitions are deliberately absent — they
+are the next slice, and the backdrop was built static-first so motion can be
+added in one place. jsdom never runs `applyTheme` implicitly (it is called
+from an App effect), so unit tests assert on it directly; e2e pins
+`colorScheme: 'dark'` where the dark default matters. The navbar spend label
+avoids the substring "project spend" so Playwright's substring `getByLabel`
+never collides with CostSummary.
+
+## ADR-010a — Navbar follow-up: one palette dropdown, settings as overlay (2026-08-21)
+
+**Context.** Right after Slice 13 shipped, Angel simplified the chrome: the
+separate light/dark toggle wastes navbar space, and settings as a separate
+view loses the user's place in the pipeline.
+
+**Decision.** (a) One swatch dropdown (modeled on a reference screenshot from
+Angel's other project) lists all ten palettes; choosing a palette also
+switches to its mode via `chooseTheme` — mode stops being a separate control
+while the per-mode palette memory and the `prefers-color-scheme` default stay.
+The trigger and each row render the palette as a 2×2 tile of ground / cool
+bubble / accent / warm bubble. (b) Settings renders as a fullscreen
+`.settings-overlay` (frosted `color-mix` veil, page mounted behind, header
+above it) and the gear button becomes an X while open; Escape closes it.
+
+**Consequences.** `selectTheme`/`setThemeMode` remain as primitives (and for
+tests); the UI only calls `chooseTheme`. The e2e helper closes settings via
+"Close settings" now. The overlay and dropdown are the first components that
+will need enter/leave transitions in the animation pass.

@@ -114,10 +114,9 @@ export function ScenesStage() {
       </button>
 
       <div
+        className="card"
         style={{
           marginTop: 'var(--space-6)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
           padding: 'var(--space-4)',
         }}
       >
@@ -139,6 +138,7 @@ export function ScenesStage() {
           >
             <button
               type="button"
+              className="primary"
               disabled={model === null || genStatus === 'generating'}
               onClick={() => {
                 if (scenes.length > 0) {
@@ -206,10 +206,9 @@ function SceneCard({
   return (
     <li
       aria-label={`Scene ${String(index + 1)}`}
+      className="card"
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        padding: 'var(--space-3)',
+        padding: 'var(--space-4)',
         marginBottom: 'var(--space-3)',
       }}
     >

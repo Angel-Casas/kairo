@@ -172,6 +172,64 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
   await expect(page.getByLabel('Project spend')).toContainText('3 generations')
 })
 
+test('clip history: edit the motion prompt, confirm the price, verbatim submit', async ({
+  page,
+}) => {
+  await mockVideoPipeline(page, { inProgressPolls: 0 })
+  await page
+    .getByLabel('Video model', { exact: true })
+    .selectOption('mock/animator-1')
+
+  const scene1 = page.getByRole('listitem', { name: 'Scene 1 animation' })
+  await scene1.getByRole('button', { name: 'Animate scene' }).click()
+  await page.getByRole('button', { name: 'Submit and charge' }).click()
+  await expect(scene1.getByLabel('Scene 1 video')).toBeVisible({
+    timeout: 30_000,
+  })
+
+  // Open the clip history: the derived motion prompt is visible.
+  await scene1.getByLabel('Scene 1 clip history').click()
+  const promptText = await scene1
+    .getByLabel('Scene 1 clip version 1 prompt', { exact: true })
+    .innerText()
+  expect(promptText).toContain('A lighthouse on a rocky cliff at sunset')
+  expect(promptText).toContain('one continuous natural action')
+
+  // Edit & regenerate → confirmation dialog with the price picture first.
+  await scene1
+    .getByRole('button', {
+      name: 'Edit and regenerate from Scene 1 clip version 1',
+    })
+    .click()
+  const editor = scene1.getByLabel('Scene 1 clip version 1 edited prompt')
+  await expect(editor).toHaveValue(promptText)
+  await editor.fill('the lantern light sweeps slowly across the waves')
+
+  let submittedPrompt: string | null = null
+  await page.route(`${API}/generate-video`, (route) => {
+    const body = route.request().postDataJSON() as { prompt?: string }
+    submittedPrompt = body.prompt ?? null
+    return route.fulfill({
+      json: { runId: 'vid_e2e_2', status: 'pending', cost: 0.35 },
+    })
+  })
+  await scene1
+    .getByRole('button', { name: 'Generate with this prompt' })
+    .click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('edited motion prompt')
+  await expect(dialog).toContainText('between $0.72 and $1.80')
+  // No money moved yet.
+  expect(submittedPrompt).toBeNull()
+
+  await page.getByRole('button', { name: 'Submit and charge' }).click()
+  await expect(scene1.getByRole('button', { name: /Generating/ })).toBeVisible()
+  await expect
+    .poll(() => submittedPrompt)
+    .toBe('the lantern light sweeps slowly across the waves')
+})
+
 test('a job interrupted by reload resumes and collects the clip', async ({
   page,
 }) => {

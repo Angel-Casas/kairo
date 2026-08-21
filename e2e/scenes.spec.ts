@@ -4,6 +4,7 @@ import {
   mockBalance,
   mockChatCompletion,
   mockTextModels,
+  readStoredProjects,
   setUpApiKey,
 } from './helpers'
 
@@ -80,6 +81,20 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
 
   // Spend summary counts the breakdown generation.
   await expect(page.getByLabel('Project spend')).toContainText('1 generation')
+
+  // The UI updates before IndexedDB commits — wait until the reorder is
+  // actually stored before reloading (LESSONS.md persistence rule).
+  await expect
+    .poll(async () => {
+      const [stored] = (await readStoredProjects(page)) as {
+        scenes: { order: number; textExcerpt: string }[]
+      }[]
+      return stored?.scenes
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((s) => s.textExcerpt)[0]
+    })
+    .toBe('It catches light older than Earth itself.')
 
   // Everything survives a reload.
   await page.reload()

@@ -97,9 +97,8 @@ export function ExportStage() {
       </p>
 
       <div
+        className="card"
         style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
           padding: 'var(--space-4)',
           marginBottom: 'var(--space-4)',
         }}
@@ -116,6 +115,7 @@ export function ExportStage() {
         </p>
         <button
           type="button"
+          className="primary"
           disabled={busy !== null || clipCount === 0}
           onClick={() => void downloadClipsZip()}
         >
@@ -124,9 +124,8 @@ export function ExportStage() {
       </div>
 
       <div
+        className="card"
         style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
           padding: 'var(--space-4)',
           marginBottom: 'var(--space-4)',
         }}
@@ -157,9 +156,8 @@ export function ExportStage() {
       </div>
 
       <div
+        className="card"
         style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
           padding: 'var(--space-4)',
         }}
       >

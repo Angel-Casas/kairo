@@ -15,8 +15,6 @@ export function StagesNav({
       style={{
         display: 'flex',
         gap: 'var(--space-2)',
-        borderBottom: '1px solid var(--color-border)',
-        paddingBottom: 'var(--space-3)',
         marginBottom: 'var(--space-6)',
         flexWrap: 'wrap',
       }}
@@ -31,16 +29,10 @@ export function StagesNav({
             onSelect(stage.id)
           }}
           title={stage.hint ?? undefined}
+          className={active === stage.id ? 'primary' : undefined}
           style={{
-            background:
-              active === stage.id ? 'var(--color-surface)' : 'transparent',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)',
-            color:
-              active === stage.id
-                ? 'var(--color-text)'
-                : 'var(--color-text-muted)',
-            padding: 'var(--space-2) var(--space-3)',
+            background: active === stage.id ? undefined : 'transparent',
+            color: active === stage.id ? undefined : 'var(--color-text-muted)',
             cursor: stage.available ? 'pointer' : 'not-allowed',
           }}
         >

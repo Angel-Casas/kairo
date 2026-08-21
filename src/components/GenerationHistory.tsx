@@ -15,6 +15,8 @@ export function GenerationHistory({
   regenerateDisabled = false,
   regenerateCostUsd = null,
   regenerateDisabledHint,
+  regenerateCostText,
+  editorHint = 'This exact text will be sent as the prompt.',
 }: {
   versions: AssetVersion[]
   activeVersionId: string | null
@@ -26,6 +28,13 @@ export function GenerationHistory({
   regenerateCostUsd?: number | null
   /** Shown next to a disabled generate button, e.g. "Pick a model first." */
   regenerateDisabledHint?: string
+  /**
+   * Overrides the cost label when set — for kinds whose price is only known
+   * at submission (video), where a confirmation dialog follows.
+   */
+  regenerateCostText?: string
+  /** Explainer above the editor; defaults to the generic verbatim note. */
+  editorHint?: string
 }) {
   const [copiedVersionId, setCopiedVersionId] = useState<string | null>(null)
   const [tweakVersionId, setTweakVersionId] = useState<string | null>(null)
@@ -176,8 +185,7 @@ export function GenerationHistory({
                             fontSize: 'var(--text-sm)',
                           }}
                         >
-                          This exact text will be sent as the prompt — style and
-                          references are not re-added.
+                          {editorHint}
                         </span>
                         <textarea
                           value={tweakText}
@@ -235,9 +243,10 @@ export function GenerationHistory({
                           {regenerateDisabled
                             ? (regenerateDisabledHint ??
                               'Generation is unavailable right now.')
-                            : regenerateCostUsd !== null
-                              ? `Cost: ${formatUsd(regenerateCostUsd)}`
-                              : 'Cost unknown for this model.'}
+                            : (regenerateCostText ??
+                              (regenerateCostUsd !== null
+                                ? `Cost: ${formatUsd(regenerateCostUsd)}`
+                                : 'Cost unknown for this model.'))}
                         </span>
                       </div>
                     </div>

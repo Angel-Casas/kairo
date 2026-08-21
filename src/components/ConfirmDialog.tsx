@@ -45,10 +45,10 @@ export function ConfirmDialog({
       }}
     >
       <div
+        className="card"
         style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
+          /* Solid ground: the glass surface is too sheer over the scrim. */
+          background: 'var(--color-bg)',
           padding: 'var(--space-6)',
           maxWidth: '28rem',
         }}
@@ -68,7 +68,11 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            style={{ background: 'var(--color-danger)', color: 'white' }}
+            style={{
+              background: 'var(--color-danger)',
+              color: 'var(--color-danger-ink)',
+              borderColor: 'transparent',
+            }}
           >
             {confirmLabel}
           </button>

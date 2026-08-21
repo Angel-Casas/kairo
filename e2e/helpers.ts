@@ -126,7 +126,7 @@ export async function setUpApiKey(page: Page, key = 'e2e-key'): Promise<void> {
   await page.getByRole('button', { name: 'Set up your key' }).click()
   await page.getByLabel('NanoGPT API key').fill(key)
   await page.getByRole('button', { name: 'Validate & save' }).click()
-  await page.getByRole('button', { name: 'Back to projects' }).click()
+  await page.getByRole('button', { name: 'Close settings' }).click()
 }
 
 export async function createAndOpenProject(

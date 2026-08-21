@@ -104,10 +104,9 @@ export function ScriptStage() {
 
       {!script.locked && (
         <div
+          className="card"
           style={{
             marginTop: 'var(--space-6)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)',
             padding: 'var(--space-4)',
           }}
         >
@@ -148,6 +147,7 @@ export function ScriptStage() {
             >
               <button
                 type="button"
+                className="primary"
                 disabled={!canGenerate}
                 onClick={() => {
                   if (script.text.trim().length > 0) {

@@ -9,7 +9,8 @@ import {
   expect,
   it,
 } from 'vitest'
-import { useSettingsStore } from './settings'
+import { DEFAULT_DARK_THEME_ID, DEFAULT_LIGHT_THEME_ID } from '../domain/themes'
+import { activeThemeId, useSettingsStore } from './settings'
 
 const BASE = 'https://nano-gpt.com/api'
 
@@ -32,6 +33,9 @@ beforeEach(() => {
     keyStatus: 'none',
     keyError: null,
     balanceUsd: null,
+    themeMode: 'dark',
+    darkThemeId: DEFAULT_DARK_THEME_ID,
+    lightThemeId: DEFAULT_LIGHT_THEME_ID,
   })
 })
 
@@ -132,5 +136,77 @@ describe('settings store', () => {
     const state = useSettingsStore.getState()
     expect(state.balanceUsd).toBe(10)
     expect(state.keyStatus).toBe('valid')
+  })
+})
+
+describe('theme choice (ADR-010)', () => {
+  it('setThemeMode switches mode and persists it', () => {
+    useSettingsStore.getState().setThemeMode('light')
+    expect(useSettingsStore.getState().themeMode).toBe('light')
+    expect(localStorage.getItem('kairo.ui.mode')).toBe('light')
+  })
+
+  it('selectTheme stores a dark palette in the dark slot', () => {
+    useSettingsStore.getState().selectTheme('lagoon')
+    const state = useSettingsStore.getState()
+    expect(state.darkThemeId).toBe('lagoon')
+    expect(state.lightThemeId).toBe(DEFAULT_LIGHT_THEME_ID)
+    expect(localStorage.getItem('kairo.ui.theme.dark')).toBe('lagoon')
+  })
+
+  it('selectTheme stores a light palette in the light slot', () => {
+    useSettingsStore.getState().selectTheme('peony')
+    const state = useSettingsStore.getState()
+    expect(state.lightThemeId).toBe('peony')
+    expect(state.darkThemeId).toBe(DEFAULT_DARK_THEME_ID)
+    expect(localStorage.getItem('kairo.ui.theme.light')).toBe('peony')
+  })
+
+  it('selectTheme ignores unknown theme ids', () => {
+    useSettingsStore.getState().selectTheme('not-a-theme')
+    const state = useSettingsStore.getState()
+    expect(state.darkThemeId).toBe(DEFAULT_DARK_THEME_ID)
+    expect(state.lightThemeId).toBe(DEFAULT_LIGHT_THEME_ID)
+    expect(localStorage.getItem('kairo.ui.theme.dark')).toBeNull()
+  })
+
+  it('activeThemeId follows the mode', () => {
+    const store = useSettingsStore.getState()
+    store.selectTheme('lagoon')
+    store.selectTheme('peony')
+    expect(activeThemeId(useSettingsStore.getState())).toBe('lagoon')
+    useSettingsStore.getState().setThemeMode('light')
+    expect(activeThemeId(useSettingsStore.getState())).toBe('peony')
+  })
+
+  it('each mode remembers its own palette across mode switches', () => {
+    const store = useSettingsStore.getState()
+    store.selectTheme('northsea')
+    store.setThemeMode('light')
+    store.selectTheme('meadow')
+    useSettingsStore.getState().setThemeMode('dark')
+    expect(activeThemeId(useSettingsStore.getState())).toBe('northsea')
+  })
+
+  it('chooseTheme switches to the palette AND its mode (single dropdown)', () => {
+    useSettingsStore.getState().chooseTheme('peony')
+    let state = useSettingsStore.getState()
+    expect(state.themeMode).toBe('light')
+    expect(state.lightThemeId).toBe('peony')
+    expect(activeThemeId(state)).toBe('peony')
+    expect(localStorage.getItem('kairo.ui.mode')).toBe('light')
+    expect(localStorage.getItem('kairo.ui.theme.light')).toBe('peony')
+
+    useSettingsStore.getState().chooseTheme('lagoon')
+    state = useSettingsStore.getState()
+    expect(state.themeMode).toBe('dark')
+    expect(activeThemeId(state)).toBe('lagoon')
+  })
+
+  it('chooseTheme ignores unknown ids and keeps the current mode', () => {
+    useSettingsStore.getState().chooseTheme('not-a-theme')
+    const state = useSettingsStore.getState()
+    expect(state.themeMode).toBe('dark')
+    expect(activeThemeId(state)).toBe(DEFAULT_DARK_THEME_ID)
   })
 })

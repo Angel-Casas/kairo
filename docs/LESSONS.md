@@ -103,3 +103,39 @@ visibly correct while the durable write is still in flight, so
 wait for the persisted data itself (poll IndexedDB via
 `readStoredProjects` in `e2e/helpers.ts`), never only for UI state. Any new
 "survives reload" test uses this helper before its `page.reload()`.
+
+### 2026-08-21 — A new aria-label broke six specs via substring matching
+
+**What happened:** The Slice 13 navbar added a spend indicator labeled
+"Current project spend". Six existing e2e specs using
+`getByLabel('Project spend')` (CostSummary) failed with strict-mode
+violations: Playwright's `getByLabel` substring-matches by default, and
+"Current **project spend**" contains "project spend".
+
+**Root cause:** Accessible labels form one flat, case-insensitively
+substring-matched namespace in the tests. A new label that CONTAINS an
+existing label's text collides with every non-`exact` locator for it, even
+though the two labels look clearly distinct to a human.
+
+**Rule going forward:** When adding an aria-label, grep the e2e specs for any
+existing label that is a substring of it (or vice versa) and rephrase to
+avoid containment — as the navbar label "Spend in the open project" does.
+Prefer rewording over sprinkling `exact: true` on old tests.
+
+### 2026-08-21 — E2e ran against a stale preview server and tested the old build
+
+**What happened:** After the palette-dropdown rewrite, six e2e specs failed
+claiming the new button did not exist — while a manual check showed the app
+rendered it fine. The Playwright `webServer` config has
+`reuseExistingServer: !process.env.CI`, and a `vite preview` process left
+over from an earlier screenshot script was still listening on 4173, serving
+the previous build.
+
+**Root cause:** Screenshot/debug scripts that spawn `vite preview` on the
+e2e port and outlive their run silently satisfy Playwright's "server already
+up" check, so the suite tests whatever bundle that stray server has.
+
+**Rule going forward:** Screenshot and debug scripts must use a port other
+than 4173, and must kill their server in a `finally`. If e2e failures claim
+freshly-changed UI is missing, check for a stale listener on the e2e port
+first (`ss -ltnp | grep 4173`) before debugging the app.

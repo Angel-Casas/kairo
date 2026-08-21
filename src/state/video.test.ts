@@ -350,3 +350,38 @@ describe('video generation', () => {
     )
   })
 })
+
+describe('motion prompt override (Slice 11.1)', () => {
+  it('sends the override verbatim and stores it on the version', async () => {
+    const { project, sceneId } = await seedProjectWithImage()
+    const getBody = mockSubmission(0.35)
+    mockStatusSequence(['COMPLETED'])
+    mockVideoDownload()
+
+    const override = 'the lantern light sweeps slowly across the waves'
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneVideo(sceneId, VIDEO_MODEL, '5', '480p', override)
+    expect(ok).toBe(true)
+    expect((getBody() as { prompt?: string }).prompt).toBe(override)
+
+    await vi.waitFor(
+      () => {
+        const scene = useProjectStore.getState().project?.scenes[0]
+        expect(scene?.videoVersions).toHaveLength(1)
+      },
+      { timeout: 3000 },
+    )
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    expect(stored?.scenes[0]?.videoVersions[0]?.prompt).toBe(override)
+  })
+
+  it('refuses an empty override without submitting', async () => {
+    const { sceneId } = await seedProjectWithImage()
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneVideo(sceneId, VIDEO_MODEL, '5', '480p', '   ')
+    expect(ok).toBe(false)
+  })
+})

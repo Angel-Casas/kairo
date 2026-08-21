@@ -36,9 +36,8 @@ export function ReferencesPanel() {
 
   return (
     <div
+      className="card"
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
         padding: 'var(--space-4)',
         marginBottom: 'var(--space-6)',
       }}
@@ -439,6 +438,7 @@ function ReferenceCard({
               : 'Another generation is running.'
           }
           regenerateCostUsd={perImageUsd}
+          editorHint="This exact text will be sent as the prompt — style and references are not re-added."
         />
       </div>
 

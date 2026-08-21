@@ -2,6 +2,63 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 13.1 — Palette dropdown & settings overlay (2026-08-21, from Angel's feedback)
+
+- The light/dark toggle is gone: one palette dropdown now holds all ten
+  palettes (modeled on Angel's reference screenshot) — the trigger is a 2×2
+  swatch tile of the active palette, each row pairs a swatch tile with the
+  palette name, and the active row is ringed in the accent color with a dot.
+  Picking a light palette IS switching to light mode (`chooseTheme` sets the
+  palette and its mode together); each mode still remembers its own last
+  palette, and `prefers-color-scheme` still decides the first visit.
+- Settings now opens as a fullscreen frosted overlay above the page you were
+  on — the page stays mounted behind it, so closing returns you exactly
+  where you were. The navbar gear swaps to an X while open; Escape closes
+  it (and the palette dropdown). "Back to projects" is gone.
+- Tests: 184 unit, 29 e2e (mode follows palette, dropdown close behaviors,
+  overlay open/close via X and Escape).
+
+## Slice 13 — Design pass (2026-08-21)
+
+- The official Kairo look (ADR-010), set in stone after several design-canvas
+  rounds: huge soft color bubbles blending into a solid ground color under a
+  fine diagonal hatch, glass panels (`.card`), pill-shaped controls with one
+  solid `.primary` CTA per surface, Instrument Sans (system-stack fallback
+  offline).
+- Ten palettes — Emberlight, Lagoon, Orchid, Citrus, North Sea (dark);
+  Golden Hour, Sea Glass, Peony, Meadow, Lilac Dawn (light) — in
+  `src/domain/themes.ts`, applied as CSS custom properties by `applyTheme()`.
+  Components stay tokens-only.
+- Top navbar: Kairo left; balance and open-project spend centered (hidden
+  under 860px — CostSummary still covers small screens); palette dropdown,
+  light/dark toggle, and Settings gear right, with room for the Slice 14
+  language dropdown.
+- Mode and a palette per mode persist in localStorage; with nothing stored
+  the app follows the OS `prefers-color-scheme`. Switching modes returns to
+  that mode's own last palette.
+- Every bubble gradient is sized to its own box (`50% 50% at 50% 50%`) so it
+  fades to zero inside it — no hard seams at div edges (the bug Angel's
+  screenshots caught on the canvas).
+- Animations and transitions are deliberately NOT here — they are the next
+  job, on top of this static-first backdrop.
+- Tests: 182 unit, 28 e2e (palette switching, mode toggle, per-mode memory,
+  persistence across reloads).
+
+## Slice 11.1 — Clip motion-prompt editing (2026-08-21)
+
+- Clip history versions gained "Edit & regenerate": the stored motion prompt
+  opens prefilled and the edited text is submitted VERBATIM
+  (`promptOverride` on `generateSceneVideo` — no re-derivation from the
+  visual description).
+- Cost UX for the expensive kind (LESSONS rule): the generate button does
+  not submit — it opens the Slice 6.1 confirmation dialog with model,
+  resolution, duration, and the price picture; the history row says so
+  upfront. Nothing is charged until "Submit and charge".
+- The verbatim-editor hint is now per-surface (image surfaces mention that
+  style and references are not re-added; clips use the generic wording).
+- Tests: 172 unit, 25 e2e (dialog gates the submission — no request before
+  confirm — and the request body carries the edited prompt verbatim).
+
 ## Slice 12 — Style-from-image (2026-08-21)
 
 - "Describe a style from an image" on the Scenes stage: pick a local image

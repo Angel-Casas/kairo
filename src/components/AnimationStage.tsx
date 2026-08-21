@@ -27,6 +27,7 @@ function describeClipPrice(model: VideoModel): string {
 type PendingConfirm =
   | { type: 'one'; sceneId: string; label: string }
   | { type: 'all'; count: number }
+  | { type: 'tweak'; sceneId: string; label: string; prompt: string }
 
 export function AnimationStage() {
   const project = useProjectStore((s) => s.project)
@@ -64,9 +65,8 @@ export function AnimationStage() {
       <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Animation</h3>
 
       <div
+        className="card"
         style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
           padding: 'var(--space-4)',
           marginBottom: 'var(--space-6)',
           display: 'flex',
@@ -156,6 +156,7 @@ export function AnimationStage() {
           <div>
             <button
               type="button"
+              className="primary"
               disabled={model === null}
               onClick={() => {
                 setConfirming({ type: 'all', count: pendingCount })
@@ -186,6 +187,14 @@ export function AnimationStage() {
                   label: `Animate scene ${String(index + 1)}`,
                 })
               }}
+              onRequestTweak={(prompt) => {
+                setConfirming({
+                  type: 'tweak',
+                  sceneId: scene.id,
+                  label: `Animate scene ${String(index + 1)} with the edited motion prompt`,
+                  prompt,
+                })
+              }}
             />
           ))}
         </ol>
@@ -209,6 +218,14 @@ export function AnimationStage() {
             setConfirming(null)
             if (pending.type === 'all') {
               void generateAllVideos(model, duration, effectiveResolution)
+            } else if (pending.type === 'tweak') {
+              void generateSceneVideo(
+                pending.sceneId,
+                model,
+                duration,
+                effectiveResolution,
+                pending.prompt,
+              )
             } else {
               void generateSceneVideo(
                 pending.sceneId,
@@ -232,11 +249,13 @@ function SceneVideoCard({
   index,
   model,
   onRequestGenerate,
+  onRequestTweak,
 }: {
   scene: Scene
   index: number
   model: VideoModel | null
   onRequestGenerate: () => void
+  onRequestTweak: (prompt: string) => void
 }) {
   const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
@@ -252,10 +271,9 @@ function SceneVideoCard({
   return (
     <li
       aria-label={`Scene ${String(index + 1)} animation`}
+      className="card"
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        padding: 'var(--space-3)',
+        padding: 'var(--space-4)',
         marginBottom: 'var(--space-3)',
         display: 'flex',
         gap: 'var(--space-4)',
@@ -394,10 +412,12 @@ function SceneVideoCard({
                       version.id === scene.activeVideoVersionId
                         ? '2px solid var(--color-accent)'
                         : '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--color-surface)',
+                    background:
+                      version.id === scene.activeVideoVersionId
+                        ? 'var(--color-accent-soft)'
+                        : 'var(--color-surface)',
                     color: 'var(--color-text)',
-                    padding: 'var(--space-1) var(--space-2)',
+                    padding: 'var(--space-1) var(--space-3)',
                     cursor: 'pointer',
                     fontSize: 'var(--text-sm)',
                   }}
@@ -413,6 +433,18 @@ function SceneVideoCard({
           versions={scene.videoVersions}
           activeVersionId={scene.activeVideoVersionId}
           label={`Scene ${String(index + 1)} clip`}
+          onRegenerate={onRequestTweak}
+          regenerateDisabled={
+            model === null || activeImage === null || generating
+          }
+          regenerateDisabledHint={
+            model === null
+              ? 'Pick a video model above first.'
+              : activeImage === null
+                ? 'The scene needs an active image first.'
+                : 'A generation is already running for this scene.'
+          }
+          regenerateCostText="You will confirm the exact price before the job is submitted."
         />
       </div>
     </li>

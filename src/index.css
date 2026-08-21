@@ -1,19 +1,33 @@
 /*
- * Minimal functional tokens — NOT the final design.
- * Aesthetics are deliberately deferred to the end of the project (ADR-007).
- * Rule that still applies now: components use these variables,
- * never ad-hoc hex values or magic pixel numbers.
+ * Kairo design tokens (ADR-010 — the Slice 13 design pass).
+ *
+ * COLOR tokens are written at runtime by applyTheme() in src/domain/themes.ts
+ * (five dark + five light palettes, user-selectable from the navbar). The
+ * values below are the default dark theme so the first paint is correct
+ * before React mounts. Components use these variables, never ad-hoc hex
+ * values or magic pixel numbers.
  */
 :root {
-  /* Color (utilitarian dark neutral + one accent) */
-  --color-bg: #101014;
-  --color-surface: #1a1a20;
-  --color-border: #2e2e36;
-  --color-text: #e6e6eb;
-  --color-text-muted: #9a9aa5;
-  --color-accent: #4f7cff;
-  --color-danger: #e5484d;
-  --color-success: #46a758;
+  /* Color (Emberlight dark — overwritten by applyTheme on boot) */
+  --color-bg: #1d2434;
+  --color-surface: rgba(255, 255, 255, 0.1);
+  --color-surface-2: rgba(255, 255, 255, 0.16);
+  --color-border: rgba(255, 255, 255, 0.22);
+  --color-text: #f1f3f7;
+  --color-text-muted: #a9b2c6;
+  --color-accent: #e9cf8f;
+  --color-accent-soft: rgba(242, 217, 140, 0.4);
+  --color-cta-bg: #f1f3f7;
+  --color-cta-text: #232a3c;
+  --color-danger: #f2a6a0;
+  --color-danger-ink: #33120f;
+  --color-success: #9fd8b4;
+  --bubble-cool: 86, 126, 200;
+  --bubble-warm: 232, 146, 66;
+  --bubble-cool-a: 0.5;
+  --bubble-warm-a: 0.55;
+  --hatch-line: rgba(10, 12, 22, 0.3);
+  --shadow-card: 0 14px 38px rgba(10, 12, 22, 0.35);
 
   /* Spacing scale */
   --space-1: 0.25rem;
@@ -29,15 +43,25 @@
   --text-lg: 1.25rem;
   --text-xl: 1.75rem;
 
-  --radius: 6px;
+  /* Geometry: controls vs. glass panels */
+  --radius: 12px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
 
   font-family:
+    'Instrument Sans',
     system-ui,
     -apple-system,
     'Segoe UI',
     Roboto,
     sans-serif;
   line-height: 1.5;
+}
+
+:root[data-mode='light'] {
+  color-scheme: light;
+}
+:root:not([data-mode='light']) {
   color-scheme: dark;
 }
 
@@ -63,4 +87,184 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+/* -- Background (blended bubbles + diagonal hatch, ADR-010) --------------- */
+
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.app-bg > div {
+  position: absolute;
+}
+/* Every bubble's gradient is sized to its own box (50% 50%), so it reaches
+   full transparency before its rectangle ends — soft edges only, no seams. */
+.app-bg .bubble-cool-1 {
+  top: -55vh;
+  left: -30vw;
+  width: 150vw;
+  height: 165vh;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(var(--bubble-cool), var(--bubble-cool-a)) 0%,
+    rgba(var(--bubble-cool), calc(var(--bubble-cool-a) * 0.55)) 48%,
+    rgba(var(--bubble-cool), 0) 94%
+  );
+}
+.app-bg .bubble-cool-2 {
+  top: -40vh;
+  right: -38vw;
+  width: 115vw;
+  height: 140vh;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(var(--bubble-cool), calc(var(--bubble-cool-a) * 0.55)) 0%,
+    rgba(var(--bubble-cool), calc(var(--bubble-cool-a) * 0.3)) 48%,
+    rgba(var(--bubble-cool), 0) 94%
+  );
+}
+.app-bg .bubble-warm-1 {
+  top: 16vh;
+  left: -46vw;
+  width: 150vw;
+  height: 180vh;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(var(--bubble-warm), var(--bubble-warm-a)) 0%,
+    rgba(var(--bubble-warm), calc(var(--bubble-warm-a) * 0.55)) 48%,
+    rgba(var(--bubble-warm), 0) 94%
+  );
+}
+.app-bg .bubble-warm-2 {
+  top: -8vh;
+  right: -44vw;
+  width: 135vw;
+  height: 185vh;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(var(--bubble-warm), calc(var(--bubble-warm-a) * 0.9)) 0%,
+    rgba(var(--bubble-warm), calc(var(--bubble-warm-a) * 0.5)) 48%,
+    rgba(var(--bubble-warm), 0) 94%
+  );
+}
+.app-bg .bubble-bridge {
+  top: 12vh;
+  left: 20vw;
+  width: 105vw;
+  height: 125vh;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgba(var(--bubble-warm), calc(var(--bubble-warm-a) * 0.4)) 0%,
+    rgba(var(--bubble-cool), calc(var(--bubble-cool-a) * 0.28)) 55%,
+    rgba(var(--bubble-cool), 0) 92%
+  );
+}
+.app-bg .hatch {
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    133deg,
+    var(--hatch-line) 0px,
+    var(--hatch-line) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+/* App content sits above the background layers; the header also stays above
+   the settings overlay so its gear-turned-X button keeps working. */
+main {
+  position: relative;
+  z-index: 1;
+}
+header {
+  position: relative;
+  z-index: 3;
+}
+
+/* Fullscreen settings layer: the page stays mounted (and faintly visible)
+   behind a frosted veil; the navbar above it closes it. */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  overflow-y: auto;
+  padding-top: 4.5rem;
+  background: color-mix(in srgb, var(--color-bg) 86%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  outline: none;
+}
+
+/* -- Glass panels ---------------------------------------------------------- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* -- Controls (global element styling; components add layout inline) ------- */
+
+button {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.primary {
+  background: var(--color-cta-bg);
+  color: var(--color-cta-text);
+  border-color: transparent;
+}
+
+select,
+input:not([type]),
+input[type='text'],
+input[type='search'],
+input[type='password'],
+textarea {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+option {
+  color: initial;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+/* -- Navbar ---------------------------------------------------------------- */
+
+.nav-middle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--space-4);
+  align-items: baseline;
+  white-space: nowrap;
+}
+@media (max-width: 860px) {
+  .nav-middle {
+    display: none;
+  }
 }

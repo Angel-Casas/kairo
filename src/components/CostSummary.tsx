@@ -21,10 +21,9 @@ export function CostSummary() {
 
   return (
     <div
+      className="card"
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        padding: 'var(--space-2) var(--space-3)',
+        padding: 'var(--space-2) var(--space-4)',
         marginBottom: 'var(--space-4)',
         fontSize: 'var(--text-sm)',
       }}

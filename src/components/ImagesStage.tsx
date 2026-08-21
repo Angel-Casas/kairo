@@ -43,9 +43,8 @@ export function ImagesStage() {
       <StyleGallery />
 
       <div
+        className="card"
         style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
           padding: 'var(--space-4)',
           marginBottom: 'var(--space-6)',
           display: 'flex',
@@ -121,6 +120,7 @@ export function ImagesStage() {
           >
             <button
               type="button"
+              className="primary"
               disabled={model === null || allImagesProgress !== null}
               onClick={() => {
                 if (model !== null) {
@@ -201,10 +201,9 @@ function SceneImageCard({
   return (
     <li
       aria-label={`Scene ${String(index + 1)} images`}
+      className="card"
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        padding: 'var(--space-3)',
+        padding: 'var(--space-4)',
         marginBottom: 'var(--space-3)',
         display: 'flex',
         gap: 'var(--space-4)',
@@ -371,6 +370,7 @@ function SceneImageCard({
               : 'Another generation is running.'
           }
           regenerateCostUsd={perImageUsd}
+          editorHint="This exact text will be sent as the prompt — style and references are not re-added."
         />
       </div>
     </li>
