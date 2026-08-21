@@ -6,6 +6,7 @@ import {
   mockImageGeneration,
   mockImageModels,
   mockTextModels,
+  readStoredProjects,
   setUpApiKey,
 } from './helpers'
 
@@ -49,6 +50,16 @@ test('style gallery selects and persists a preset', async ({ page }) => {
   await expect(
     page.getByRole('radio', { name: 'Style: Watercolor' }),
   ).toHaveAttribute('aria-checked', 'true')
+  // The UI updates before the IndexedDB write commits — wait for the stored
+  // value so the reload below cannot race the persist.
+  await expect
+    .poll(async () => {
+      const [stored] = (await readStoredProjects(page)) as {
+        stylePresetId: string | null
+      }[]
+      return stored?.stylePresetId ?? null
+    })
+    .toBe('watercolor')
   await page.reload()
   await page.getByRole('button', { name: /Images test/ }).click()
   await page.getByRole('button', { name: '3. Images' }).click()

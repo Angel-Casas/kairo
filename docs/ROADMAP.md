@@ -102,21 +102,57 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       130 unit tests + 18 e2e. **FUNCTION-COMPLETE — the whole pipeline works
       end to end.** Remaining slices are polish and reach.
 
-- [ ] **Slice 9 — Design pass (ADR-007).** The dedicated aesthetics slice, done
-      last: visual identity, real token values, component styling sweep, layout
-      refinement, motion where it earns its keep. This is where "looks good"
-      happens — not before.
+### Post-function-complete features (from Angel's direction, 2026-08-16 —
 
-- [ ] **Slice 10 — i18n & ship (ADR-007).** Extract strings, add target
+### several ideas critically filtered from an external pipeline article)
+
+- [x] **Slice 9 — Prompt-quality upgrade.** _(done 2026-08-16)_ Craft rules
+      baked into default prompts: scene breakdown enforces exactly one action
+      per scene and bans reliance on in-frame text; image prompts append a
+      no-text rule; video motion prompts pair the camera with one continuous
+      action ("no frozen figures") and preserve style/palette.
+
+- [x] **Slice 10 — References (asset passports + reference images, ADR-009).**
+      _(done 2026-08-21, redefined per Angel's idea)_ Cross-scene SUBJECT
+      consistency (the "model has no memory" problem), in two parts.
+      **Part A:** project-level References (character/location/art style) with
+      name + exhaustive descriptor; scenes tick the references they use;
+      ticked descriptors injected VERBATIM into those scenes' image prompts
+      (never shortened; variants are separate references). **Part B:** each
+      reference optionally holds an image — imported from disk (free) or
+      generated in-app from its descriptor (normal job + cost log, append-only
+      versions with active switching); at scene generation the active images
+      of ticked references are attached via the API's `input_references`
+      (verified against NanoGPT docs; never mixed with legacy image aliases).
+      Model capability handled honestly: i2i-capable models labeled and
+      filterable in the picker, non-capable models say the images will be
+      skipped while descriptors still apply. All fields additive with
+      `normalizeProject` backfill; `.kairo` import re-roots reference blobs.
+      175 unit + e2e tests total (154 unit, 21 e2e incl. request-body
+      assertion of `input_references`).
+
+- [ ] **Slice 11 — Generation history viewer.** Surface the exact prompt
+      behind every image/clip version (already stored on AssetVersion) with
+      copy/tweak — iteration becomes surgical instead of from-scratch.
+
+- [ ] **Slice 12 — Style-from-image.** Upload a reference image; a
+      vision-capable model names the palette, light, and lens and writes the
+      project's style notes (verify NanoGPT vision message format first).
+
+- [ ] **Slice 13 — Design pass (ADR-007).** The dedicated aesthetics slice:
+      visual identity, real token values, component styling sweep, layout
+      refinement, motion where it earns its keep.
+
+- [ ] **Slice 14 — i18n & ship (ADR-007).** Extract strings, add target
       languages; README with screenshots; deploy to GitHub Pages; skim NanoGPT ToS
       re: third-party apps and affiliate usage before announcing.
 
 ## V2 backlog (not now — resist scope creep)
 
 Long-form videos (multi-minute, many scenes); audio: voiceover/TTS and music via
-NanoGPT audio models; caption/subtitle generation; character & style consistency
-tooling (reference images across scenes); prompt/style template library; project
-sync across devices; community template sharing.
+NanoGPT audio models; caption/subtitle generation; prompt/style template library;
+project sync across devices; community template sharing. (Character & style
+consistency tooling moved up and shipped as Slice 10 — References.)
 
 ## Recurring maintenance
 

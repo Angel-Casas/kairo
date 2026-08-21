@@ -8,6 +8,7 @@ function scene(overrides: Partial<Scene> = {}): Scene {
     order: 0,
     textExcerpt: 'Once upon a time',
     visualDescription: 'A castle at dawn',
+    referenceIds: [],
     imageVersions: [],
     activeImageVersionId: null,
     videoVersions: [],

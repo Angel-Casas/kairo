@@ -85,6 +85,13 @@ export async function importProject(
   const rerooted: Project = {
     ...parsed,
     id: newId,
+    references: parsed.references.map((reference) => ({
+      ...reference,
+      imageVersions: reference.imageVersions.map((v) => ({
+        ...v,
+        blobPath: rerootPath(v.blobPath, oldId, newId),
+      })),
+    })),
     scenes: parsed.scenes.map((scene) => ({
       ...scene,
       imageVersions: scene.imageVersions.map((v) => ({

@@ -2,6 +2,47 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 10 — References (2026-08-21)
+
+- One concept for cross-scene subject consistency (ADR-009), merging the
+  planned "asset passports" with Angel's reference-image idea: project-level
+  References (character / location / art style) with a name, an exhaustive
+  descriptor, and an optional reference image.
+- Part A — descriptors: References panel on the Scenes stage; per-scene
+  tick-boxes; ticked descriptors injected VERBATIM into those scenes' image
+  prompts (between style notes and the scene description — never shortened;
+  variants are separate references). Deleting a reference confirms and unticks
+  it everywhere.
+- Part B — reference images: import from disk (free, validated, straight into
+  OPFS) or generate in-app from the descriptor (normal job + cost log,
+  "Reference image" entries, append-only versions with active switching,
+  project style composed in). At scene generation, active images of ticked
+  references are attached via the API's `input_references` array
+  (docs-verified; never mixed with legacy image aliases).
+- Honest capability handling: image model picker labels i2i-capable models
+  ("accepts reference images") with an opt-in filter; a non-capable model
+  states that images will be skipped while descriptions still apply.
+- Schema stays v1: `Project.references` + `Scene.referenceIds` are additive
+  with `normalizeProject` backfill; `.kairo` import re-roots reference blobs.
+- Fixed a pre-existing e2e race (new LESSONS rule): "survives reload" tests
+  now poll IndexedDB for the persisted value before reloading instead of
+  trusting optimistic UI state.
+- Tests: 154 unit, 21 e2e (including a request-body assertion that
+  `input_references` is actually sent, and skip behavior for non-i2i models).
+
+## Slice 9 — Prompt-quality upgrade (2026-08-16)
+
+- Craft rules from a production pipeline (critically filtered from an
+  external article) baked into every default prompt:
+  - Scene breakdown: exactly one action per scene, never a sequence; visual
+    descriptions may not rely on readable text/signs/screens.
+  - Image prompts: "no readable text, signs, or lettering in the image."
+  - Video motion prompts: one continuous action with the camera drifting
+    along with it — no frozen figures (a camera move past a static figure
+    reads as a drifting still) — and explicit style/palette preservation.
+- Roadmap re-planned per Angel: asset passports, generation history viewer,
+  and style-from-image land before the design pass.
+
 ## Slice 8 — Hardening (2026-08-16) — FUNCTION-COMPLETE
 
 - Offline: app shell loads with no network (service worker precache, verified

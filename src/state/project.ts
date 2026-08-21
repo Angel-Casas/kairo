@@ -11,11 +11,13 @@ import {
 import { parseSceneBreakdown } from '../domain/sceneParser'
 import { getStylePreset } from '../domain/stylePresets'
 import { applyJobEvent, isActiveJobState } from '../domain/transitions'
-import { createScene } from '../domain/types'
+import { createReference, createScene } from '../domain/types'
 import type {
   AssetVersion,
   GenerationJob,
   Project,
+  ReferenceAsset,
+  ReferenceKind,
   Scene,
 } from '../domain/types'
 import {
@@ -63,6 +65,34 @@ interface ProjectState {
   moveScene: (sceneId: string, direction: -1 | 1) => Promise<void>
   /** AI scene breakdown of the locked script. Replaces existing scenes. */
   generateScenes: (model: TextModel) => Promise<boolean>
+  /** Add an empty reference of the given kind (Slice 10). */
+  addReference: (kind: ReferenceKind) => Promise<void>
+  /** Update reference text fields in memory; debounced persist. */
+  updateReference: (
+    referenceId: string,
+    fields: Partial<Pick<ReferenceAsset, 'kind' | 'name' | 'descriptor'>>,
+  ) => void
+  /** Remove a reference and untick it from every scene. */
+  removeReference: (referenceId: string) => Promise<void>
+  /** Tick or untick a reference on a scene. */
+  toggleSceneReference: (sceneId: string, referenceId: string) => Promise<void>
+  /** Per-reference image generation/import status, keyed by reference id. */
+  referenceImageStatus: Record<
+    string,
+    { generating: boolean; error: string | null }
+  >
+  setActiveReferenceImageVersion: (
+    referenceId: string,
+    versionId: string,
+  ) => Promise<void>
+  /** Import a user-provided image file as a new reference image version. */
+  importReferenceImage: (referenceId: string, file: Blob) => Promise<boolean>
+  /** Generate a reference image from its descriptor as a NEW version. */
+  generateReferenceImage: (
+    referenceId: string,
+    model: ImageModel,
+    resolution: string | null,
+  ) => Promise<boolean>
   /** Per-scene image generation status, keyed by scene id. */
   sceneImageStatus: Record<
     string,
@@ -125,6 +155,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   sceneImageStatus: {},
   allImagesProgress: null,
   sceneVideoStatus: {},
+  referenceImageStatus: {},
 
   loadProject: async (id: string) => {
     set({
@@ -136,6 +167,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       sceneImageStatus: {},
       allImagesProgress: null,
       sceneVideoStatus: {},
+      referenceImageStatus: {},
     })
     const repo = await getRepository()
     const project = await repo.getProject(id)
@@ -416,6 +448,255 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await persistProject(updated)
     return true
   },
+  addReference: async (kind: ReferenceKind) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      references: [...project.references, createReference(kind, nowIso)],
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+  },
+
+  updateReference: (referenceId, fields) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      references: project.references.map((r) =>
+        r.id === referenceId ? { ...r, ...fields } : r,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    scheduleAutosave(get)
+  },
+
+  removeReference: async (referenceId: string) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      references: project.references.filter((r) => r.id !== referenceId),
+      scenes: project.scenes.map((s) =>
+        s.referenceIds.includes(referenceId)
+          ? {
+              ...s,
+              referenceIds: s.referenceIds.filter((id) => id !== referenceId),
+            }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+  },
+
+  toggleSceneReference: async (sceneId: string, referenceId: string) => {
+    const { project } = get()
+    if (project === null) return
+    if (!project.references.some((r) => r.id === referenceId)) return
+    const updated: Project = {
+      ...project,
+      scenes: project.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              referenceIds: s.referenceIds.includes(referenceId)
+                ? s.referenceIds.filter((id) => id !== referenceId)
+                : [...s.referenceIds, referenceId],
+            }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+  },
+
+  setActiveReferenceImageVersion: async (
+    referenceId: string,
+    versionId: string,
+  ) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      references: project.references.map((r) =>
+        r.id === referenceId && r.imageVersions.some((v) => v.id === versionId)
+          ? { ...r, activeImageVersionId: versionId }
+          : r,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+  },
+
+  importReferenceImage: async (referenceId: string, file: Blob) => {
+    const { project } = get()
+    if (project === null) return false
+    const reference = project.references.find((r) => r.id === referenceId)
+    if (reference === undefined) return false
+    if (!file.type.startsWith('image/')) {
+      set({
+        referenceImageStatus: {
+          ...get().referenceImageStatus,
+          [referenceId]: {
+            generating: false,
+            error: 'Only image files can be imported as references.',
+          },
+        },
+      })
+      return false
+    }
+
+    const repo = await getRepository()
+    const versionId = crypto.randomUUID()
+    const blobPath = `${project.id}/${versionId}`
+    await repo.blobs.put(blobPath, file)
+
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'image',
+      model: 'imported',
+      prompt: '',
+      costUsd: null,
+      blobPath,
+      mimeType: file.type,
+      createdAt: nowIso(),
+    }
+    const current = get().project
+    if (current === null) return false
+    const updated: Project = {
+      ...current,
+      references: current.references.map((r) =>
+        r.id === referenceId
+          ? {
+              ...r,
+              imageVersions: [...r.imageVersions, version],
+              activeImageVersionId: version.id,
+            }
+          : r,
+      ),
+      updatedAt: nowIso(),
+    }
+    const { [referenceId]: _cleared, ...restStatus } =
+      get().referenceImageStatus
+    set({ project: updated, referenceImageStatus: restStatus })
+    await persistProject(updated)
+    return true
+  },
+
+  generateReferenceImage: async (
+    referenceId: string,
+    model: ImageModel,
+    resolution: string | null,
+  ) => {
+    const { project } = get()
+    const apiKey = useSettingsStore.getState().apiKey
+    if (project === null || apiKey === null) return false
+    const reference = project.references.find((r) => r.id === referenceId)
+    if (reference === undefined || reference.descriptor.trim().length === 0) {
+      return false
+    }
+
+    set({
+      referenceImageStatus: {
+        ...get().referenceImageStatus,
+        [referenceId]: { generating: true, error: null },
+      },
+    })
+
+    const repo = await getRepository()
+    // The reference image carries the project style so scenes built on it match.
+    const prompt = buildImagePrompt({
+      stylePromptFragment:
+        getStylePreset(project.stylePresetId)?.promptFragment ?? null,
+      styleNotes: project.styleNotes,
+      visualDescription: reference.descriptor,
+    })
+    const priceUsd = getPerImagePriceUsd(model, resolution)
+
+    const outcome = await withGenerationJob({
+      projectId: project.id,
+      sceneId: null,
+      kind: 'image',
+      model: model.id,
+      estimatedUsd: priceUsd,
+      run: async () => {
+        const images = await getClient(apiKey).generateImage({
+          model: model.id,
+          prompt,
+          ...(resolution !== null ? { resolution } : { aspectRatio: '9:16' }),
+          n: 1,
+        })
+        const image = images[0]
+        if (image === undefined) throw new Error('No image was returned.')
+        const blob = await imageResultToBlob(image)
+        const versionId = crypto.randomUUID()
+        const blobPath = `${project.id}/${versionId}`
+        await repo.blobs.put(blobPath, blob)
+        return { blob, versionId, blobPath }
+      },
+    })
+
+    if (!outcome.ok) {
+      set({
+        referenceImageStatus: {
+          ...get().referenceImageStatus,
+          [referenceId]: { generating: false, error: outcome.error.message },
+        },
+      })
+      return false
+    }
+    const { blob, versionId, blobPath } = outcome.value
+
+    const current = get().project
+    if (current === null) return false
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'image',
+      model: model.id,
+      prompt,
+      costUsd: priceUsd,
+      blobPath,
+      mimeType: blob.type.length > 0 ? blob.type : 'image/png',
+      createdAt: nowIso(),
+    }
+    const updated: Project = {
+      ...current,
+      references: current.references.map((r) =>
+        r.id === referenceId
+          ? {
+              ...r,
+              imageVersions: [...r.imageVersions, version],
+              activeImageVersionId: version.id,
+            }
+          : r,
+      ),
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'image',
+          model: model.id,
+          estimatedUsd: priceUsd,
+          actualUsd: priceUsd,
+          note: 'Reference image',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    const { [referenceId]: _done, ...restStatus } = get().referenceImageStatus
+    set({ project: updated, referenceImageStatus: restStatus })
+    await persistProject(updated)
+    return true
+  },
+
   setStylePreset: async (presetId: string | null) => {
     const { project } = get()
     if (project === null) return
@@ -465,13 +746,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
 
     const repo = await getRepository()
+    // References in project order; descriptors go in verbatim (Slice 10).
+    const sceneReferences = project.references.filter((r) =>
+      scene.referenceIds.includes(r.id),
+    )
     const prompt = buildImagePrompt({
       stylePromptFragment:
         getStylePreset(project.stylePresetId)?.promptFragment ?? null,
       styleNotes: project.styleNotes,
+      referenceDescriptors: sceneReferences.map((r) => r.descriptor),
       visualDescription: scene.visualDescription,
     })
     const priceUsd = getPerImagePriceUsd(model, resolution)
+
+    // Attach active reference images for image-to-image capable models
+    // (Slice 10 Part B). Models without the capability generate text-only —
+    // the Images stage says so next to the scene.
+    const referenceImageUrls: string[] = []
+    if (model.supportsImageToImage) {
+      for (const reference of sceneReferences) {
+        const active = reference.imageVersions.find(
+          (v) => v.id === reference.activeImageVersionId,
+        )
+        if (active === undefined) continue
+        const referenceBlob = await repo.blobs.get(active.blobPath)
+        if (referenceBlob === null) continue
+        referenceImageUrls.push(await blobToDataUrl(referenceBlob))
+      }
+    }
 
     const outcome = await withGenerationJob({
       projectId: project.id,
@@ -485,28 +787,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           prompt,
           ...(resolution !== null ? { resolution } : { aspectRatio: '9:16' }),
           n: 1,
+          ...(referenceImageUrls.length > 0
+            ? { inputReferences: referenceImageUrls }
+            : {}),
         })
         const image = images[0]
         if (image === undefined) throw new Error('No image was returned.')
-
-        let blob: Blob
-        if (image.b64Json !== null) {
-          const binary = atob(image.b64Json)
-          const bytes = new Uint8Array(binary.length)
-          for (let i = 0; i < binary.length; i += 1) {
-            bytes[i] = binary.charCodeAt(i)
-          }
-          blob = new Blob([bytes.buffer], { type: 'image/png' })
-        } else if (image.url !== null) {
-          const response = await fetch(image.url)
-          if (!response.ok) {
-            throw new Error('The generated image could not be downloaded.')
-          }
-          blob = await response.blob()
-        } else {
-          throw new Error('The response contained no image data.')
-        }
-
+        const blob = await imageResultToBlob(image)
         const versionId = crypto.randomUUID()
         const blobPath = `${project.id}/${versionId}`
         await repo.blobs.put(blobPath, blob)
@@ -960,6 +1247,29 @@ async function pollVideoJobTick(
     // Transient (network hiccup): try again.
     scheduleVideoPoll(job, get, set, VIDEO_POLL_MS)
   }
+}
+
+/** Turn a normalized image API result (b64 or URL) into a stored Blob. */
+async function imageResultToBlob(image: {
+  b64Json: string | null
+  url: string | null
+}): Promise<Blob> {
+  if (image.b64Json !== null) {
+    const binary = atob(image.b64Json)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return new Blob([bytes.buffer], { type: 'image/png' })
+  }
+  if (image.url !== null) {
+    const response = await fetch(image.url)
+    if (!response.ok) {
+      throw new Error('The generated image could not be downloaded.')
+    }
+    return response.blob()
+  }
+  throw new Error('The response contained no image data.')
 }
 
 async function blobToDataUrl(blob: Blob): Promise<string> {

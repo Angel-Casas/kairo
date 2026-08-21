@@ -7,6 +7,7 @@ import { useProjectStore } from '../state/project'
 import { ImageModelPicker } from './ModelPicker'
 import { StyleGallery } from './StyleGallery'
 import { useBlobUrl } from './useBlobUrl'
+import { VersionThumb } from './VersionThumb'
 
 export function ImagesStage() {
   const project = useProjectStore((s) => s.project)
@@ -15,9 +16,13 @@ export function ImagesStage() {
 
   const [model, setModel] = useState<ImageModel | null>(null)
   const [resolution, setResolution] = useState<string | null>(null)
+  const [onlyImageToImage, setOnlyImageToImage] = useState(false)
 
   if (project === null) return null
   const scenes = [...project.scenes].sort((a, b) => a.order - b.order)
+  const hasReferenceImages = project.references.some(
+    (r) => r.activeImageVersionId !== null,
+  )
 
   const effectiveResolution =
     model === null ? null : (resolution ?? pickPortraitResolution(model))
@@ -48,8 +53,29 @@ export function ImagesStage() {
         }}
       >
         <h4 style={{ margin: 0 }}>Image model</h4>
+        {hasReferenceImages && (
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+              fontSize: 'var(--text-sm)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={onlyImageToImage}
+              onChange={(e) => {
+                setOnlyImageToImage(e.target.checked)
+              }}
+            />
+            Only show models that can use reference images
+          </label>
+        )}
         <ImageModelPicker
           selectedId={model?.id ?? null}
+          onlyImageToImage={onlyImageToImage}
           onSelect={(m) => {
             setModel(m)
             setResolution(null)
@@ -158,6 +184,11 @@ function SceneImageCard({
   const setActiveImageVersion = useProjectStore((s) => s.setActiveImageVersion)
   const status = useProjectStore((s) => s.sceneImageStatus[scene.id])
   const allImagesProgress = useProjectStore((s) => s.allImagesProgress)
+  const references = useProjectStore((s) => s.project?.references ?? [])
+
+  const attachableCount = references.filter(
+    (r) => scene.referenceIds.includes(r.id) && r.activeImageVersionId !== null,
+  ).length
 
   const activeVersion =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
@@ -266,6 +297,21 @@ function SceneImageCard({
             </span>
           )}
         </div>
+        {attachableCount > 0 && model !== null && (
+          <p
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+              margin: 'var(--space-2) 0 0',
+            }}
+          >
+            {model.supportsImageToImage
+              ? attachableCount === 1
+                ? 'One reference image will be attached to this generation.'
+                : `${String(attachableCount)} reference images will be attached to this generation.`
+              : 'This model cannot use reference images — descriptions still apply, but the images will be skipped.'}
+          </p>
+        )}
         {status?.error != null && (
           <p role="alert" style={{ color: 'var(--color-danger)' }}>
             {status.error}
@@ -307,53 +353,5 @@ function SceneImageCard({
         )}
       </div>
     </li>
-  )
-}
-
-function VersionThumb({
-  blobPath,
-  label,
-  active,
-  onSelect,
-}: {
-  blobPath: string
-  label: string
-  active: boolean
-  onSelect: () => void
-}) {
-  const url = useBlobUrl(blobPath)
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      onClick={onSelect}
-      style={{
-        padding: 0,
-        border: active
-          ? '2px solid var(--color-accent)'
-          : '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: 'var(--color-surface)',
-        width: '3.5rem',
-      }}
-    >
-      {url !== null ? (
-        <img
-          src={url}
-          alt=""
-          style={{
-            width: '100%',
-            aspectRatio: '9 / 16',
-            objectFit: 'cover',
-            display: 'block',
-          }}
-        />
-      ) : (
-        <div style={{ width: '100%', aspectRatio: '9 / 16' }} />
-      )}
-    </button>
   )
 }

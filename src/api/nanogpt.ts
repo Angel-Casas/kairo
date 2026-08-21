@@ -99,6 +99,12 @@ export interface ImageGenerationParams {
   resolution?: string
   aspectRatio?: string
   n?: number
+  /**
+   * Reference images for image-to-image models (data URLs or https URLs),
+   * sent as `input_references`. Never combine with the legacy image aliases
+   * (`imageDataUrl` etc.) — the API rejects mixed image inputs.
+   */
+  inputReferences?: string[]
 }
 
 export interface GeneratedImage {
@@ -329,6 +335,10 @@ export class NanoGptClient {
         ? { aspect_ratio: params.aspectRatio }
         : {}),
       ...(params.n !== undefined ? { n: params.n } : {}),
+      ...(params.inputReferences !== undefined &&
+      params.inputReferences.length > 0
+        ? { input_references: params.inputReferences }
+        : {}),
     })) as {
       data?: { url?: string; b64_json?: string }[]
     }

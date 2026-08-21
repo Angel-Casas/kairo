@@ -13,6 +13,8 @@ import { formatUsd } from '../lib/format'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
 import { TextModelPicker } from './ModelPicker'
+import { ReferencesPanel } from './ReferencesPanel'
+import { referenceDisplayName } from './referenceDisplay'
 
 export function ScenesStage() {
   const project = useProjectStore((s) => s.project)
@@ -84,6 +86,8 @@ export function ScenesStage() {
           }}
         />
       </label>
+
+      <ReferencesPanel />
 
       {scenes.length === 0 ? (
         <p style={{ color: 'var(--color-text-muted)' }}>
@@ -193,6 +197,8 @@ function SceneCard({
   const flushProject = useProjectStore((s) => s.flushProject)
   const removeScene = useProjectStore((s) => s.removeScene)
   const moveScene = useProjectStore((s) => s.moveScene)
+  const references = useProjectStore((s) => s.project?.references ?? [])
+  const toggleSceneReference = useProjectStore((s) => s.toggleSceneReference)
 
   return (
     <li
@@ -296,6 +302,55 @@ function SceneCard({
           }}
         />
       </label>
+      {references.length > 0 && (
+        <fieldset
+          style={{
+            border: 'none',
+            padding: 0,
+            margin: 'var(--space-2) 0 0',
+          }}
+        >
+          <legend
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+              padding: 0,
+              marginBottom: 'var(--space-1)',
+            }}
+          >
+            References used in this scene
+          </legend>
+          <div
+            style={{
+              display: 'flex',
+              gap: 'var(--space-3)',
+              flexWrap: 'wrap',
+            }}
+          >
+            {references.map((reference) => (
+              <label
+                key={reference.id}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={scene.referenceIds.includes(reference.id)}
+                  onChange={() =>
+                    void toggleSceneReference(scene.id, reference.id)
+                  }
+                  aria-label={`Scene ${String(index + 1)} uses ${referenceDisplayName(reference)}`}
+                />
+                {referenceDisplayName(reference)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
     </li>
   )
 }

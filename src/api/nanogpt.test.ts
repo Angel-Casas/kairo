@@ -245,6 +245,41 @@ describe('generateImage', () => {
       client().generateImage({ model: 'm', prompt: 'p' }),
     ).rejects.toThrow(/no images/)
   })
+
+  it('sends reference images as input_references, never a legacy alias', async () => {
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: 'aGVsbG8=' }] })
+      }),
+    )
+    await client().generateImage({
+      model: 'm',
+      prompt: 'p',
+      inputReferences: ['data:image/png;base64,QUJD'],
+    })
+    expect(body.input_references).toEqual(['data:image/png;base64,QUJD'])
+    // The API rejects requests mixing input_references with legacy aliases.
+    expect(body).not.toHaveProperty('imageDataUrl')
+    expect(body).not.toHaveProperty('image_url')
+  })
+
+  it('omits input_references when the list is empty', async () => {
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: 'aGVsbG8=' }] })
+      }),
+    )
+    await client().generateImage({
+      model: 'm',
+      prompt: 'p',
+      inputReferences: [],
+    })
+    expect(body).not.toHaveProperty('input_references')
+  })
 })
 
 describe('video generation and polling', () => {

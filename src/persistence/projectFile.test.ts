@@ -33,6 +33,7 @@ describe('project file export/import', () => {
       order: 0,
       textExcerpt: 'text',
       visualDescription: 'castle',
+      referenceIds: [],
       imageVersions: [v],
       activeImageVersionId: v.id,
       videoVersions: [],

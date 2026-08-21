@@ -180,9 +180,12 @@ export function VideoModelPicker({
 export function ImageModelPicker({
   selectedId,
   onSelect,
+  onlyImageToImage = false,
 }: {
   selectedId: string | null
   onSelect: (model: ImageModel) => void
+  /** Show only models that accept reference images (Slice 10). */
+  onlyImageToImage?: boolean
 }) {
   const models = useModelsStore((s) => s.imageModels)
   const status = useModelsStore((s) => s.imageModelsStatus)
@@ -192,20 +195,27 @@ export function ImageModelPicker({
     void load()
   }, [load])
 
+  const shown = useMemo(
+    () =>
+      onlyImageToImage ? models.filter((m) => m.supportsImageToImage) : models,
+    [models, onlyImageToImage],
+  )
+
   return (
     <PickerShell
-      models={models}
+      models={shown}
       status={status}
       selectedId={selectedId}
       ariaLabel="Image model"
       optionLabel={(m) => {
         const prices = Object.values(m.perImageUsd)
-        if (prices.length === 0) return `${m.name} — price unlisted`
+        const i2i = m.supportsImageToImage ? ' — accepts reference images' : ''
+        if (prices.length === 0) return `${m.name} — price unlisted${i2i}`
         const min = Math.min(...prices)
         const max = Math.max(...prices)
         return min === max
-          ? `${m.name} — ${formatUsd(min)} per image`
-          : `${m.name} — ${formatUsd(min)}–${formatUsd(max)} per image`
+          ? `${m.name} — ${formatUsd(min)} per image${i2i}`
+          : `${m.name} — ${formatUsd(min)}–${formatUsd(max)} per image${i2i}`
       }}
       onSelect={onSelect}
       onRetry={() => void load(true)}

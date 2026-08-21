@@ -304,6 +304,77 @@ describe('project store — manual scene editing', () => {
   })
 })
 
+describe('project store — references (Slice 10)', () => {
+  it('adds a reference and persists edits', async () => {
+    const project = await seedProject()
+    await useProjectStore.getState().addReference('character')
+    const reference = useProjectStore.getState().project?.references[0]
+    expect(reference?.kind).toBe('character')
+
+    useProjectStore.getState().updateReference(reference?.id ?? '', {
+      name: 'Captain Mara',
+      descriptor: 'a tall woman with cropped silver hair',
+    })
+    await useProjectStore.getState().flushProject()
+
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.references).toHaveLength(1)
+    expect(stored?.references[0]?.name).toBe('Captain Mara')
+    expect(stored?.references[0]?.descriptor).toBe(
+      'a tall woman with cropped silver hair',
+    )
+  })
+
+  it('ticks and unticks a reference on a scene', async () => {
+    const project = await seedLockedProject()
+    await useProjectStore.getState().addScene()
+    await useProjectStore.getState().addReference('location')
+    const state = useProjectStore.getState()
+    const sceneId = state.project?.scenes[0]?.id ?? ''
+    const referenceId = state.project?.references[0]?.id ?? ''
+
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+    let stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.scenes[0]?.referenceIds).toEqual([referenceId])
+
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+    stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.scenes[0]?.referenceIds).toEqual([])
+  })
+
+  it('ignores ticking a reference that does not exist', async () => {
+    await seedLockedProject()
+    await useProjectStore.getState().addScene()
+    const sceneId = useProjectStore.getState().project?.scenes[0]?.id ?? ''
+    await useProjectStore.getState().toggleSceneReference(sceneId, 'ghost')
+    expect(useProjectStore.getState().project?.scenes[0]?.referenceIds).toEqual(
+      [],
+    )
+  })
+
+  it('removing a reference unticks it from every scene', async () => {
+    const project = await seedLockedProject()
+    await useProjectStore.getState().addScene()
+    await useProjectStore.getState().addScene()
+    await useProjectStore.getState().addReference('character')
+    const state = useProjectStore.getState()
+    const [first, second] = state.project?.scenes ?? []
+    const referenceId = state.project?.references[0]?.id ?? ''
+    await useProjectStore
+      .getState()
+      .toggleSceneReference(first?.id ?? '', referenceId)
+    await useProjectStore
+      .getState()
+      .toggleSceneReference(second?.id ?? '', referenceId)
+
+    await useProjectStore.getState().removeReference(referenceId)
+
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.references).toHaveLength(0)
+    expect(stored?.scenes.every((s) => s.referenceIds.length === 0)).toBe(true)
+  })
+})
+
 import type { ImageModel } from '../api/nanogpt'
 
 const IMAGE_MODEL: ImageModel = {
@@ -327,6 +398,175 @@ async function seedSceneProject() {
   await useProjectStore.getState().flushProject()
   return { project, sceneId: scene?.id ?? '' }
 }
+
+const I2I_MODEL: ImageModel = {
+  ...IMAGE_MODEL,
+  id: 'img/i2i-model',
+  name: 'I2I Model',
+  supportsImageToImage: true,
+}
+
+describe('project store — reference images (Slice 10 Part B)', () => {
+  async function seedReference() {
+    const seeded = await seedSceneProject()
+    await useProjectStore.getState().addReference('character')
+    const referenceId =
+      useProjectStore.getState().project?.references[0]?.id ?? ''
+    useProjectStore.getState().updateReference(referenceId, {
+      name: 'Mara',
+      descriptor: 'a tall woman with cropped silver hair',
+    })
+    await useProjectStore.getState().flushProject()
+    return { ...seeded, referenceId }
+  }
+
+  it('imports an image file as a free active version (no cost log)', async () => {
+    const { project, referenceId } = await seedReference()
+    const file = new Blob(['fake-image'], { type: 'image/webp' })
+
+    const ok = await useProjectStore
+      .getState()
+      .importReferenceImage(referenceId, file)
+    expect(ok).toBe(true)
+
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    const reference = stored?.references[0]
+    expect(reference?.imageVersions).toHaveLength(1)
+    const version = reference?.imageVersions[0]
+    expect(reference?.activeImageVersionId).toBe(version?.id)
+    expect(version?.model).toBe('imported')
+    expect(version?.costUsd).toBeNull()
+    expect(version?.mimeType).toBe('image/webp')
+    expect(await repo.blobs.get(version?.blobPath ?? '')).not.toBeNull()
+    expect(stored?.costLog).toHaveLength(0)
+  })
+
+  it('rejects non-image files with a clear error', async () => {
+    const { referenceId } = await seedReference()
+    const file = new Blob(['not an image'], { type: 'text/plain' })
+    const ok = await useProjectStore
+      .getState()
+      .importReferenceImage(referenceId, file)
+    expect(ok).toBe(false)
+    expect(
+      useProjectStore.getState().referenceImageStatus[referenceId]?.error,
+    ).toMatch(/image files/i)
+    expect(
+      useProjectStore.getState().project?.references[0]?.imageVersions,
+    ).toHaveLength(0)
+  })
+
+  it('generates a reference image from the descriptor with cost log', async () => {
+    const { project, referenceId } = await seedReference()
+    let sentPrompt = ''
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        const body = (await request.json()) as { prompt?: string }
+        sentPrompt = body.prompt ?? ''
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+
+    const ok = await useProjectStore
+      .getState()
+      .generateReferenceImage(referenceId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(true)
+    expect(sentPrompt).toContain('a tall woman with cropped silver hair')
+
+    const repo = await getRepository()
+    const stored = await repo.getProject(project.id)
+    const reference = stored?.references[0]
+    expect(reference?.imageVersions).toHaveLength(1)
+    expect(reference?.activeImageVersionId).toBe(
+      reference?.imageVersions[0]?.id,
+    )
+    expect(reference?.imageVersions[0]?.costUsd).toBe(0.012)
+    expect(stored?.costLog.at(-1)?.note).toBe('Reference image')
+    const jobs = await repo.getJobsByProject(project.id)
+    expect(jobs.at(-1)?.state).toBe('succeeded')
+  })
+
+  it('refuses to generate without a descriptor', async () => {
+    const { referenceId } = await seedReference()
+    useProjectStore.getState().updateReference(referenceId, {
+      descriptor: '   ',
+    })
+    const ok = await useProjectStore
+      .getState()
+      .generateReferenceImage(referenceId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(false)
+  })
+
+  it('attaches active reference images to scene generation for i2i models', async () => {
+    const { sceneId, referenceId } = await seedReference()
+    await useProjectStore
+      .getState()
+      .importReferenceImage(
+        referenceId,
+        new Blob(['ref-image'], { type: 'image/png' }),
+      )
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, I2I_MODEL, '768x1344')
+    expect(ok).toBe(true)
+    const references = body.input_references as string[] | undefined
+    expect(references).toHaveLength(1)
+    expect(references?.[0]).toMatch(/^data:image\/png;base64,/)
+  })
+
+  it('skips reference images for models without image-to-image', async () => {
+    const { sceneId, referenceId } = await seedReference()
+    await useProjectStore
+      .getState()
+      .importReferenceImage(
+        referenceId,
+        new Blob(['ref-image'], { type: 'image/png' }),
+      )
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(true)
+    expect(body).not.toHaveProperty('input_references')
+    // The descriptor still applies even without the image.
+    expect(body.prompt).toContain('a tall woman with cropped silver hair')
+  })
+
+  it('references without an active image contribute no attachment', async () => {
+    const { sceneId, referenceId } = await seedReference()
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, I2I_MODEL, '768x1344')
+    expect(ok).toBe(true)
+    expect(body).not.toHaveProperty('input_references')
+  })
+})
 
 describe('project store — image generation', () => {
   it('stores a base64 image as a new active version with cost log', async () => {
@@ -358,6 +598,66 @@ describe('project store — image generation', () => {
     const jobs = await repo.getJobsByProject(project.id)
     expect(jobs.at(-1)?.state).toBe('succeeded')
     expect(jobs.at(-1)?.kind).toBe('image')
+  })
+
+  it('injects ticked reference descriptors verbatim into the prompt', async () => {
+    const { project, sceneId } = await seedSceneProject()
+    await useProjectStore.getState().addReference('character')
+    const referenceId =
+      useProjectStore.getState().project?.references[0]?.id ?? ''
+    useProjectStore.getState().updateReference(referenceId, {
+      name: 'Mara',
+      descriptor: 'a tall woman with cropped silver hair and a navy coat',
+    })
+    await useProjectStore.getState().flushProject()
+    await useProjectStore.getState().toggleSceneReference(sceneId, referenceId)
+
+    let sentPrompt = ''
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        const body = (await request.json()) as { prompt?: string }
+        sentPrompt = body.prompt ?? ''
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(ok).toBe(true)
+    expect(sentPrompt).toContain(
+      'a tall woman with cropped silver hair and a navy coat',
+    )
+    // Descriptor precedes the scene's visual description.
+    expect(sentPrompt.indexOf('cropped silver hair')).toBeLessThan(
+      sentPrompt.indexOf('A castle at dawn'),
+    )
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.scenes[0]?.imageVersions[0]?.prompt).toBe(sentPrompt)
+  })
+
+  it('unticked references stay out of the prompt', async () => {
+    const { sceneId } = await seedSceneProject()
+    await useProjectStore.getState().addReference('character')
+    const referenceId =
+      useProjectStore.getState().project?.references[0]?.id ?? ''
+    useProjectStore.getState().updateReference(referenceId, {
+      descriptor: 'a tall woman with cropped silver hair',
+    })
+    await useProjectStore.getState().flushProject()
+
+    let sentPrompt = ''
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        const body = (await request.json()) as { prompt?: string }
+        sentPrompt = body.prompt ?? ''
+        return HttpResponse.json({ data: [{ b64_json: PNG_B64 }] })
+      }),
+    )
+    await useProjectStore
+      .getState()
+      .generateSceneImage(sceneId, IMAGE_MODEL, '768x1344')
+    expect(sentPrompt).not.toContain('cropped silver hair')
   })
 
   it('downloads URL results into the blob store', async () => {

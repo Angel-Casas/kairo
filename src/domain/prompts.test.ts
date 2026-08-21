@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { buildImagePrompt } from './prompts'
+import {
+  buildImagePrompt,
+  buildVideoPrompt,
+  sceneBreakdownSystemPrompt,
+} from './prompts'
 import { getStylePreset, STYLE_PRESETS } from './stylePresets'
 
 describe('buildImagePrompt', () => {
-  it('composes preset + notes + description + framing', () => {
+  it('composes preset + notes + description + framing + no-text rule', () => {
     const prompt = buildImagePrompt({
       stylePromptFragment: 'watercolor painting',
       styleNotes: 'warm tones',
       visualDescription: 'A castle at dawn',
     })
     expect(prompt).toBe(
-      'watercolor painting. warm tones. A castle at dawn. vertical 9:16 composition',
+      'watercolor painting. warm tones. A castle at dawn. vertical 9:16 composition. no readable text, signs, or lettering in the image',
     )
   })
 
@@ -20,7 +24,61 @@ describe('buildImagePrompt', () => {
       styleNotes: '  ',
       visualDescription: 'A castle at dawn',
     })
-    expect(prompt).toBe('A castle at dawn. vertical 9:16 composition')
+    expect(prompt).toBe(
+      'A castle at dawn. vertical 9:16 composition. no readable text, signs, or lettering in the image',
+    )
+  })
+
+  it('injects reference descriptors verbatim between notes and description', () => {
+    const prompt = buildImagePrompt({
+      stylePromptFragment: 'watercolor painting',
+      styleNotes: 'warm tones',
+      referenceDescriptors: [
+        'a tall woman with cropped silver hair and a navy coat',
+        'a cliffside lighthouse with a red lantern room',
+      ],
+      visualDescription: 'She walks toward the lighthouse',
+    })
+    expect(prompt).toBe(
+      'watercolor painting. warm tones. ' +
+        'a tall woman with cropped silver hair and a navy coat. ' +
+        'a cliffside lighthouse with a red lantern room. ' +
+        'She walks toward the lighthouse. vertical 9:16 composition. ' +
+        'no readable text, signs, or lettering in the image',
+    )
+  })
+
+  it('skips empty reference descriptors', () => {
+    const prompt = buildImagePrompt({
+      stylePromptFragment: null,
+      styleNotes: '',
+      referenceDescriptors: ['', '  '],
+      visualDescription: 'A castle at dawn',
+    })
+    expect(prompt).toBe(
+      'A castle at dawn. vertical 9:16 composition. no readable text, signs, or lettering in the image',
+    )
+  })
+})
+
+describe('buildVideoPrompt', () => {
+  it('pairs the camera with an action and forbids frozen figures and text', () => {
+    const prompt = buildVideoPrompt('A castle at dawn')
+    expect(prompt).toContain('A castle at dawn')
+    expect(prompt).toContain('one continuous natural action')
+    expect(prompt).toContain('camera drifts gently with that action')
+    expect(prompt).toContain('no frozen figures')
+    expect(prompt).toContain('no readable text')
+    expect(prompt).toContain('keep the original style')
+  })
+})
+
+describe('sceneBreakdownSystemPrompt craft rules', () => {
+  it('enforces one action per scene and bans in-frame text', () => {
+    const prompt = sceneBreakdownSystemPrompt()
+    expect(prompt).toContain('exactly ONE action')
+    expect(prompt).toContain('never a sequence')
+    expect(prompt).toContain('render text badly')
   })
 })
 

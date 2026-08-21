@@ -36,10 +36,33 @@ export interface Scene {
   textExcerpt: string
   /** Visual description used as the image prompt basis. */
   visualDescription: string
+  /** Ids of project references this scene uses (Slice 10). */
+  referenceIds: string[]
   imageVersions: AssetVersion[]
   activeImageVersionId: string | null
   videoVersions: AssetVersion[]
   activeVideoVersionId: string | null
+}
+
+export type ReferenceKind = 'character' | 'location' | 'style'
+
+/**
+ * A project-level Reference (Slice 10): a character, location, or art style
+ * that scenes opt into for cross-scene consistency. The descriptor is
+ * injected VERBATIM into tagged scenes' image prompts — never shortened; a
+ * variant (older, injured, repainted…) is a separate reference. The optional
+ * reference image (append-only versions, like scenes) is attached to
+ * generation requests for image-to-image capable models.
+ */
+export interface ReferenceAsset {
+  id: string
+  kind: ReferenceKind
+  name: string
+  /** Exhaustive visual description, injected verbatim into image prompts. */
+  descriptor: string
+  imageVersions: AssetVersion[]
+  activeImageVersionId: string | null
+  createdAt: string
 }
 
 /** Append-only record of money spent (or about to be spent) on generations. */
@@ -68,6 +91,8 @@ export interface Project {
   styleNotes: string
   /** Selected artistic style preset (ADR-008); picker UI arrives in Slice 5. */
   stylePresetId: string | null
+  /** Project references (Slice 10): characters/locations/styles scenes opt into. */
+  references: ReferenceAsset[]
   scenes: Scene[]
   costLog: CostLogEntry[]
   createdAt: string
@@ -130,6 +155,7 @@ export function createProject(title: string, now: () => string): Project {
     script: { text: '', locked: false },
     styleNotes: '',
     stylePresetId: null,
+    references: [],
     scenes: [],
     costLog: [],
     createdAt: at,
@@ -144,10 +170,26 @@ export function createScene(order: number): Scene {
     order,
     textExcerpt: '',
     visualDescription: '',
+    referenceIds: [],
     imageVersions: [],
     activeImageVersionId: null,
     videoVersions: [],
     activeVideoVersionId: null,
+  }
+}
+
+export function createReference(
+  kind: ReferenceKind,
+  now: () => string,
+): ReferenceAsset {
+  return {
+    id: crypto.randomUUID(),
+    kind,
+    name: '',
+    descriptor: '',
+    imageVersions: [],
+    activeImageVersionId: null,
+    createdAt: now(),
   }
 }
 
@@ -161,5 +203,14 @@ export function normalizeProject(project: Project): Project {
     ...project,
     styleNotes: project.styleNotes ?? '',
     stylePresetId: project.stylePresetId ?? null,
+    references: (project.references ?? []).map((reference) => ({
+      ...reference,
+      imageVersions: reference.imageVersions ?? [],
+      activeImageVersionId: reference.activeImageVersionId ?? null,
+    })),
+    scenes: project.scenes.map((scene) => ({
+      ...scene,
+      referenceIds: scene.referenceIds ?? [],
+    })),
   }
 }

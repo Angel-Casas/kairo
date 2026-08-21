@@ -177,3 +177,48 @@ Both are prepended to every scene image prompt for cross-scene consistency.
 identified); generating style previews per-user at runtime (charges every
 user for the same pictures); licensing stock style images (inconsistent
 subjects defeat comparison, plus licensing complexity for an AGPL repo).
+
+---
+
+## ADR-009 — References: one concept for subject consistency (2026-08-21)
+
+**Context.** Two overlapping ideas targeted the same problem — the image model
+has no memory, so the same character described twice comes out as two people.
+The roadmap had "asset passports" (per-project text descriptors, tagged per
+scene, injected verbatim). Angel then proposed base reference images: generate
+or import an image of a character/landscape/style once, and tick per scene
+which scenes use it as an image-to-image base, plus a per-scene toggleable
+base prompt.
+
+**Decision.** Merge both into a single concept: a project-level **Reference**
+(kind: character, location, or art style) with a name, an exhaustive text
+descriptor, and an optional reference image. Scenes tick the references they
+use. A ticked reference always injects its descriptor VERBATIM into that
+scene's image prompt (between style notes and the scene description; never
+shortened — a variant is a separate reference). If the reference has an
+active image and the chosen model supports image-to-image, the image is also
+attached via the NanoGPT `input_references` array (docs-verified; never mixed
+with legacy image aliases like `imageDataUrl`, which the API rejects).
+Reference images are append-only `AssetVersion`s like scene assets: imported
+files are free; in-app generation runs through the normal job + cost-log
+machinery and composes the project style (preset + style notes) with the
+descriptor so references match the project look.
+
+**Model capability is surfaced honestly.** The image model picker labels
+i2i-capable models ("accepts reference images") and offers a filter; when the
+selected model lacks the capability, the scene card says the images will be
+skipped while descriptors still apply — generation is never blocked and
+nothing is silently dropped.
+
+**Alternatives rejected.** (a) A third per-scene "base prompt" layer separate
+from references — the always-on case is already covered by style preset +
+style notes, and per-scene toggling is exactly what reference ticks do; three
+prompt systems would be confusing to explain. (b) Reference images without
+descriptors — loses the ability to say what the subject is doing per scene
+and does nothing for non-i2i models. (c) Blocking non-i2i models when a scene
+has reference images — punishes model choice; honesty note instead.
+
+**Consequences.** `Project.references` and `Scene.referenceIds` are additive
+schema fields (backfilled by `normalizeProject`, no version bump);
+`.kairo` import re-roots reference image blob paths; the video stage is
+unaffected (clips inherit identity from the scene image they animate).

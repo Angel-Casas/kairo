@@ -26,6 +26,10 @@ export function sceneBreakdownSystemPrompt(): string {
     '"visualDescription": "<one vivid sentence describing the image for this',
     'scene: subject, setting, mood, composition. No camera jargon.>"}',
     'Use 5-10 scenes. Cover the whole script in order without gaps.',
+    'Each scene depicts exactly ONE action or moment — never a sequence of',
+    'actions (split multi-action beats into separate scenes instead).',
+    'Visual descriptions must never rely on readable text, signs, screens,',
+    'or lettering in the image — video models render text badly.',
   ].join(' ')
 }
 
@@ -35,13 +39,18 @@ export function sceneBreakdownUserPrompt(script: string): string {
 
 /**
  * Motion prompt for animating a scene image into a clip. The image already
- * carries the style; the prompt describes what should MOVE.
+ * carries the style; the prompt describes what should MOVE. Craft rules:
+ * pair the camera with an event happening in the clip (a camera move past a
+ * frozen figure reads as a drifting still), one continuous action only, and
+ * no text in frame.
  */
 export function buildVideoPrompt(visualDescription: string): string {
   const description = visualDescription.trim()
   return [
     description,
-    'subtle natural motion, gentle cinematic camera drift, keep the original style and composition',
+    'one continuous natural action unfolds during the clip, and the camera drifts gently with that action',
+    'no frozen figures, no readable text or lettering anywhere in the frame',
+    'keep the original style, palette, and composition of the image',
   ]
     .filter((p) => p.length > 0)
     .join('. ')
@@ -49,19 +58,24 @@ export function buildVideoPrompt(visualDescription: string): string {
 
 /**
  * Compose the image prompt for a scene: style preset fragment (base look),
- * then project style notes (fine-tuning), then the scene's visual
- * description. Empty parts are skipped.
+ * then project style notes (fine-tuning), then the descriptors of the
+ * references the scene uses — VERBATIM, never shortened (Slice 10: the
+ * model has no memory, so consistency lives in repeating the exact same
+ * words) — then the scene's visual description. Empty parts are skipped.
  */
 export function buildImagePrompt(params: {
   stylePromptFragment: string | null
   styleNotes: string
+  referenceDescriptors?: string[]
   visualDescription: string
 }): string {
   const parts = [
     params.stylePromptFragment?.trim() ?? '',
     params.styleNotes.trim(),
+    ...(params.referenceDescriptors ?? []).map((d) => d.trim()),
     params.visualDescription.trim(),
     'vertical 9:16 composition',
+    'no readable text, signs, or lettering in the image',
   ].filter((p) => p.length > 0)
   return parts.join('. ')
 }

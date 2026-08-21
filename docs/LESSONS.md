@@ -84,3 +84,22 @@ imperfect ranges; (b) every parameter that drives cost (resolution, duration)
 must be user-visible and default to the cheapest option — never inherit a
 provider default silently; (c) any submission that can exceed ~$0.50 gets an
 explicit confirmation stating the price picture before money moves.
+
+### 2026-08-21 — E2e asserted UI state, then reloaded, and lost the race
+
+**What happened:** The Slice 5 e2e "style gallery selects and persists a
+preset" failed deterministically in a slower environment (Cowork cloud
+container) while having always passed locally: the test asserted the radio's
+`aria-checked` and immediately reloaded, but store actions update UI state
+BEFORE `persistProject`'s IndexedDB write commits, so the reload could beat
+the write. The app was fine; the test was timing-dependent.
+
+**Root cause:** UI assertions were used as a proxy for persistence. The
+optimistic-update pattern (set state, then await persist) makes the UI
+visibly correct while the durable write is still in flight, so
+"assert-visible then reload" encodes a race.
+
+**Rule going forward:** An e2e that reloads to verify persistence must first
+wait for the persisted data itself (poll IndexedDB via
+`readStoredProjects` in `e2e/helpers.ts`), never only for UI state. Any new
+"survives reload" test uses this helper before its `page.reload()`.

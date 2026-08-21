@@ -48,8 +48,15 @@ export async function mockImageModels(page: Page): Promise<void> {
             capabilities: { image_to_image: false },
             supported_parameters: { resolutions: ['768x1344'] },
           },
+          {
+            id: 'mock/painter-i2i',
+            name: 'Mock Painter I2I',
+            pricing: { per_image: { '768*1344': 0.02 }, currency: 'USD' },
+            capabilities: { image_to_image: true },
+            supported_parameters: { resolutions: ['768x1344'] },
+          },
         ],
-        meta: { count: 1, generated_at: '2026-08-16T00:00:00Z' },
+        meta: { count: 2, generated_at: '2026-08-16T00:00:00Z' },
       },
     }),
   )
@@ -74,6 +81,37 @@ export async function mockImageGeneration(page: Page): Promise<void> {
   await page.route(`${API}/v1/images`, (route) =>
     route.fulfill({ json: { data: [{ b64_json: TINY_PNG_B64 }] } }),
   )
+}
+
+/**
+ * Read the projects persisted in IndexedDB. UI state updates BEFORE the
+ * async persist commits, so a test that asserts UI and then reloads can race
+ * the write on slow machines — poll this until the expected data is stored
+ * before any reload that must observe it.
+ */
+export async function readStoredProjects(page: Page): Promise<unknown[]> {
+  return page.evaluate(async () => {
+    const open = indexedDB.open('kairo')
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      open.onsuccess = () => {
+        resolve(open.result)
+      }
+      open.onerror = () => {
+        reject(new Error('Could not open the database.'))
+      }
+    })
+    try {
+      const tx = db.transaction('projects')
+      const all = tx.objectStore('projects').getAll()
+      return await new Promise<unknown[]>((resolve) => {
+        all.onsuccess = () => {
+          resolve(all.result as unknown[])
+        }
+      })
+    } finally {
+      db.close()
+    }
+  })
 }
 
 /** Onboard with a mocked key (mockBalance must be routed first). */
