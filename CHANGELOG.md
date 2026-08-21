@@ -2,6 +2,27 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 12 — Style-from-image (2026-08-21)
+
+- "Describe a style from an image" on the Scenes stage: pick a local image
+  (png/jpeg/webp validated; it goes only to NanoGPT, as a base64 data URL),
+  pick a vision-capable model, and get palette / lighting / medium /
+  composition as prompt-ready style notes — style only, the subject is
+  explicitly banned from the output so scene content never leaks into every
+  image prompt.
+- Result lands as an editable proposal; applying it replaces the style notes
+  behind a confirmation when notes already exist. Nothing is overwritten
+  silently.
+- Client: `ChatMessage` widened to OpenAI-style content parts (text +
+  image_url, docs-verified format); `TextModel.supportsVision` parsed from
+  `capabilities.vision`; the text-model picker gained an `onlyVision` filter.
+- Cost honesty per LESSONS: the text side is estimated and enforced with a
+  150-token max_tokens ceiling ("up to ~"), the label says the image input
+  adds a model-dependent amount, and the full actual cost is recorded from
+  usage in the cost log ("Style from image").
+- Tests: 170 unit, 24 e2e (multimodal request body, vision filter, budget
+  enforcement, confirm-before-replace, reload persistence).
+
 ## Slice 11 — Generation history viewer (2026-08-21)
 
 - Expandable "History (N)" on every asset: scene images, clips, and reference

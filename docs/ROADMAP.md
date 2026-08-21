@@ -149,9 +149,19 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       resolution, duration, price picture) since clips are the expensive
       generation kind.
 
-- [ ] **Slice 12 — Style-from-image.** Upload a reference image; a
-      vision-capable model names the palette, light, and lens and writes the
-      project's style notes (verify NanoGPT vision message format first).
+- [x] **Slice 12 — Style-from-image.** _(done 2026-08-21)_ "Describe a style
+      from an image" on the Scenes stage: local image (png/jpeg/webp,
+      validated; sent only to NanoGPT as a base64 data URL per the
+      docs-verified multimodal chat format) + vision-filtered text-model
+      picker (`capabilities.vision` parsed into `TextModel.supportsVision`).
+      The model names palette, light, medium, and composition — style only,
+      subject banned — into an editable proposal applied to style notes with
+      replace-confirmation. Cost honesty: text side estimated and enforced
+      (150-token `max_tokens`), image input labeled as model-dependent extra,
+      actuals recorded from usage ("Style from image" cost-log entries).
+      `ChatMessage` widened to OpenAI content parts. 170 unit + 24 e2e.
+      _Angel: validate the estimate against one real request with a cheap
+      vision model (LESSONS rule)._
 
 - [ ] **Slice 13 — Design pass (ADR-007).** The dedicated aesthetics slice:
       visual identity, real token values, component styling sweep, layout

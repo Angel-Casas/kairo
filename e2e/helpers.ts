@@ -29,6 +29,13 @@ export async function mockTextModels(page: Page): Promise<void> {
             description: 'test model',
             pricing: { prompt: 2, completion: 10 },
           },
+          {
+            id: 'mock/seer-1',
+            name: 'Mock Seer',
+            description: 'vision test model',
+            pricing: { prompt: 3, completion: 12 },
+            capabilities: { vision: true },
+          },
         ],
       },
     }),

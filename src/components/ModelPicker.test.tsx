@@ -12,6 +12,7 @@ function model(id: string, name: string): TextModel {
     description: '',
     promptPricePerMTok: 1,
     completionPricePerMTok: 2,
+    supportsVision: false,
   }
 }
 

@@ -38,6 +38,27 @@ export function sceneBreakdownUserPrompt(script: string): string {
 }
 
 /**
+ * Style-from-image (Slice 12): a vision model turns a reference image into
+ * reusable style notes. STYLE ONLY — naming the subject would leak scene
+ * content into every image prompt the notes are prepended to.
+ */
+export function styleFromImageSystemPrompt(): string {
+  return [
+    'You describe the visual STYLE of an image so it can be reused as style',
+    'notes in image-generation prompts. Name the palette (dominant colors),',
+    'the lighting, the medium or rendering style (e.g. watercolor, 3D render,',
+    'film photograph), and the composition or lens character. Respond with',
+    'ONLY one line of comma-separated style fragments, ready to paste into an',
+    'image prompt. Never mention the subject, objects, people, text, or scene',
+    'content — style only.',
+  ].join(' ')
+}
+
+export function styleFromImageUserText(): string {
+  return 'Describe the style of this image as reusable style notes.'
+}
+
+/**
  * Motion prompt for animating a scene image into a clip. The image already
  * carries the style; the prompt describes what should MOVE. Craft rules:
  * pair the camera with an event happening in the clip (a camera move past a

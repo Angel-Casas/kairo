@@ -25,6 +25,8 @@ export interface TextModel {
   promptPricePerMTok: number | null
   /** USD per million output tokens, when provided. */
   completionPricePerMTok: number | null
+  /** Whether the model accepts image inputs (capabilities.vision). */
+  supportsVision: boolean
 }
 
 export interface ImageModel {
@@ -76,9 +78,19 @@ export function extractPriceRange(
   return { min: Math.min(...values), max: Math.max(...values) }
 }
 
+/**
+ * One part of a multimodal user message (OpenAI-compatible). Image parts
+ * carry an https URL or a base64 data URL; the docs recommend data URLs.
+ * Accepted image mime types: png, jpeg, jpg, webp.
+ */
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
-  content: string
+  /** Plain text, or content parts for vision-capable models. */
+  content: string | ChatContentPart[]
 }
 
 export interface ChatUsage {
@@ -226,6 +238,7 @@ export class NanoGptClient {
         name?: string
         description?: string
         pricing?: { prompt?: number; completion?: number }
+        capabilities?: { vision?: boolean }
       }[]
     }
     return data.data.map((m) => ({
@@ -234,6 +247,7 @@ export class NanoGptClient {
       description: m.description ?? '',
       promptPricePerMTok: m.pricing?.prompt ?? null,
       completionPricePerMTok: m.pricing?.completion ?? null,
+      supportsVision: m.capabilities?.vision ?? false,
     }))
   }
 

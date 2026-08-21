@@ -7,6 +7,8 @@ import {
   sceneBreakdownUserPrompt,
   scriptSystemPrompt,
   scriptUserPrompt,
+  styleFromImageSystemPrompt,
+  styleFromImageUserText,
 } from '../domain/prompts'
 import { parseSceneBreakdown } from '../domain/sceneParser'
 import { getStylePreset } from '../domain/stylePresets'
@@ -25,6 +27,7 @@ import {
   estimateChatCostUsd,
   SCENES_OUTPUT_TOKEN_BUDGET,
   SCRIPT_OUTPUT_TOKEN_BUDGET,
+  STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { getPerImagePriceUsd } from '../lib/resolution'
 import { withGenerationJob } from './generationJob'
@@ -65,6 +68,18 @@ interface ProjectState {
   moveScene: (sceneId: string, direction: -1 | 1) => Promise<void>
   /** AI scene breakdown of the locked script. Replaces existing scenes. */
   generateScenes: (model: TextModel) => Promise<boolean>
+  styleFromImageStatus: 'idle' | 'generating' | 'error'
+  styleFromImageError: string | null
+  /**
+   * Style-from-image (Slice 12): a vision model turns a local reference
+   * image into style-notes text. Returns the proposed notes (the caller
+   * previews them; nothing is applied to the project here), or null on
+   * failure. The image goes to NanoGPT only, as a base64 data URL.
+   */
+  describeStyleFromImage: (
+    model: TextModel,
+    file: Blob,
+  ) => Promise<string | null>
   /** Add an empty reference of the given kind (Slice 10). */
   addReference: (kind: ReferenceKind) => Promise<void>
   /** Update reference text fields in memory; debounced persist. */
@@ -179,6 +194,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       allImagesProgress: null,
       sceneVideoStatus: {},
       referenceImageStatus: {},
+      styleFromImageStatus: 'idle',
+      styleFromImageError: null,
     })
     const repo = await getRepository()
     const project = await repo.getProject(id)
@@ -459,6 +476,100 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await persistProject(updated)
     return true
   },
+  styleFromImageStatus: 'idle',
+  styleFromImageError: null,
+
+  describeStyleFromImage: async (model: TextModel, file: Blob) => {
+    const { project } = get()
+    const apiKey = useSettingsStore.getState().apiKey
+    if (project === null || apiKey === null) return null
+    const acceptedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+    if (!acceptedTypes.includes(file.type)) {
+      set({
+        styleFromImageStatus: 'error',
+        styleFromImageError:
+          'Only PNG, JPEG, or WebP images can be used as a style reference.',
+      })
+      return null
+    }
+    set({ styleFromImageStatus: 'generating', styleFromImageError: null })
+
+    const promptText = `${styleFromImageSystemPrompt()}\n${styleFromImageUserText()}`
+    // Text-side estimate only — the image adds model-dependent prompt
+    // tokens the catalog does not price upfront; actuals cover them.
+    const estimatedUsd = estimateChatCostUsd({
+      promptText,
+      outputTokenBudget: STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
+      promptPricePerMTok: model.promptPricePerMTok,
+      completionPricePerMTok: model.completionPricePerMTok,
+    })
+
+    const imageDataUrl = await blobToDataUrl(file)
+    const outcome = await withGenerationJob({
+      projectId: project.id,
+      sceneId: null,
+      kind: 'text',
+      model: model.id,
+      estimatedUsd,
+      run: () =>
+        getClient(apiKey).chatComplete(
+          model.id,
+          [
+            { role: 'system', content: styleFromImageSystemPrompt() },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: styleFromImageUserText() },
+                { type: 'image_url', image_url: { url: imageDataUrl } },
+              ],
+            },
+          ],
+          { maxTokens: STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET },
+        ),
+    })
+
+    if (!outcome.ok) {
+      set({
+        styleFromImageStatus: 'error',
+        styleFromImageError: outcome.error.message,
+      })
+      return null
+    }
+    const result = outcome.value
+
+    const actualUsd =
+      result.usage === null
+        ? null
+        : computeActualChatCostUsd({
+            promptTokens: result.usage.promptTokens,
+            completionTokens: result.usage.completionTokens,
+            promptPricePerMTok: model.promptPricePerMTok,
+            completionPricePerMTok: model.completionPricePerMTok,
+          })
+
+    const current = get().project
+    if (current === null || current.id !== project.id) return null
+    const updated: Project = {
+      ...current,
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'text',
+          model: model.id,
+          estimatedUsd,
+          actualUsd,
+          note: 'Style from image',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    set({ project: updated, styleFromImageStatus: 'idle' })
+    await persistProject(updated)
+    return result.content.trim()
+  },
+
   addReference: async (kind: ReferenceKind) => {
     const { project } = get()
     if (project === null) return

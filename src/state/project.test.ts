@@ -39,6 +39,7 @@ const MODEL: TextModel = {
   description: '',
   promptPricePerMTok: 2,
   completionPricePerMTok: 10,
+  supportsVision: false,
 }
 
 async function seedProject(title = 'P') {
@@ -865,5 +866,102 @@ describe('project store — prompt override (Slice 11)', () => {
       'tuned reference prompt',
     )
     expect(stored?.costLog.at(-1)?.note).toBe('Reference image')
+  })
+})
+
+describe('project store — style from image (Slice 12)', () => {
+  const VISION_MODEL: TextModel = {
+    ...MODEL,
+    id: 'seer/model',
+    name: 'Seer',
+    supportsVision: true,
+  }
+  const pngFile = () => new Blob(['fake-png'], { type: 'image/png' })
+
+  it('sends the image as a data URL and returns trimmed style notes', async () => {
+    const project = await seedProject()
+    let body: {
+      messages?: { role: string; content: unknown }[]
+      max_tokens?: number
+    } = {}
+    server.use(
+      http.post(`${BASE}/v1/chat/completions`, async ({ request }) => {
+        body = (await request.json()) as typeof body
+        return HttpResponse.json({
+          model: VISION_MODEL.id,
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: '  muted teal palette, soft dawn light, watercolor  ',
+              },
+            },
+          ],
+          usage: { prompt_tokens: 900, completion_tokens: 40 },
+        })
+      }),
+    )
+
+    const result = await useProjectStore
+      .getState()
+      .describeStyleFromImage(VISION_MODEL, pngFile())
+    expect(result).toBe('muted teal palette, soft dawn light, watercolor')
+
+    // Multimodal user message: text part + base64 data URL image part.
+    const userContent = body.messages?.[1]?.content as {
+      type: string
+      image_url?: { url: string }
+    }[]
+    expect(userContent[0]?.type).toBe('text')
+    expect(userContent[1]?.type).toBe('image_url')
+    expect(userContent[1]?.image_url?.url).toMatch(/^data:image\/png;base64,/)
+    // Output budget enforced.
+    expect(body.max_tokens).toBe(150)
+
+    // Cost log with actuals (image tokens included in usage).
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.costLog.at(-1)?.note).toBe('Style from image')
+    expect(stored?.costLog.at(-1)?.actualUsd).toBeGreaterThan(0)
+    const jobs = await (await getRepository()).getJobsByProject(project.id)
+    expect(jobs.at(-1)?.state).toBe('succeeded')
+    expect(useProjectStore.getState().styleFromImageStatus).toBe('idle')
+  })
+
+  it('rejects unsupported file types without spending anything', async () => {
+    const project = await seedProject()
+    const result = await useProjectStore
+      .getState()
+      .describeStyleFromImage(
+        VISION_MODEL,
+        new Blob(['gif'], { type: 'image/gif' }),
+      )
+    expect(result).toBeNull()
+    expect(useProjectStore.getState().styleFromImageStatus).toBe('error')
+    expect(useProjectStore.getState().styleFromImageError).toMatch(
+      /PNG, JPEG, or WebP/,
+    )
+    const stored = await (await getRepository()).getProject(project.id)
+    expect(stored?.costLog).toHaveLength(0)
+  })
+
+  it('surfaces provider errors and records the failed job', async () => {
+    const project = await seedProject()
+    server.use(
+      http.post(`${BASE}/v1/chat/completions`, () =>
+        HttpResponse.json({ message: 'vision unavailable' }, { status: 503 }),
+      ),
+    )
+    const result = await useProjectStore
+      .getState()
+      .describeStyleFromImage(VISION_MODEL, pngFile())
+    expect(result).toBeNull()
+    expect(useProjectStore.getState().styleFromImageStatus).toBe('error')
+    expect(useProjectStore.getState().styleFromImageError).toBe(
+      'vision unavailable',
+    )
+    const repo = await getRepository()
+    const jobs = await repo.getJobsByProject(project.id)
+    expect(jobs.at(-1)?.state).toBe('failed')
+    expect((await repo.getProject(project.id))?.costLog).toHaveLength(0)
   })
 })

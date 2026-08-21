@@ -106,9 +106,15 @@ function PickerShell<M extends PickerModel>({
 export function TextModelPicker({
   selectedId,
   onSelect,
+  onlyVision = false,
+  ariaLabel = 'Text model',
 }: {
   selectedId: string | null
   onSelect: (model: TextModel) => void
+  /** Show only models that accept image inputs (Slice 12). */
+  onlyVision?: boolean
+  /** Override when two pickers share a page (labels must stay unique). */
+  ariaLabel?: string
 }) {
   const models = useModelsStore((s) => s.textModels)
   const status = useModelsStore((s) => s.textModelsStatus)
@@ -118,12 +124,17 @@ export function TextModelPicker({
     void load()
   }, [load])
 
+  const shown = useMemo(
+    () => (onlyVision ? models.filter((m) => m.supportsVision) : models),
+    [models, onlyVision],
+  )
+
   return (
     <PickerShell
-      models={models}
+      models={shown}
       status={status}
       selectedId={selectedId}
-      ariaLabel="Text model"
+      ariaLabel={ariaLabel}
       optionLabel={(m) =>
         m.promptPricePerMTok !== null && m.completionPricePerMTok !== null
           ? `${m.name} — ${formatUsd(m.promptPricePerMTok)} in / ${formatUsd(m.completionPricePerMTok)} out per MTok`

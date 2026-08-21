@@ -24,6 +24,15 @@ export const SCRIPT_OUTPUT_TOKEN_BUDGET = 300
  */
 export const SCENES_OUTPUT_TOKEN_BUDGET = 800
 
+/**
+ * Output budget for style-from-image notes: one line of comma-separated
+ * style fragments (~60-100 tokens); 150 leaves headroom. Enforced via
+ * max_tokens like all budgets. NOTE: the IMAGE input adds prompt tokens
+ * whose count depends on the model — the text-side estimate cannot include
+ * them, so callers must say so; actuals from usage cover the full cost.
+ */
+export const STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET = 150
+
 export function estimateTokensFromText(text: string): number {
   if (text.length === 0) return 0
   return Math.ceil(text.length / CHARS_PER_TOKEN)

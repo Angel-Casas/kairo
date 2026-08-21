@@ -15,6 +15,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { TextModelPicker } from './ModelPicker'
 import { ReferencesPanel } from './ReferencesPanel'
 import { referenceDisplayName } from './referenceDisplay'
+import { StyleFromImage } from './StyleFromImage'
 
 export function ScenesStage() {
   const project = useProjectStore((s) => s.project)
@@ -86,6 +87,8 @@ export function ScenesStage() {
           }}
         />
       </label>
+
+      <StyleFromImage />
 
       <ReferencesPanel />
 

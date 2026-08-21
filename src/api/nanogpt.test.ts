@@ -100,9 +100,28 @@ describe('model listings', () => {
       description: 'desc',
       promptPricePerMTok: 1.25,
       completionPricePerMTok: 5,
+      supportsVision: false,
     })
     expect(models[1]?.name).toBe('bare/model')
     expect(models[1]?.promptPricePerMTok).toBeNull()
+    expect(models[1]?.supportsVision).toBe(false)
+  })
+
+  it('parses capabilities.vision on text models', async () => {
+    server.use(
+      http.get(`${BASE}/v1/models`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [
+            { id: 'seer/model', capabilities: { vision: true } },
+            { id: 'blind/model', capabilities: {} },
+          ],
+        }),
+      ),
+    )
+    const models = await client().listTextModels()
+    expect(models[0]?.supportsVision).toBe(true)
+    expect(models[1]?.supportsVision).toBe(false)
   })
 
   it('parses image models with per-image pricing and resolutions', async () => {
@@ -195,6 +214,36 @@ describe('chatComplete', () => {
       stream: false,
       max_tokens: 300,
     })
+  })
+
+  it('passes multimodal content parts through unchanged (vision)', async () => {
+    let body: { messages?: { content?: unknown }[] } = {}
+    server.use(
+      http.post(`${BASE}/v1/chat/completions`, async ({ request }) => {
+        body = (await request.json()) as typeof body
+        return HttpResponse.json({
+          model: 'seer/model',
+          choices: [{ message: { role: 'assistant', content: 'A style.' } }],
+        })
+      }),
+    )
+    await client().chatComplete('seer/model', [
+      { role: 'system', content: 'Describe the style.' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'What style is this?' },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,QUJD' },
+          },
+        ],
+      },
+    ])
+    expect(body.messages?.[1]?.content).toEqual([
+      { type: 'text', text: 'What style is this?' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+    ])
   })
 
   it('returns null usage when the API omits it', async () => {
