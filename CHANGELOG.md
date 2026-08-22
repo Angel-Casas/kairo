@@ -2,6 +2,14 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.9.4 — VibeVoice hidden from the catalog (2026-08-22, Angel's call)
+
+- `microsoft/vibevoice` is excluded from the TTS listing
+  (`BROKEN_TTS_MODEL_IDS` in the API client): NanoGPT charges $0.15
+  flat and then kills the run instantly, so offering it would only
+  sell guaranteed failures. The exclusion is one documented line —
+  re-test and remove it when NanoGPT fixes their side.
+
 ## Slice 15.9.3 — Charged-at-submission bookkeeping; VibeVoice diagnosed (2026-08-22, from Angel's field test)
 
 - Queue-based TTS models charge AT SUBMISSION (`charged: true` in the

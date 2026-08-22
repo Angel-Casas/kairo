@@ -227,7 +227,19 @@ describe('model listings', () => {
               supported_parameters: { max_chars: 5000, voices: ['skye'] },
             },
             {
-              // Flat per-generation NEXT TO a zero per-1k rate (VibeVoice).
+              // Flat per-generation NEXT TO a zero per-1k rate.
+              id: 'fake/flat-tts',
+              name: 'Flat TTS',
+              pricing: {
+                per_generation: 0.15,
+                per_thousand_chars: 0,
+                currency: 'USD',
+              },
+              supported_parameters: { voices: ['emma'] },
+            },
+            {
+              // Known-broken on NanoGPT (charges, then terminal error) —
+              // hidden from the catalog since 15.9.4.
               id: 'microsoft/vibevoice',
               name: 'VibeVoice',
               pricing: {
@@ -254,7 +266,7 @@ describe('model listings', () => {
     expect(models.map((m) => m.id)).toEqual([
       'Kokoro-82m',
       'bytedance/seed-audio-1.0',
-      'microsoft/vibevoice',
+      'fake/flat-tts',
     ])
     expect(models[0]?.pricing).toEqual({
       kind: 'perKChars',

@@ -489,6 +489,14 @@ export class NanoGptClient {
    * entries that are actually text-to-speech: the `text_to_speech`
    * capability, the `audio_tts` category, or a non-empty voice list.
    */
+  /**
+   * Models hidden from the catalog because NanoGPT reliably breaks on
+   * them. vibevoice: accepts the job, charges $0.15 flat, then the run
+   * dies instantly ({"status":"error","terminal":true} on the first
+   * poll) — verified live 2026-08-22. Re-test before un-hiding.
+   */
+  static readonly BROKEN_TTS_MODEL_IDS = new Set(['microsoft/vibevoice'])
+
   async listTtsModels(): Promise<TtsModel[]> {
     const data = (await this.request(
       'GET',
@@ -518,6 +526,7 @@ export class NanoGptClient {
           m.category === 'audio_tts' ||
           (m.supported_parameters?.voices ?? []).length > 0,
       )
+      .filter((m) => !NanoGptClient.BROKEN_TTS_MODEL_IDS.has(m.id))
       .map((m) => ({
         id: m.id,
         name: m.name ?? m.id,
