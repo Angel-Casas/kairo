@@ -65,12 +65,26 @@ export function styleFromImageUserText(): string {
  * frozen figure reads as a drifting still), one continuous action only, and
  * no text in frame.
  */
+/**
+ * Trim ONE trailing period from a user-written fragment — the builders
+ * join fragments with '. ' themselves, so "…in the distance." became
+ * "…in the distance.." in real prompts (Angel's catch, 15.13).
+ * Deliberate "..." / "…" endings are left alone.
+ */
+export function unterminated(fragment: string): string {
+  const trimmed = fragment.trim()
+  if (trimmed.endsWith('.') && !trimmed.endsWith('..')) {
+    return trimmed.slice(0, -1).trimEnd()
+  }
+  return trimmed
+}
+
 export function buildVideoPrompt(
   visualDescription: string,
   cameraNotes = '',
 ): string {
-  const description = visualDescription.trim()
-  const camera = cameraNotes.trim()
+  const description = unterminated(visualDescription)
+  const camera = unterminated(cameraNotes)
   return [
     description,
     // The user's camera direction REPLACES the gentle-drift default — a
@@ -99,10 +113,10 @@ export function buildImagePrompt(params: {
   visualDescription: string
 }): string {
   const parts = [
-    params.stylePromptFragment?.trim() ?? '',
-    params.styleNotes.trim(),
-    ...(params.referenceDescriptors ?? []).map((d) => d.trim()),
-    params.visualDescription.trim(),
+    unterminated(params.stylePromptFragment ?? ''),
+    unterminated(params.styleNotes),
+    ...(params.referenceDescriptors ?? []).map(unterminated),
+    unterminated(params.visualDescription),
     'vertical 9:16 composition',
     'no readable text, signs, or lettering in the image',
   ].filter((p) => p.length > 0)

@@ -2,6 +2,109 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.15 — No more controls that lie (2026-08-22, from Angel's catch)
+
+- Some models advertise NO duration parameter (Wan 2.2 Turbo: every clip
+  is a fixed length) — yet Kairo showed a generic 5/8/10s select that
+  did literally nothing. The LESSONS rule ("an unadvertised parameter is
+  an ignored parameter") now applies to a control's EXISTENCE, not just
+  its values: an empty durations/resolutions listing renders "fixed by
+  model" instead of a select, and the request carries no such field at
+  all. Duration is nullable through the whole pipeline — workbench,
+  batch overlay rows ("fixed length"), store, API client.
+- The old fallback note ("if it cannot make a Ns clip…") was rewritten —
+  it described behavior that no longer exists.
+- ROADMAP: S2V lip-sync candidate slice recorded (Wan 2.2 S2V takes
+  image + audio — Kairo already holds both per scene); until built,
+  input-requiring models are the next honesty gap to close in the
+  picker, pending the S2V listing dump.
+- Tests: 249 unit (fixed-length model: no select, null duration
+  submitted, no duration/num_frames fields in the request).
+
+## Slice 15.14 — Frame-based video models speak seconds (2026-08-22, from Angel's field find)
+
+- Angel asked Wan 2.1 for an 8s clip and got 5s: the model takes NO
+  duration parameter — it takes `num_frames` (81–100) and
+  `frames_per_second` (5–24), and a duration ask is silently ignored
+  (defaults: 81 @ 16fps ≈ 5.1s). Kairo now detects frame-based models
+  from the listing and keeps everything in seconds: their duration
+  picker offers the ACHIEVABLE second-targets (81/24≈3.4s up to
+  100/5=20s), and at submission the target is translated into the
+  cheapest frame plan that reaches it — fewest frames first (frames
+  drive Wan's +25% surcharge), so 8s becomes 81 frames @ 10 fps, not
+  96 @ 12. A note under the picker shows the exact plan and the honest
+  tradeoff (lower fps = choppier motion). Narration auto-fit and the
+  batch overlay work unchanged, since they consume the same durations.
+- Range parsing handles all three shapes seen live: clean `min`/`max`
+  fields (Wan 2.2 5b), preset options only (Wan 2.1 frames), and a
+  range living ONLY in the description text — "(5-24)" (Wan 2.1 fps).
+- Second fix from the same dump: newer models (wan-wavespeed-25/26,
+  wan-25-fast, hunyuan-video-15…) advertise duration/resolution in a
+  structured `parameters` select schema Kairo didn't read — it offered
+  wan-25-fast an 8s it doesn't have. Both schemas now feed the pickers,
+  so models always show their REAL options.
+- Tests: 247 unit (frame-plan solver incl. edge clamps; achievable
+  targets; the real Wan 2.1 listing shape; frames+fps submitted with
+  no duration).
+
+## Slice 15.13 — Prompt stitching dedupes periods; camera-direction guidance (2026-08-22, from Angel's field find)
+
+- Angel spotted "..distance.. Camera: No pan, no camera zoom.." in a
+  real prompt: the builders join fragments with ". " themselves, so any
+  user text ending in a period doubled it. `unterminated()` now strips
+  ONE trailing period from user-written fragments (visual description,
+  camera notes, style notes, reference descriptors) before joining —
+  deliberate "..." and "…" endings are preserved.
+- The same clip taught a prompting lesson: video models handle
+  negations badly ("No zoom" often ADDS zoom — the concept gets
+  mentioned, so it gets generated) and lean toward motion by training
+  bias. A "?" beside the Camera direction field now opens a short guide
+  ("Directing the camera") teaching positive phrasing — "Static shot.
+  Fixed camera locked on a tripod. The framing never changes." — and
+  the field's placeholder nudges the same style. (The new help
+  button's aria-label collided with the textarea's by substring —
+  exact-match in the spec, per the standing LESSONS rule.)
+- Tests: 240 unit (period dedupe incl. ellipsis preservation, image
+  prompt fragments covered); the animate-scene e2e re-run green.
+
+## Slice 15.12 — Batch animation gets a pre-flight overlay (2026-08-22, from Angel's feedback)
+
+- "Animate X remaining scenes" no longer fires a blind confirm — it opens
+  an overlay listing every pending scene as a row: thumbnail of the still
+  that will be animated, the scene's text, its narration length ("♪
+  narration 6.4s" / "no narration"), and that row's OWN model and
+  duration selects. Durations arrive pre-fitted per scene (15.11's rule,
+  now visible and editable); switching a row's model re-fits its duration
+  within the new model's options and picks the cheapest valid resolution
+  for it. One Submit sends the lot, sequentially, per-scene progress on
+  the frames as before.
+- The footer sums the advertised price ranges of everything about to be
+  submitted ("≈$1.44–$3.60 total, charged at submission") — cost honesty
+  at batch scale.
+- `generateAllVideos` left the store (the overlay drives per-scene
+  submissions directly); the 15.11 fit logic lives on in the overlay's
+  defaults via the same pure `pickClipDuration`.
+- Tests: 237 unit (overlay: pre-fit rows, per-row override + re-fit,
+  submitted configs, summed estimate).
+
+## Slice 15.11 — Animate-all fits each clip to its narration (2026-08-22, from Angel's catch)
+
+- "Animate X remaining scenes" used the ONE selected duration for every
+  scene, so any scene with a longer narration got a clipped video the
+  user had to redo by hand — which made the button self-defeating. Now
+  the batch flow measures each scene's active narration (WebAudio
+  decode) and picks the SMALLEST duration the model offers that covers
+  it; the model's longest when nothing does (the clips panel's mismatch
+  warning still tells the truth then); the selected duration when a
+  scene has no narration, the length can't be measured, or the model
+  lists no duration options. The confirm dialog says exactly this
+  before charging.
+- Single-scene animation stays manual — the "narration runs Xs" hint
+  next to the Duration picker already informs that choice.
+- Tests: 237 unit (pure picker: cover/exact-fit/cap/fallbacks; store
+  test proving a 6.4s narration turns the selected 5s into the model's
+  8s at submission).
+
 ## Slice 15.10 — Narration speed control (2026-08-22, from Angel's feedback)
 
 - Speed-capable models get a **Speed slider** in the Narrate panel with a

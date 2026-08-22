@@ -35,6 +35,7 @@ import {
   STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { isPlayableAudio, normalizeAudioBlob } from '../lib/audioBlob'
+import { planFrames } from '../lib/clipDuration'
 import { getPerImagePriceUsd } from '../lib/resolution'
 import {
   ttsCostUsd,
@@ -208,7 +209,8 @@ interface ProjectState {
   generateSceneVideo: (
     sceneId: string,
     model: VideoModel,
-    duration: string,
+    /** null = the model takes no clip length; nothing is sent (15.15). */
+    duration: string | null,
     resolution: string | null,
     promptOverride?: string,
   ) => Promise<boolean>
@@ -218,12 +220,6 @@ interface ProjectState {
    * clip from NanoGPT's site, then bring it in here — no regeneration cost.
    */
   importSceneClip: (sceneId: string, file: Blob) => Promise<boolean>
-  /** Submit video jobs for every scene with an image but no video. */
-  generateAllVideos: (
-    model: VideoModel,
-    duration: string,
-    resolution: string | null,
-  ) => Promise<void>
   /** Resume polling for interrupted video jobs (called on project load). */
   resumeVideoJobs: () => Promise<void>
 }
@@ -1379,7 +1375,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   generateSceneVideo: async (
     sceneId: string,
     model: VideoModel,
-    duration: string,
+    duration: string | null,
     resolution: string | null,
     promptOverride?: string,
   ) => {
@@ -1430,10 +1426,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     try {
       const imageDataUrl = await blobToDataUrl(imageBlob)
+      // Frame-based models (Wan) ignore `duration` — translate the target
+      // seconds into the cheapest frame plan that reaches them (15.14).
+      const framePlan =
+        model.frameControl !== null
+          ? planFrames(model.frameControl, Number(duration ?? '5') || 5)
+          : null
       const submission = await getClient(apiKey).generateVideo({
         model: model.id,
         prompt,
-        duration,
+        // A model without a duration control gets NO length field at all —
+        // an unadvertised parameter is an ignored parameter (15.15).
+        ...(framePlan !== null
+          ? {
+              numFrames: framePlan.frames,
+              framesPerSecond: framePlan.fps,
+            }
+          : duration !== null
+            ? { duration }
+            : {}),
         aspectRatio: '9:16',
         ...(resolution !== null ? { resolution } : {}),
         imageDataUrl,
@@ -1542,23 +1553,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ project: updated, sceneVideoStatus: restStatus })
     await persistProject(updated)
     return true
-  },
-
-  generateAllVideos: async (
-    model: VideoModel,
-    duration: string,
-    resolution: string | null,
-  ) => {
-    const { project, generateSceneVideo } = get()
-    if (project === null) return
-    const pending = [...project.scenes]
-      .sort((a, b) => a.order - b.order)
-      .filter(
-        (s) => s.activeImageVersionId !== null && s.videoVersions.length === 0,
-      )
-    for (const scene of pending) {
-      await generateSceneVideo(scene.id, model, duration, resolution)
-    }
   },
 
   resumeVideoJobs: async () => {

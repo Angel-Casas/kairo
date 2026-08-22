@@ -47,6 +47,7 @@ const VIDEO_MODEL: VideoModel = {
   priceRangeUsd: { min: 0.72, max: 1.8 },
   resolutions: ['480p', '1080p'],
   durations: ['5', '8'],
+  frameControl: null,
   releasedAt: null,
 }
 
@@ -310,26 +311,59 @@ describe('video generation', () => {
     expect(job?.state).toBe('failed')
     expect(job?.error).toMatch(/before submission/)
   })
-
-  it('generateAllVideos only submits scenes with an image and no video', async () => {
+  it('fixed-length models get NO duration field at all (15.15)', async () => {
     const { sceneId } = await seedProjectWithImage()
-    // Add a second scene without an image — must be skipped.
-    const current = useProjectStore.getState().project
-    if (current === null) throw new Error('project missing')
-    const withExtraScene = {
-      ...current,
-      scenes: [...current.scenes, createScene(1)],
-    }
-    useProjectStore.setState({ project: withExtraScene })
-    const repo = await getRepository()
-    await repo.putProject(withExtraScene)
-
-    let submissions = 0
+    const FIXED: VideoModel = { ...VIDEO_MODEL, durations: [] }
+    let body: Record<string, unknown> = {}
     server.use(
-      http.post(`${BASE}/generate-video`, () => {
-        submissions += 1
+      http.post(`${BASE}/generate-video`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
         return HttpResponse.json({
-          runId: `vid_run_${String(submissions)}`,
+          runId: 'vid_fixed_1',
+          status: 'pending',
+          cost: 0.2,
+        })
+      }),
+    )
+    mockStatusSequence(['COMPLETED'])
+    mockVideoDownload()
+    await useProjectStore
+      .getState()
+      .generateSceneVideo(sceneId, FIXED, null, '480p')
+    expect(body).not.toHaveProperty('duration')
+    expect(body).not.toHaveProperty('num_frames')
+    await vi.waitFor(
+      () => {
+        const scene = useProjectStore
+          .getState()
+          .project?.scenes.find((s) => s.id === sceneId)
+        expect(scene?.videoVersions).toHaveLength(1)
+      },
+      { timeout: 3000 },
+    )
+  })
+
+  it('frame-based models get num_frames+fps instead of duration (15.14)', async () => {
+    const { sceneId } = await seedProjectWithImage()
+    const WAN: VideoModel = {
+      ...VIDEO_MODEL,
+      id: 'wan-video-image-to-video',
+      durations: ['5', '8'],
+      frameControl: {
+        minFrames: 81,
+        maxFrames: 100,
+        defaultFrames: 81,
+        minFps: 5,
+        maxFps: 24,
+        defaultFps: 16,
+      },
+    }
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/generate-video`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({
+          runId: 'vid_wan_1',
           status: 'pending',
           cost: 0.2,
         })
@@ -338,8 +372,13 @@ describe('video generation', () => {
     mockStatusSequence(['COMPLETED'])
     mockVideoDownload()
 
-    await useProjectStore.getState().generateAllVideos(VIDEO_MODEL, '5', '480p')
-    expect(submissions).toBe(1)
+    await useProjectStore
+      .getState()
+      .generateSceneVideo(sceneId, WAN, '8', '480p')
+    // 8s → 81 frames @ 10 fps (fewest frames = cheapest); no duration sent.
+    expect(body.num_frames).toBe(81)
+    expect(body.frames_per_second).toBe(10)
+    expect(body).not.toHaveProperty('duration')
 
     await vi.waitFor(
       () => {

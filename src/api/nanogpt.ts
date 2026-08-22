@@ -1,4 +1,8 @@
 import { NANOGPT_BASE_URL } from '../config'
+import {
+  achievableFrameDurations,
+  type FrameControl,
+} from '../lib/clipDuration'
 
 /**
  * Typed client for the NanoGPT API (https://docs.nano-gpt.com).
@@ -104,9 +108,17 @@ export interface VideoModel {
   /**
    * Clip durations the model advertises, in seconds (e.g. "5", "10").
    * Most models do not list them — an empty array means "unknown", and a
-   * model may silently produce the nearest length it supports.
+   * model may silently produce the nearest length it supports. For
+   * frame-based models (frameControl set) these are the ACHIEVABLE
+   * second-targets, so all seconds-based UI works unchanged.
    */
   durations: string[]
+  /**
+   * Set when the model takes num_frames + frames_per_second instead of a
+   * duration (Wan 2.1, Wan 2.2 5b — observed live 2026-08-22). Kairo
+   * translates seconds into a frame plan at submission.
+   */
+  frameControl: FrameControl | null
   /**
    * Release date (ISO) from the listing's `created` timestamp, when the
    * API provides one; null otherwise. Powers newest/oldest sorting and the
@@ -170,6 +182,101 @@ export function parseTtsPricing(
     return { kind: 'perGeneration', usd: perGen }
   }
   return null
+}
+
+/**
+ * Values of a structured select parameter (Slice 15.14). Newer video models
+ * (observed live: wan-wavespeed-25/26, wan-25-fast) advertise options as
+ * `supported_parameters.parameters.<name>.options[{value,label}]` instead
+ * of the legacy flat arrays — both shapes must feed the same UI.
+ */
+export function extractOptionValues(param: unknown): string[] | null {
+  if (typeof param !== 'object' || param === null) return null
+  const options = (param as { options?: unknown }).options
+  if (!Array.isArray(options)) return null
+  const values = options
+    .map((o) =>
+      typeof o === 'object' && o !== null
+        ? (o as { value?: unknown }).value
+        : undefined,
+    )
+    .filter((v): v is string | number => {
+      return typeof v === 'string' || typeof v === 'number'
+    })
+    .map(String)
+  return values.length > 0 ? values : null
+}
+
+/**
+ * Range of a structured NUMBER parameter. Shapes observed live: clean
+ * `min`/`max` fields (Wan 2.2 5b); only preset `options` (Wan 2.1
+ * num_frames: 81/100); or the range living ONLY in the description text —
+ * "Frames per second (5-24)" (Wan 2.1 fps). Null when it isn't a usable
+ * number parameter.
+ */
+export function extractNumberRange(
+  param: unknown,
+): { min: number; max: number; default: number } | null {
+  if (typeof param !== 'object' || param === null) return null
+  const p = param as {
+    type?: unknown
+    default?: unknown
+    min?: unknown
+    max?: unknown
+    description?: unknown
+  }
+  if (p.type !== 'number') return null
+  const fallback = typeof p.default === 'number' ? p.default : null
+  let min = typeof p.min === 'number' ? p.min : null
+  let max = typeof p.max === 'number' ? p.max : null
+  if (min === null || max === null) {
+    const optionValues = (extractOptionValues(param) ?? [])
+      .map(Number)
+      .filter((n) => Number.isFinite(n))
+    if (optionValues.length > 0) {
+      min ??= Math.min(
+        ...optionValues,
+        ...(fallback === null ? [] : [fallback]),
+      )
+      max ??= Math.max(
+        ...optionValues,
+        ...(fallback === null ? [] : [fallback]),
+      )
+    }
+  }
+  if ((min === null || max === null) && typeof p.description === 'string') {
+    const match = /\((\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\)/.exec(
+      p.description,
+    )
+    if (match !== null) {
+      min ??= Number(match[1])
+      max ??= Number(match[2])
+    }
+  }
+  if (min === null || max === null || fallback === null) {
+    if (fallback === null) return null
+    min ??= fallback
+    max ??= fallback
+  }
+  return { min, max, default: fallback }
+}
+
+/** Frame-based duration control, when the model advertises one. */
+export function extractFrameControl(
+  parameters: Record<string, unknown> | undefined,
+): FrameControl | null {
+  if (parameters === undefined) return null
+  const frames = extractNumberRange(parameters['num_frames'])
+  const fps = extractNumberRange(parameters['frames_per_second'])
+  if (frames === null || fps === null) return null
+  return {
+    minFrames: frames.min,
+    maxFrames: frames.max,
+    defaultFrames: frames.default,
+    minFps: fps.min,
+    maxFps: fps.max,
+    defaultFps: fps.default,
+  }
 }
 
 /** Recursively collect numeric leaves of a pricing object (skips currency). */
@@ -305,6 +412,9 @@ export interface VideoGenerationParams {
   resolution?: string
   /** For image-to-video: a data URL of the source image. */
   imageDataUrl?: string
+  /** Frame-based models (Wan): sent INSTEAD of duration. */
+  numFrames?: number
+  framesPerSecond?: number
 }
 
 export interface VideoJobSubmission {
@@ -465,21 +575,39 @@ export class NanoGptClient {
         supported_parameters?: {
           resolutions?: string[]
           durations?: (string | number)[]
+          parameters?: Record<string, unknown>
         }
         created?: number
       }[]
     }
-    return data.data.map((m) => ({
-      id: m.id,
-      name: m.name ?? m.id,
-      description: m.description ?? '',
-      supportsTextToVideo: m.capabilities?.text_to_video ?? false,
-      supportsImageToVideo: m.capabilities?.image_to_video ?? false,
-      priceRangeUsd: extractPriceRange(m.pricing),
-      resolutions: m.supported_parameters?.resolutions ?? [],
-      durations: (m.supported_parameters?.durations ?? []).map(String),
-      releasedAt: releasedAtFromCreated(m.created),
-    }))
+    return data.data.map((m) => {
+      const sp = m.supported_parameters
+      const frameControl = extractFrameControl(sp?.parameters)
+      return {
+        id: m.id,
+        name: m.name ?? m.id,
+        description: m.description ?? '',
+        supportsTextToVideo: m.capabilities?.text_to_video ?? false,
+        supportsImageToVideo: m.capabilities?.image_to_video ?? false,
+        priceRangeUsd: extractPriceRange(m.pricing),
+        // Legacy flat arrays, or the structured select schema — either way
+        // the model's REAL options, never our generic fallbacks.
+        resolutions:
+          sp?.resolutions ??
+          extractOptionValues(sp?.parameters?.['resolution']) ??
+          [],
+        durations:
+          frameControl !== null
+            ? achievableFrameDurations(frameControl)
+            : (
+                sp?.durations ??
+                extractOptionValues(sp?.parameters?.['duration']) ??
+                []
+              ).map(String),
+        frameControl,
+        releasedAt: releasedAtFromCreated(m.created),
+      }
+    })
   }
 
   /**
@@ -774,6 +902,12 @@ export class NanoGptClient {
       model: params.model,
       ...(params.prompt !== undefined ? { prompt: params.prompt } : {}),
       ...(params.duration !== undefined ? { duration: params.duration } : {}),
+      ...(params.numFrames !== undefined
+        ? { num_frames: params.numFrames }
+        : {}),
+      ...(params.framesPerSecond !== undefined
+        ? { frames_per_second: params.framesPerSecond }
+        : {}),
       ...(params.aspectRatio !== undefined
         ? { aspect_ratio: params.aspectRatio }
         : {}),

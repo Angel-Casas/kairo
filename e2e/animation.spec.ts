@@ -185,7 +185,9 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
 
   const scene1 = page.getByLabel('Scene 1 animation workbench')
   // The optional camera helper steers the motion prompt.
-  await scene1.getByLabel('Camera direction').fill('fixed tripod, slow zoom in')
+  await scene1
+    .getByLabel('Camera direction', { exact: true }) // 'Camera direction help' is a superstring
+    .fill('fixed tripod, slow zoom in')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
   await expect(scene1.getByRole('button', { name: /Generating/ })).toBeVisible()

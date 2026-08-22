@@ -145,3 +145,21 @@ export async function isPlayableAudio(blob: Blob): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * Duration of an audio blob in seconds, via the browser's decoder
+ * (15.11 — animate-all fits clip lengths to narration). Null where
+ * WebAudio is unavailable (jsdom) or the bytes don't decode.
+ */
+export async function audioBlobDuration(blob: Blob): Promise<number | null> {
+  const Ctx =
+    typeof OfflineAudioContext !== 'undefined' ? OfflineAudioContext : undefined
+  if (Ctx === undefined) return null
+  try {
+    const ctx = new Ctx(1, 1, 44100)
+    const buffer = await ctx.decodeAudioData(await blob.arrayBuffer())
+    return buffer.duration
+  } catch {
+    return null
+  }
+}

@@ -301,3 +301,23 @@ fails, using the envelope's own `cost` as the authoritative amount.
 Honor `terminal: true` as "stop polling now" regardless of the status
 string. And when a model fails server-side at a flat per-run price,
 the kind thing is a clear error message, not silent retries.
+
+### 2026-08-22 — "8 seconds" is not a universal language: some models only speak frames
+
+**What happened:** Wan 2.1 returned a 5s clip for an 8s request. The
+model has no `duration` parameter at all — it takes `num_frames` and
+`frames_per_second`, ignores unknown fields, and falls back to its
+defaults (81 @ 16fps ≈ 5.1s). Related: the listing's
+`supported_parameters` has TWO schemas — legacy flat arrays
+(`durations`, `resolutions`) and a structured
+`parameters.<name>.{type,options,min,max,default}` form — and Kairo
+only read the flat one, so newer models got generic fallback options
+they don't support. Some ranges live ONLY in description text
+("Frames per second (5-24)").
+
+**Rule going forward:** Parse BOTH parameter schemas, and treat a
+parameter the model doesn't advertise as one it will ignore — never
+offer UI choices the API can't honor. For frame-based models, keep the
+product language in seconds and translate at the API boundary,
+preferring the cheapest plan that reaches the ask (fewest frames — the
+frame count drives the surcharge), and say what was actually submitted.

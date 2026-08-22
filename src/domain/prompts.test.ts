@@ -61,6 +61,35 @@ describe('buildImagePrompt', () => {
   })
 })
 
+describe('unterminated (15.13 — no more double periods)', () => {
+  it('strips a single trailing period; the joiner adds its own', () => {
+    expect(
+      buildVideoPrompt('A vast estate looms in the distance.', 'No pan.'),
+    ).toContain('in the distance. one continuous')
+    expect(
+      buildVideoPrompt('A vast estate looms in the distance.', 'No pan.'),
+    ).toContain('Camera: No pan. no frozen figures')
+  })
+
+  it('preserves deliberate ellipses', () => {
+    expect(buildVideoPrompt('The fog thickens...')).toContain(
+      'The fog thickens.... one continuous',
+    )
+    expect(buildVideoPrompt('The fog thickens…')).toContain(
+      'The fog thickens…. one continuous',
+    )
+  })
+
+  it('applies to image prompt fragments too', () => {
+    const prompt = buildImagePrompt({
+      stylePromptFragment: 'Oil painting.',
+      styleNotes: 'Warm palette.',
+      visualDescription: 'A lighthouse.',
+    })
+    expect(prompt).not.toContain('..')
+  })
+})
+
 describe('buildVideoPrompt', () => {
   it('pairs the camera with an action and forbids frozen figures and text', () => {
     const prompt = buildVideoPrompt('A castle at dawn')

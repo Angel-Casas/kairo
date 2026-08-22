@@ -208,6 +208,20 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       rail transitions, reel frame selection, lightbox zoom, settings-overlay
       fade, bubble drift)._
 
+## Candidate slice: S2V lip-sync animation (from Angel, 2026-08-22)
+
+Speech-to-video models (e.g. Wan 2.2 S2V) take an image + an audio track
+and produce lip/body-synced video — and Kairo already holds BOTH inputs
+per scene (active image + narration). A natural "Lip-sync this scene's
+narration" mode on the Animation stage, where duration isn't even a
+question (the audio defines it). Prerequisites: the S2V listing entry's
+shape (how it declares the required audio input), the upload mechanics
+for audio on /generate-video, and its pricing shape. Until then, models
+requiring inputs Kairo can't supply should be excluded/badged in the
+picker — see Slice 15.15's "unadvertised parameter = ignored parameter"
+rule; the input-requirement analog is "unsuppliable input = unusable
+model".
+
 ## V2 backlog (not now — resist scope creep)
 
 Long-form videos (multi-minute, many scenes); music via NanoGPT audio models;

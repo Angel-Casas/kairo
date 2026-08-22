@@ -196,6 +196,135 @@ describe('model listings', () => {
     expect(extractPriceRange(undefined)).toBeNull()
   })
 
+  it('reads durations/resolutions from the structured parameters schema (15.14)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/video-models`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              // wan-25-fast shape observed live: no flat arrays, options
+              // under parameters.<name>.options[{value,label}].
+              id: 'wan-25-fast',
+              capabilities: { text_to_video: true, image_to_video: true },
+              pricing: {
+                currency: 'USD',
+                per_second_by_resolution: { '720p': 0.068, '1080p': 0.102 },
+              },
+              supported_parameters: {
+                parameters: {
+                  resolution: {
+                    type: 'select',
+                    options: [{ value: '720p' }, { value: '1080p' }],
+                    default: '720p',
+                  },
+                  duration: {
+                    type: 'select',
+                    options: [
+                      { value: '5', label: '5 seconds' },
+                      { value: '10', label: '10 seconds' },
+                    ],
+                    default: '5',
+                  },
+                },
+                defaults: { resolution: '720p', duration: '5' },
+              },
+            },
+          ],
+        }),
+      ),
+    )
+    const models = await client().listVideoModels()
+    expect(models[0]?.durations).toEqual(['5', '10'])
+    expect(models[0]?.resolutions).toEqual(['720p', '1080p'])
+  })
+
+  it('detects frame-based models and offers achievable second-targets (15.14)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/video-models`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              // The REAL Wan 2.1 shape: frames range only via options,
+              // fps range only in the description text.
+              id: 'wan-video-image-to-video',
+              name: 'Wan 2.1',
+              capabilities: { image_to_video: true },
+              pricing: {
+                currency: 'USD',
+                per_resolution: { '480p': 0.2, '720p': 0.4 },
+                frame_multiplier: 1.25,
+                frame_threshold: 81,
+              },
+              supported_parameters: {
+                parameters: {
+                  resolution: {
+                    type: 'select',
+                    options: [{ value: '480p' }, { value: '720p' }],
+                    default: '720p',
+                  },
+                  num_frames: {
+                    type: 'number',
+                    default: 81,
+                    options: [
+                      { value: '81', label: '81 frames' },
+                      { value: '100', label: '100 frames (+25% cost)' },
+                    ],
+                    description: 'Number of frames to generate (81-100)',
+                  },
+                  frames_per_second: {
+                    type: 'number',
+                    default: 16,
+                    description: 'Frames per second (5-24)',
+                  },
+                },
+                defaults: { num_frames: 81, frames_per_second: 16 },
+              },
+            },
+          ],
+        }),
+      ),
+    )
+    const models = await client().listVideoModels()
+    expect(models[0]?.frameControl).toEqual({
+      minFrames: 81,
+      maxFrames: 100,
+      defaultFrames: 81,
+      minFps: 5,
+      maxFps: 24,
+      defaultFps: 16,
+    })
+    // Durations become the ACHIEVABLE second-targets (81/24≈3.4s min,
+    // 100/5=20s max), so seconds-based UI works unchanged.
+    expect(models[0]?.durations).toEqual([
+      '4',
+      '5',
+      '6',
+      '8',
+      '10',
+      '12',
+      '15',
+      '20',
+    ])
+    expect(models[0]?.resolutions).toEqual(['480p', '720p'])
+  })
+
+  it('extractNumberRange reads min/max fields directly (Wan 2.2 5b shape)', async () => {
+    const { extractNumberRange } = await import('./nanogpt')
+    expect(
+      extractNumberRange({
+        type: 'number',
+        default: 24,
+        min: 4,
+        max: 60,
+        options: [{ value: '4' }, { value: '60' }],
+      }),
+    ).toEqual({ min: 4, max: 60, default: 24 })
+    expect(extractNumberRange({ type: 'select', default: '129' })).toBeNull()
+    expect(extractNumberRange(undefined)).toBeNull()
+  })
+
   it('listTtsModels keeps only real TTS models and parses every pricing shape', async () => {
     server.use(
       http.get(`${BASE}/v1/audio-models`, () =>

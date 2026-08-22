@@ -1,8 +1,12 @@
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { VideoModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
+import { planFrames } from '../lib/clipDuration'
 import { formatUsd } from '../lib/format'
 import { sortVideoResolutionsCheapestFirst } from '../lib/resolution'
+import { useModelsStore } from '../state/models'
+import { AnimateBatchOverlay, type BatchItem } from './AnimateBatchOverlay'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
 import { GenerationHistory } from './GenerationHistory'
@@ -12,9 +16,7 @@ import { ReelShell } from './Reel'
 import { SceneDescriptionEditor } from './SceneDescriptionEditor'
 import { useBlobUrl } from './useBlobUrl'
 
-const DURATIONS = ['5', '8', '10']
 /** Offered when a model does not advertise its supported resolutions. */
-const COMMON_RESOLUTIONS = ['480p', '720p', '1080p']
 
 function describeClipPrice(model: VideoModel): string {
   if (model.priceRangeUsd === null) {
@@ -29,7 +31,6 @@ function describeClipPrice(model: VideoModel): string {
 
 type PendingConfirm =
   | { type: 'one'; sceneId: string; label: string }
-  | { type: 'all'; count: number }
   | { type: 'tweak'; sceneId: string; label: string; prompt: string }
 
 /**
@@ -40,13 +41,14 @@ type PendingConfirm =
  */
 export function AnimationStage() {
   const project = useProjectStore((s) => s.project)
-  const generateAllVideos = useProjectStore((s) => s.generateAllVideos)
   const generateSceneVideo = useProjectStore((s) => s.generateSceneVideo)
+  const videoModels = useModelsStore((s) => s.videoModels)
 
   const [model, setModel] = useState<VideoModel | null>(null)
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<PendingConfirm | null>(null)
+  const [batchOpen, setBatchOpen] = useState(false)
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
   const [lightboxStart, setLightboxStart] = useState<number | null>(null)
 
@@ -59,31 +61,42 @@ export function AnimationStage() {
       ? 0
       : scenes.findIndex((s) => s.id === selectedScene.id)
 
-  const resolutionOptions = sortVideoResolutionsCheapestFirst(
+  // A parameter the model doesn't advertise is one it will IGNORE
+  // (LESSONS) — so an empty listing means NO control, not our fallbacks:
+  // no fake select, no fabricated request field (Slice 15.15).
+  const resolutionOptions =
     model !== null && model.resolutions.length > 0
-      ? model.resolutions
-      : COMMON_RESOLUTIONS,
-  )
+      ? sortVideoResolutionsCheapestFirst(model.resolutions)
+      : []
   // Default to the CHEAPEST resolution — never let a provider default pick
   // an expensive tier silently (learned the hard way, see LESSONS.md).
-  const effectiveResolution = resolution ?? resolutionOptions[0] ?? null
+  const effectiveResolution =
+    resolutionOptions.length === 0
+      ? null
+      : resolution !== null && resolutionOptions.includes(resolution)
+        ? resolution
+        : (resolutionOptions[0] ?? null)
   // When the model advertises its supported durations, offer exactly those —
   // asking for a length a model can't make just gets silently clamped
   // server-side (an "8s" request coming back as a 5s clip).
-  const durationOptions =
-    model !== null && model.durations.length > 0 ? model.durations : DURATIONS
-  const effectiveDuration = durationOptions.includes(duration)
-    ? duration
-    : (durationOptions[0] ?? duration)
+  const durationOptions = model !== null ? model.durations : []
+  const effectiveDuration: string | null =
+    durationOptions.length === 0
+      ? null
+      : durationOptions.includes(duration)
+        ? duration
+        : (durationOptions[0] ?? null)
 
-  const pendingCount = scenes.filter(
+  const pendingScenes = scenes.filter(
     (s) => s.activeImageVersionId !== null && s.videoVersions.length === 0,
-  ).length
+  )
+  const pendingCount = pendingScenes.length
+  const sceneNumbers = new Map(scenes.map((s, i) => [s.id, i + 1]))
 
   const confirmMessage = (countLabel: string) =>
     model === null
       ? ''
-      : `${countLabel} with ${model.name} at ${effectiveResolution ?? 'default resolution'}, ${effectiveDuration}s. ${describeClipPrice(model)}`
+      : `${countLabel} with ${model.name} at ${effectiveResolution ?? "the model's fixed resolution"}, ${effectiveDuration === null ? 'fixed length' : `${effectiveDuration}s`}. ${describeClipPrice(model)}`
 
   // The lightbox walks the scenes' media in reel order: the active clip
   // where one exists, otherwise the still image that will be animated.
@@ -184,34 +197,49 @@ export function AnimationStage() {
             })
           }}
           onRequestAll={() => {
-            setConfirming({ type: 'all', count: pendingCount })
+            setBatchOpen(true)
+          }}
+        />
+      )}
+
+      {batchOpen && model !== null && (
+        <AnimateBatchOverlay
+          scenes={pendingScenes}
+          sceneNumbers={sceneNumbers}
+          defaultModel={model}
+          models={videoModels.filter((m) => m.supportsImageToVideo)}
+          globalDuration={effectiveDuration}
+          globalResolution={effectiveResolution}
+          onCancel={() => {
+            setBatchOpen(false)
+          }}
+          onSubmit={(items: BatchItem[]) => {
+            setBatchOpen(false)
+            // Sequential submissions, same as the old batch — each scene's
+            // frame shows its own progress, failures stay per-scene.
+            void (async () => {
+              for (const item of items) {
+                await generateSceneVideo(
+                  item.sceneId,
+                  item.model,
+                  item.duration,
+                  item.resolution,
+                )
+              }
+            })()
           }}
         />
       )}
 
       {confirming !== null && model !== null && (
         <ConfirmDialog
-          title={
-            confirming.type === 'all'
-              ? `Animate ${String(confirming.count)} ${confirming.count === 1 ? 'scene' : 'scenes'}?`
-              : `${confirming.label}?`
-          }
-          message={confirmMessage(
-            confirming.type === 'all'
-              ? `This submits ${String(confirming.count)} video ${confirming.count === 1 ? 'job' : 'jobs'}`
-              : 'This submits one video job',
-          )}
+          title={`${confirming.label}?`}
+          message={confirmMessage('This submits one video job')}
           confirmLabel="Submit and charge"
           onConfirm={() => {
             const pending = confirming
             setConfirming(null)
-            if (pending.type === 'all') {
-              void generateAllVideos(
-                model,
-                effectiveDuration,
-                effectiveResolution,
-              )
-            } else if (pending.type === 'tweak') {
+            if (pending.type === 'tweak') {
               void generateSceneVideo(
                 pending.sceneId,
                 model,
@@ -421,7 +449,7 @@ function AnimationWorkbench({
   index: number
   model: VideoModel | null
   onSelectModel: (m: VideoModel) => void
-  duration: string
+  duration: string | null
   durationOptions: string[]
   onSelectDuration: (d: string) => void
   effectiveResolution: string | null
@@ -502,17 +530,20 @@ function AnimationWorkbench({
         <label style={{ display: 'block' }}>
           <span
             style={{
-              display: 'block',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
               color: 'var(--color-text-muted)',
               fontSize: 'var(--text-sm)',
               marginBottom: 'var(--space-1)',
             }}
           >
             Camera direction (optional) — steers the motion prompt
+            <CameraHelp />
           </span>
           <textarea
             aria-label="Camera direction"
-            placeholder="Camera position & movement: fixed tripod, slow push-in, pan left, gentle zoom out, drone pull-back…"
+            placeholder="Say what the camera DOES: “static shot, fixed tripod, the framing never changes” · “slow push-in” · “pan left following the subject” — models ignore negations like “no zoom”."
             value={scene.cameraNotes}
             onChange={(e) => {
               updateScene(scene.id, { cameraNotes: e.target.value })
@@ -565,20 +596,51 @@ function AnimationWorkbench({
             >
               Duration
             </span>
-            <select
-              aria-label="Clip duration"
-              value={duration}
-              onChange={(e) => {
-                onSelectDuration(e.target.value)
-              }}
-            >
-              {durationOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d}s
-                </option>
-              ))}
-            </select>
+            {durationOptions.length > 0 ? (
+              <select
+                aria-label="Clip duration"
+                value={duration ?? ''}
+                onChange={(e) => {
+                  onSelectDuration(e.target.value)
+                }}
+              >
+                {durationOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}s
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span
+                style={{
+                  color: 'var(--color-text-muted)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                fixed by model
+              </span>
+            )}
           </label>
+          {model?.frameControl != null &&
+            (() => {
+              const plan = planFrames(
+                model.frameControl,
+                Number(duration ?? '5') || 5,
+              )
+              return (
+                <span
+                  aria-label="Frame plan"
+                  style={{
+                    color: 'var(--color-text-muted)',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  frame-based model: {String(plan.frames)} frames @{' '}
+                  {String(plan.fps)} fps = {plan.seconds.toFixed(1)}s (lower fps
+                  = choppier motion)
+                </span>
+              )
+            })()}
           {narrationSeconds !== null && (
             <span
               aria-label="Narration duration"
@@ -601,19 +663,30 @@ function AnimationWorkbench({
             >
               Resolution
             </span>
-            <select
-              aria-label="Video resolution"
-              value={effectiveResolution ?? ''}
-              onChange={(e) => {
-                onSelectResolution(e.target.value)
-              }}
-            >
-              {resolutionOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+            {resolutionOptions.length > 0 ? (
+              <select
+                aria-label="Video resolution"
+                value={effectiveResolution ?? ''}
+                onChange={(e) => {
+                  onSelectResolution(e.target.value)
+                }}
+              >
+                {resolutionOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span
+                style={{
+                  color: 'var(--color-text-muted)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                fixed by model
+              </span>
+            )}
           </label>
         </div>
         {model !== null && model.durations.length === 0 && (
@@ -624,8 +697,8 @@ function AnimationWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            This model does not publish which lengths it supports — if it cannot
-            make a {duration}s clip it produces the nearest length it can. The
+            This model does not take a clip length — every clip comes out at the
+            length the model chooses, so Kairo sends no duration at all. The
             clip&apos;s real length shows beside it once it lands.
           </p>
         )}
@@ -900,5 +973,145 @@ function AnimationWorkbench({
         />
       </div>
     </div>
+  )
+}
+
+/**
+ * "?" beside the camera field (15.13, Angel's ask): a short guide to
+ * phrasing camera direction so models actually obey — assert what the
+ * camera DOES; negations like "no zoom" are usually ignored or even
+ * backfire (mentioning a concept makes it MORE likely to appear).
+ */
+function CameraHelp() {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Camera direction help"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title="How to phrase camera direction"
+        onClick={() => {
+          setOpen(true)
+        }}
+        style={{
+          width: '1.3rem',
+          height: '1.3rem',
+          padding: 0,
+          borderRadius: '50%',
+          border: '1px solid var(--color-border)',
+          background: 'transparent',
+          color: 'var(--color-text-muted)',
+          fontSize: '11px',
+          fontWeight: 700,
+          lineHeight: 1,
+          boxShadow: 'none',
+          flexShrink: 0,
+        }}
+      >
+        ?
+      </button>
+      {open &&
+        createPortal(
+          <div
+            onClick={() => {
+              setOpen(false)
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 12,
+              background: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 'var(--space-6) var(--space-4)',
+              cursor: 'zoom-out',
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Camera direction guide"
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
+              style={{
+                width: 'min(30rem, 96vw)',
+                background: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: 'var(--shadow-card)',
+                padding: 'var(--space-6)',
+                cursor: 'default',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-3)',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>
+                Directing the camera
+              </h3>
+              <p style={{ margin: 0, lineHeight: 1.6 }}>
+                Video models are bad at <strong>negations</strong>. &ldquo;No
+                zoom&rdquo; asks the model to picture a zoom and then suppress
+                it — mentioning the concept often makes it MORE likely to
+                appear. They also lean toward adding motion, because static
+                clips look like failures in their training data.
+              </p>
+              <p style={{ margin: 0, lineHeight: 1.6 }}>
+                So assert what the camera <strong>does</strong>, as the only
+                truth:
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  padding: 'var(--space-3)',
+                  borderRadius: 'var(--radius)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  lineHeight: 1.6,
+                }}
+              >
+                &ldquo;Static shot. Fixed camera locked on a tripod. The framing
+                never changes; only the subject moves.&rdquo;
+              </p>
+              <p style={{ margin: 0, lineHeight: 1.6 }}>
+                The same applies to movement you DO want: &ldquo;slow
+                push-in&rdquo;, &ldquo;pan left following the subject&rdquo;,
+                &ldquo;drone pull-back revealing the valley&rdquo;. Adherence
+                still varies by model — when a locked-off shot really matters, a
+                retry or another model is sometimes the answer.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }
