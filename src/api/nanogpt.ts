@@ -54,6 +54,12 @@ export interface VideoModel {
   priceRangeUsd: { min: number; max: number } | null
   /** Resolutions the model advertises (e.g. "480p", "720p", "1080p"). */
   resolutions: string[]
+  /**
+   * Clip durations the model advertises, in seconds (e.g. "5", "10").
+   * Most models do not list them — an empty array means "unknown", and a
+   * model may silently produce the nearest length it supports.
+   */
+  durations: string[]
 }
 
 /** Recursively collect numeric leaves of a pricing object (skips currency). */
@@ -76,6 +82,43 @@ export function extractPriceRange(
   walk(pricing)
   if (values.length === 0) return null
   return { min: Math.min(...values), max: Math.max(...values) }
+}
+
+/**
+ * Find the finished video's URL in a status response `output`. The documented
+ * shape is `output.video.url`, but the unified endpoint fronts many backends
+ * and close variants show up in the wild (`output.url`, `output.video_url`,
+ * a bare URL string, an array of videos). A paid, completed job should never
+ * be dropped over a field name — accept every common spelling.
+ *
+ * Some backends (grok-imagine-video) return a RELATIVE path like
+ * `/api/generate-video/content?...` — accepted here and resolved against the
+ * NanoGPT origin by the caller. Fetching it unresolved would hit the app's
+ * own origin and store the dev server's index.html as a "clip" (LESSONS.md).
+ */
+export function extractVideoUrl(output: unknown): string | null {
+  const isUrl = (v: unknown): v is string =>
+    typeof v === 'string' && (v.startsWith('http') || v.startsWith('/'))
+  if (isUrl(output)) return output
+  if (typeof output !== 'object' || output === null) return null
+  const o = output as {
+    video?: unknown
+    url?: unknown
+    video_url?: unknown
+    videoUrl?: unknown
+    videos?: unknown
+  }
+  const nested =
+    typeof o.video === 'object' && o.video !== null
+      ? (o.video as { url?: unknown }).url
+      : o.video
+  const first = Array.isArray(o.videos)
+    ? (o.videos[0] as { url?: unknown } | undefined)?.url
+    : undefined
+  for (const candidate of [nested, o.url, o.video_url, o.videoUrl, first]) {
+    if (isUrl(candidate)) return candidate
+  }
+  return null
 }
 
 /**
@@ -297,7 +340,10 @@ export class NanoGptClient {
         description?: string
         pricing?: unknown
         capabilities?: { text_to_video?: boolean; image_to_video?: boolean }
-        supported_parameters?: { resolutions?: string[] }
+        supported_parameters?: {
+          resolutions?: string[]
+          durations?: (string | number)[]
+        }
       }[]
     }
     return data.data.map((m) => ({
@@ -308,6 +354,7 @@ export class NanoGptClient {
       supportsImageToVideo: m.capabilities?.image_to_video ?? false,
       priceRangeUsd: extractPriceRange(m.pricing),
       resolutions: m.supported_parameters?.resolutions ?? [],
+      durations: (m.supported_parameters?.durations ?? []).map(String),
     }))
   }
 
@@ -448,18 +495,51 @@ export class NanoGptClient {
     )) as {
       data?: {
         status?: string
-        output?: { video?: { url?: string } }
+        output?: unknown
         cost?: number
         error?: string | null
       }
     }
-    const status = (data.data?.status ?? 'IN_QUEUE') as VideoJobStatus
+    // Backends have been seen returning lowercase statuses — normalize.
+    const status = String(
+      data.data?.status ?? 'IN_QUEUE',
+    ).toUpperCase() as VideoJobStatus
+    const rawUrl = extractVideoUrl(data.data?.output)
     return {
       status,
-      videoUrl: data.data?.output?.video?.url ?? null,
+      // Relative paths resolve against the NanoGPT origin — NEVER against
+      // the app's own origin (that stores index.html as a clip).
+      videoUrl:
+        rawUrl === null
+          ? null
+          : new URL(rawUrl, new URL(this.baseUrl).origin).toString(),
       costUsd: data.data?.cost ?? null,
       error: data.data?.error ?? null,
     }
+  }
+
+  /**
+   * Download a finished clip. URLs on the NanoGPT origin (e.g. the relative
+   * `/api/generate-video/content` paths some models return) are
+   * authenticated with the API key; third-party CDN URLs must NEVER
+   * receive it.
+   */
+  async downloadVideo(url: string): Promise<Blob> {
+    const sameOrigin = new URL(url).origin === new URL(this.baseUrl).origin
+    const response = await fetch(
+      url,
+      sameOrigin ? { headers: { 'x-api-key': this.apiKey } } : undefined,
+    )
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new InvalidApiKeyError()
+      }
+      throw new NanoGptError(
+        response.status,
+        `The finished video could not be downloaded (HTTP ${String(response.status)}).`,
+      )
+    }
+    return response.blob()
   }
 
   /** GET /v1/usage — aggregate spend for the current key. */

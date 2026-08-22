@@ -61,6 +61,7 @@ export function ImagesStage() {
       lightboxIndexByScene.set(scene.id, lightboxItems.length)
       lightboxItems.push({
         blobPath: active.blobPath,
+        mimeType: active.mimeType,
         alt: `Scene ${String(i + 1)} image — enlarged`,
         kind: 'image',
         title: `Scene ${String(i + 1)}`,
@@ -161,7 +162,10 @@ function SceneFrame({
   const status = useProjectStore((s) => s.sceneImageStatus[scene.id])
   const activeVersion =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
-  const activeUrl = useBlobUrl(activeVersion?.blobPath ?? null)
+  const activeUrl = useBlobUrl(
+    activeVersion?.blobPath ?? null,
+    activeVersion?.mimeType,
+  )
   const generating = status?.generating === true
   const n = String(index + 1)
 

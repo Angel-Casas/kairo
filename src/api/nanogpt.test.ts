@@ -160,7 +160,10 @@ describe('model listings', () => {
                 currency: 'USD',
                 per_video: { '480p': 0.72, '1080p': 1.8 },
               },
-              supported_parameters: { resolutions: ['480p', '1080p'] },
+              supported_parameters: {
+                resolutions: ['480p', '1080p'],
+                durations: [5, '10'],
+              },
             },
             { id: 'bare-vid' },
           ],
@@ -171,8 +174,10 @@ describe('model listings', () => {
     expect(models[0]?.supportsImageToVideo).toBe(true)
     expect(models[0]?.priceRangeUsd).toEqual({ min: 0.72, max: 1.8 })
     expect(models[0]?.resolutions).toEqual(['480p', '1080p'])
+    expect(models[0]?.durations).toEqual(['5', '10'])
     expect(models[1]?.priceRangeUsd).toBeNull()
     expect(models[1]?.resolutions).toEqual([])
+    expect(models[1]?.durations).toEqual([])
   })
 
   it('extractPriceRange walks nested pricing shapes and skips metadata', async () => {
@@ -390,6 +395,98 @@ describe('video generation and polling', () => {
     expect(state.status).toBe('FAILED')
     expect(state.error).toBe('model exploded')
     expect(state.videoUrl).toBeNull()
+  })
+
+  it('accepts variant output shapes and lowercase statuses from backends', async () => {
+    server.use(
+      http.get(`${BASE}/video/status`, () =>
+        HttpResponse.json({
+          data: {
+            status: 'completed',
+            output: { url: 'https://cdn/flat.mp4' },
+          },
+        }),
+      ),
+    )
+    const state = await client().getVideoStatus('vid_y')
+    expect(state.status).toBe('COMPLETED')
+    expect(state.videoUrl).toBe('https://cdn/flat.mp4')
+  })
+
+  it('resolves relative video URLs against the NanoGPT origin, never the app origin', async () => {
+    // grok-imagine-video returns '/api/generate-video/content?...' — the
+    // bug that stored the dev server's index.html as a clip (LESSONS.md).
+    server.use(
+      http.get(`${BASE}/video/status`, () =>
+        HttpResponse.json({
+          data: {
+            status: 'COMPLETED',
+            output: {
+              video: {
+                url: '/api/generate-video/content?model=grok-imagine-video&runId=r1&variant=video',
+              },
+            },
+          },
+        }),
+      ),
+    )
+    const state = await client().getVideoStatus('vid_rel')
+    expect(state.videoUrl).toBe(
+      'https://nano-gpt.com/api/generate-video/content?model=grok-imagine-video&runId=r1&variant=video',
+    )
+  })
+
+  it('downloadVideo sends the key to the NanoGPT origin only', async () => {
+    let nanoAuth: string | null = null
+    let cdnAuth: string | null = null
+    server.use(
+      http.get(`${BASE}/generate-video/content`, ({ request }) => {
+        nanoAuth = request.headers.get('x-api-key')
+        return new HttpResponse('vid', {
+          headers: { 'content-type': 'video/mp4' },
+        })
+      }),
+      http.get('https://cdn.example/clip.mp4', ({ request }) => {
+        cdnAuth = request.headers.get('x-api-key')
+        return new HttpResponse('vid', {
+          headers: { 'content-type': 'video/mp4' },
+        })
+      }),
+    )
+    await client().downloadVideo(
+      `${BASE}/generate-video/content?model=m&runId=r1&variant=video`,
+    )
+    expect(nanoAuth).toBe(KEY)
+    await client().downloadVideo('https://cdn.example/clip.mp4')
+    expect(cdnAuth).toBeNull()
+  })
+
+  it('extractVideoUrl accepts every common spelling and rejects junk', async () => {
+    const { extractVideoUrl } = await import('./nanogpt')
+    expect(extractVideoUrl({ video: { url: 'https://cdn/a.mp4' } })).toBe(
+      'https://cdn/a.mp4',
+    )
+    expect(extractVideoUrl({ url: 'https://cdn/b.mp4' })).toBe(
+      'https://cdn/b.mp4',
+    )
+    expect(extractVideoUrl({ video_url: 'https://cdn/c.mp4' })).toBe(
+      'https://cdn/c.mp4',
+    )
+    expect(extractVideoUrl({ videoUrl: 'https://cdn/d.mp4' })).toBe(
+      'https://cdn/d.mp4',
+    )
+    expect(extractVideoUrl({ video: 'https://cdn/e.mp4' })).toBe(
+      'https://cdn/e.mp4',
+    )
+    expect(extractVideoUrl({ videos: [{ url: 'https://cdn/f.mp4' }] })).toBe(
+      'https://cdn/f.mp4',
+    )
+    expect(extractVideoUrl('https://cdn/g.mp4')).toBe('https://cdn/g.mp4')
+    expect(extractVideoUrl({ video: { url: '/api/x?y=1' } })).toBe('/api/x?y=1')
+    expect(extractVideoUrl({ video: { url: 42 } })).toBeNull()
+    expect(extractVideoUrl('not-a-url')).toBeNull()
+    expect(extractVideoUrl(undefined)).toBeNull()
+    expect(extractVideoUrl(null)).toBeNull()
   })
 })
 

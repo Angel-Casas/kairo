@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createProject,
   createReference,
+  createScene,
   normalizeProject,
   type Project,
 } from './types'
@@ -63,6 +64,41 @@ describe('normalizeProject — Slice 10 backfill', () => {
     const normalized = normalizeProject(stored)
     expect(normalized.references[0]?.imageVersions).toEqual([])
     expect(normalized.references[0]?.activeImageVersionId).toBeNull()
+  })
+
+  it('heals media versions stored with a wrong-kind MIME type', () => {
+    const project = createProject('Old', nowIso)
+    const scene = createScene(0)
+    const version = (kind: 'image' | 'video' | 'audio', mimeType: string) => ({
+      id: `${kind}-${mimeType}`,
+      kind,
+      model: 'm',
+      prompt: '',
+      costUsd: null,
+      blobPath: 'p/x',
+      mimeType,
+      createdAt: nowIso(),
+    })
+    const stored = {
+      ...project,
+      scenes: [
+        {
+          ...scene,
+          imageVersions: [version('image', 'application/octet-stream')],
+          videoVersions: [
+            version('video', 'application/octet-stream'),
+            version('video', 'video/webm'),
+          ],
+          audioVersions: [version('audio', 'text/plain')],
+        },
+      ],
+    }
+    const normalized = normalizeProject(stored as unknown as Project)
+    expect(normalized.scenes[0]?.imageVersions[0]?.mimeType).toBe('image/png')
+    expect(normalized.scenes[0]?.videoVersions[0]?.mimeType).toBe('video/mp4')
+    // A correct type of the right kind is left alone.
+    expect(normalized.scenes[0]?.videoVersions[1]?.mimeType).toBe('video/webm')
+    expect(normalized.scenes[0]?.audioVersions[0]?.mimeType).toBe('audio/mpeg')
   })
 
   it('leaves populated references untouched', () => {

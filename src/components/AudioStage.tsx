@@ -209,7 +209,10 @@ function AudioWorkbench({
   const exactUsd = model === null ? null : ttsCostUsd(model, text)
   const activeVersion =
     scene.audioVersions.find((v) => v.id === scene.activeAudioVersionId) ?? null
-  const activeUrl = useBlobUrl(activeVersion?.blobPath ?? null)
+  const activeUrl = useBlobUrl(
+    activeVersion?.blobPath ?? null,
+    activeVersion?.mimeType,
+  )
 
   const panel: CSSProperties = {
     padding: 'var(--space-4)',

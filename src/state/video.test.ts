@@ -46,6 +46,7 @@ const VIDEO_MODEL: VideoModel = {
   supportsImageToVideo: true,
   priceRangeUsd: { min: 0.72, max: 1.8 },
   resolutions: ['480p', '1080p'],
+  durations: ['5', '8'],
 }
 
 beforeEach(() => {
@@ -348,6 +349,48 @@ describe('video generation', () => {
       },
       { timeout: 3000 },
     )
+  })
+})
+
+describe('importSceneClip (Slice 15.3)', () => {
+  it('imports a video file as a new active take, free of cost', async () => {
+    const { sceneId } = await seedProjectWithImage()
+    const ok = await useProjectStore
+      .getState()
+      .importSceneClip(
+        sceneId,
+        new Blob(['webm-bytes'], { type: 'video/webm' }),
+      )
+    expect(ok).toBe(true)
+    const scene = useProjectStore
+      .getState()
+      .project?.scenes.find((s) => s.id === sceneId)
+    expect(scene?.videoVersions).toHaveLength(1)
+    const take = scene?.videoVersions[0]
+    expect(take?.model).toBe('imported')
+    expect(take?.mimeType).toBe('video/webm')
+    expect(take?.costUsd).toBeNull()
+    expect(scene?.activeVideoVersionId).toBe(take?.id)
+    // The bytes actually landed in the blob store.
+    const repo = await getRepository()
+    const stored = await repo.blobs.get(take?.blobPath ?? '')
+    expect(stored).not.toBeNull()
+    // No cost-log entry — nothing was charged.
+    expect(useProjectStore.getState().project?.costLog).toHaveLength(0)
+  })
+
+  it('refuses a non-video file with a clear error', async () => {
+    const { sceneId } = await seedProjectWithImage()
+    const ok = await useProjectStore
+      .getState()
+      .importSceneClip(sceneId, new Blob(['<html>'], { type: 'text/html' }))
+    expect(ok).toBe(false)
+    expect(
+      useProjectStore.getState().sceneVideoStatus[sceneId]?.error,
+    ).toContain('Only video files')
+    expect(
+      useProjectStore.getState().project?.scenes[0]?.videoVersions,
+    ).toHaveLength(0)
   })
 })
 

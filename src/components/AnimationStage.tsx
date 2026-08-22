@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import type { VideoModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
 import { formatUsd } from '../lib/format'
@@ -66,6 +66,14 @@ export function AnimationStage() {
   // Default to the CHEAPEST resolution — never let a provider default pick
   // an expensive tier silently (learned the hard way, see LESSONS.md).
   const effectiveResolution = resolution ?? resolutionOptions[0] ?? null
+  // When the model advertises its supported durations, offer exactly those —
+  // asking for a length a model can't make just gets silently clamped
+  // server-side (an "8s" request coming back as a 5s clip).
+  const durationOptions =
+    model !== null && model.durations.length > 0 ? model.durations : DURATIONS
+  const effectiveDuration = durationOptions.includes(duration)
+    ? duration
+    : (durationOptions[0] ?? duration)
 
   const pendingCount = scenes.filter(
     (s) => s.activeImageVersionId !== null && s.videoVersions.length === 0,
@@ -74,7 +82,7 @@ export function AnimationStage() {
   const confirmMessage = (countLabel: string) =>
     model === null
       ? ''
-      : `${countLabel} with ${model.name} at ${effectiveResolution ?? 'default resolution'}, ${duration}s. ${describeClipPrice(model)}`
+      : `${countLabel} with ${model.name} at ${effectiveResolution ?? 'default resolution'}, ${effectiveDuration}s. ${describeClipPrice(model)}`
 
   // The lightbox walks the scenes' media in reel order: the active clip
   // where one exists, otherwise the still image that will be animated.
@@ -88,15 +96,25 @@ export function AnimationStage() {
       scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ??
       null
     const media = clip ?? still
+    // The scene's narration rides along with its clip in the viewer.
+    const narration =
+      clip !== null
+        ? (scene.audioVersions.find(
+            (v) => v.id === scene.activeAudioVersionId,
+          ) ?? null)
+        : null
     if (media !== null) {
       lightboxIndexByScene.set(scene.id, lightboxItems.length)
       lightboxItems.push({
         blobPath: media.blobPath,
+        mimeType: media.mimeType,
         alt: `Scene ${String(i + 1)} ${clip !== null ? 'clip' : 'image'} — enlarged`,
         kind: clip !== null ? 'video' : 'image',
         title: `Scene ${String(i + 1)}`,
         prompt: scene.visualDescription.trim(),
         excerpt: scene.textExcerpt.trim(),
+        narrationBlobPath: narration?.blobPath,
+        narrationMimeType: narration?.mimeType,
       })
     }
   }
@@ -142,7 +160,8 @@ export function AnimationStage() {
             setModel(m)
             setResolution(null)
           }}
-          duration={duration}
+          duration={effectiveDuration}
+          durationOptions={durationOptions}
           onSelectDuration={setDuration}
           effectiveResolution={effectiveResolution}
           resolutionOptions={resolutionOptions}
@@ -186,12 +205,16 @@ export function AnimationStage() {
             const pending = confirming
             setConfirming(null)
             if (pending.type === 'all') {
-              void generateAllVideos(model, duration, effectiveResolution)
+              void generateAllVideos(
+                model,
+                effectiveDuration,
+                effectiveResolution,
+              )
             } else if (pending.type === 'tweak') {
               void generateSceneVideo(
                 pending.sceneId,
                 model,
-                duration,
+                effectiveDuration,
                 effectiveResolution,
                 pending.prompt,
               )
@@ -199,7 +222,7 @@ export function AnimationStage() {
               void generateSceneVideo(
                 pending.sceneId,
                 model,
-                duration,
+                effectiveDuration,
                 effectiveResolution,
               )
             }
@@ -239,7 +262,10 @@ function AnimationFrame({
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
   const activeImage =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
-  const imageUrl = useBlobUrl(activeImage?.blobPath ?? null)
+  const imageUrl = useBlobUrl(
+    activeImage?.blobPath ?? null,
+    activeImage?.mimeType,
+  )
   const hasClip = scene.videoVersions.length > 0
   const generating = status?.generating === true
   const n = String(index + 1)
@@ -380,6 +406,7 @@ function AnimationWorkbench({
   model,
   onSelectModel,
   duration,
+  durationOptions,
   onSelectDuration,
   effectiveResolution,
   resolutionOptions,
@@ -394,6 +421,7 @@ function AnimationWorkbench({
   model: VideoModel | null
   onSelectModel: (m: VideoModel) => void
   duration: string
+  durationOptions: string[]
   onSelectDuration: (d: string) => void
   effectiveResolution: string | null
   resolutionOptions: string[]
@@ -404,6 +432,7 @@ function AnimationWorkbench({
   onRequestAll: () => void
 }) {
   const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
+  const importSceneClip = useProjectStore((s) => s.importSceneClip)
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
 
   const n = String(index + 1)
@@ -412,11 +441,33 @@ function AnimationWorkbench({
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
   const activeVideo =
     scene.videoVersions.find((v) => v.id === scene.activeVideoVersionId) ?? null
-  const videoUrl = useBlobUrl(activeVideo?.blobPath ?? null)
+  const videoUrl = useBlobUrl(
+    activeVideo?.blobPath ?? null,
+    activeVideo?.mimeType,
+  )
   const activeAudio =
     scene.audioVersions.find((v) => v.id === scene.activeAudioVersionId) ?? null
-  const audioUrl = useBlobUrl(activeAudio?.blobPath ?? null)
+  const audioUrl = useBlobUrl(
+    activeAudio?.blobPath ?? null,
+    activeAudio?.mimeType,
+  )
   const [narrationSeconds, setNarrationSeconds] = useState<number | null>(null)
+  const [clipSeconds, setClipSeconds] = useState<number | null>(null)
+  const [narrationMuted, setNarrationMuted] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const narrationRef = useRef<HTMLAudioElement | null>(null)
+  const clipFileRef = useRef<HTMLInputElement | null>(null)
+
+  // Playing the clip drives the narration along with it: same start, same
+  // seeks, pause together. The narration keeps its own player too, and the
+  // mute toggle silences it without touching the clip's own sound.
+  const syncNarrationTo = (video: HTMLVideoElement) => {
+    const narration = narrationRef.current
+    if (narration === null) return
+    if (Math.abs(narration.currentTime - video.currentTime) > 0.25) {
+      narration.currentTime = video.currentTime
+    }
+  }
 
   const panel: CSSProperties = {
     padding: 'var(--space-4)',
@@ -493,7 +544,7 @@ function AnimationWorkbench({
                 onSelectDuration(e.target.value)
               }}
             >
-              {DURATIONS.map((d) => (
+              {durationOptions.map((d) => (
                 <option key={d} value={d}>
                   {d}s
                 </option>
@@ -537,6 +588,19 @@ function AnimationWorkbench({
             </select>
           </label>
         </div>
+        {model !== null && model.durations.length === 0 && (
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            This model does not publish which lengths it supports — if it cannot
+            make a {duration}s clip it produces the nearest length it can. The
+            clip&apos;s real length shows beside it once it lands.
+          </p>
+        )}
         <div
           style={{
             display: 'flex',
@@ -597,18 +661,61 @@ function AnimationWorkbench({
       <div className="card" style={panel}>
         <div style={panelTitle}>Clips — scene {n}</div>
         {videoUrl !== null ? (
-          <video
-            src={videoUrl}
-            controls
-            aria-label={`Scene ${n} video`}
-            style={{
-              width: '10rem',
-              aspectRatio: '9 / 16',
-              borderRadius: 'var(--radius)',
-              background: 'var(--color-surface)',
-              display: 'block',
-            }}
-          />
+          <>
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              controls
+              aria-label={`Scene ${n} video`}
+              onLoadedMetadata={(e) => {
+                const seconds = e.currentTarget.duration
+                setClipSeconds(Number.isFinite(seconds) ? seconds : null)
+              }}
+              onPlay={(e) => {
+                syncNarrationTo(e.currentTarget)
+                void narrationRef.current?.play().catch(() => undefined)
+              }}
+              onPause={() => {
+                narrationRef.current?.pause()
+              }}
+              onSeeked={(e) => {
+                syncNarrationTo(e.currentTarget)
+              }}
+              onEnded={() => {
+                narrationRef.current?.pause()
+              }}
+              style={{
+                width: '10rem',
+                aspectRatio: '9 / 16',
+                borderRadius: 'var(--radius)',
+                background: 'var(--color-surface)',
+                display: 'block',
+              }}
+            />
+            {clipSeconds !== null && (
+              <p
+                aria-label={`Scene ${n} clip length`}
+                style={{
+                  margin: 0,
+                  fontSize: 'var(--text-sm)',
+                  color:
+                    narrationSeconds !== null &&
+                    Math.abs(clipSeconds - narrationSeconds) > 0.75
+                      ? 'var(--color-accent)'
+                      : 'var(--color-text-muted)',
+                }}
+              >
+                clip runs {clipSeconds.toFixed(1)}s
+                {narrationSeconds !== null &&
+                  Math.abs(clipSeconds - narrationSeconds) > 0.75 &&
+                  ` — the narration runs ${narrationSeconds.toFixed(1)}s, so it will be ${
+                    clipSeconds < narrationSeconds
+                      ? 'cut off'
+                      : 'over before the clip ends'
+                  }`}
+              </p>
+            )}
+          </>
         ) : (
           <p
             style={{
@@ -658,21 +765,53 @@ function AnimationWorkbench({
               paddingTop: 'var(--space-3)',
             }}
           >
-            <p style={{ margin: '0 0 var(--space-2)' }}>
-              <strong style={{ fontSize: 'var(--text-sm)' }}>Narration</strong>{' '}
-              <span
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 'var(--space-2)',
+                marginBottom: 'var(--space-2)',
+              }}
+            >
+              <p style={{ margin: 0 }}>
+                <strong style={{ fontSize: 'var(--text-sm)' }}>
+                  Narration
+                </strong>{' '}
+                <span
+                  style={{
+                    color: 'var(--color-text-muted)',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  — plays along with the clip
+                </span>
+              </p>
+              <button
+                type="button"
+                aria-label="Mute narration"
+                aria-pressed={narrationMuted}
+                onClick={() => {
+                  const next = !narrationMuted
+                  setNarrationMuted(next)
+                  if (narrationRef.current !== null) {
+                    narrationRef.current.muted = next
+                  }
+                }}
                 style={{
-                  color: 'var(--color-text-muted)',
                   fontSize: 'var(--text-sm)',
+                  padding: 'var(--space-1) var(--space-3)',
                 }}
               >
-                — play it along with the clip
-              </span>
-            </p>
+                {narrationMuted ? 'Unmute' : 'Mute'}
+              </button>
+            </div>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption -- generated narration of the scene's script excerpt, shown as text on the Audio stage */}
             <audio
+              ref={narrationRef}
               src={audioUrl}
               controls
+              muted={narrationMuted}
               aria-label={`Scene ${n} narration`}
               onLoadedMetadata={(e) => {
                 const seconds = e.currentTarget.duration
@@ -682,6 +821,38 @@ function AnimationWorkbench({
             />
           </div>
         )}
+        <div>
+          <input
+            ref={clipFileRef}
+            type="file"
+            accept="video/*"
+            aria-label={`Import a clip file for scene ${n}`}
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file !== undefined) {
+                void importSceneClip(scene.id, file)
+              }
+              e.target.value = ''
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => clipFileRef.current?.click()}
+            style={{ fontSize: 'var(--text-sm)' }}
+          >
+            Import clip
+          </button>
+          <span
+            style={{
+              marginLeft: 'var(--space-2)',
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            — a video file from your computer becomes a take (free)
+          </span>
+        </div>
         <GenerationHistory
           versions={scene.videoVersions}
           activeVersionId={scene.activeVideoVersionId}

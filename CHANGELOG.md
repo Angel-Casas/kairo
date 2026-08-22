@@ -2,6 +2,69 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.4 — Narration in the fullscreen viewer (2026-08-22, from Angel's feedback)
+
+- Expanding a clip into the lightbox now plays the scene's narration in
+  sync with it — start, seeks and pauses follow the clip, and when the
+  looping clip wraps, the narration restarts with the next lap (a finished
+  take never restarts mid-lap). A "♪ Mute narration" pill sits over the
+  viewer, silencing the voice without touching the clip's own sound.
+- Tests: 195 unit, 37 e2e (the narration-sync e2e now walks into the
+  viewer and toggles its mute).
+
+## Slice 15.3 — Import clip & the CORS wall (2026-08-22)
+
+- The relative-URL fix surfaced the next wall: NanoGPT's content endpoint
+  redirects to a presigned Cloudflare R2 URL whose bucket sends no CORS
+  headers, so a browser app cannot READ those bytes at all (their own
+  same-origin site can). When collection hits this, the job now fails
+  with the honest instruction instead of a generic error.
+- **Import clip**: the Clips panel takes a video file from disk as a new
+  free take (`model: 'imported'`, no cost-log entry) — the escape hatch
+  for CORS-walled models, and useful for externally edited clips.
+- Tests: 195 unit, 37 e2e; LESSONS entry on the R2 redirect.
+
+## Slice 15.2 — The Grok clip mystery, solved (2026-08-22, diagnosed with Angel)
+
+- Angel's console diagnostics showed the broken "clip" was 988 bytes of
+  Kairo's own index.html: grok-imagine-video returns a RELATIVE video URL
+  (`/api/generate-video/content?...`), which `fetch` resolved against the
+  app's origin — and the dev server served the SPA shell, which got stored
+  as the clip. Absolute CDN URLs (Bytedance) worked, masking the cause.
+- Collected video URLs now resolve against the NanoGPT origin, and the
+  download goes through the client: NanoGPT-origin URLs are authenticated
+  with the API key, third-party CDN URLs never see it.
+- `normalizeProject` heals media versions stored with a wrong-kind MIME
+  type (e.g. octet-stream video) to their kind's default container.
+- Tests: 193 unit, 36 e2e — including one that replays the exact Grok
+  scenario (relative URL → fetched from NanoGPT with the key).
+
+## Slice 15.1 — Clip playback & narration sync (2026-08-22, from Angel's feedback)
+
+- **Fixed: clips from some video models rendered as a black player** while
+  playing fine on NanoGPT itself. OPFS returns files with an empty MIME
+  type (blob paths have no extension), so playback depended on Chromium
+  sniffing the container — fine for plain mp4, silent failure for others.
+  `useBlobUrl` now re-wraps every media blob with the stored
+  `AssetVersion.mimeType`, which also heals already-broken clips without
+  regenerating. Collection additionally validates the download (non-empty,
+  not an HTML/JSON error page) and keeps the CDN's real video type.
+- Hardened `/video/status` parsing: tolerant URL extraction
+  (`output.video.url` plus the variants seen in the wild) and lowercase
+  status normalization — a paid, completed job is never dropped over a
+  field name.
+- **Durations**: when a model advertises its supported clip lengths the
+  Duration select offers exactly those; when it doesn't, an honest note
+  says the model may produce the nearest length it can (the 8s→5s
+  surprise). Once a clip lands, its real length shows beside it — with an
+  accent warning when it mismatches the narration ("clip runs 5.0s — the
+  narration runs 7.5s, so it will be cut off").
+- **Narration rides the clip player**: playing a clip now starts its
+  narration in sync (seeks and pauses follow too), with a Mute toggle that
+  silences the voice without touching the clip's own audio.
+- Tests: 190 unit, 34 e2e; two LESSONS entries (OPFS strips MIME types;
+  the test Chromium has no h264 — webm fixtures only).
+
 ## Slice 15 — Audio stage: TTS narration (2026-08-22, ADR-012)
 
 - New **Audio** stage between Scenes and Images: each scene's script

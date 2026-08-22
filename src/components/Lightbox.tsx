@@ -1,8 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useBlobUrl } from './useBlobUrl'
 
 export interface LightboxItem {
   blobPath: string
+  /** Stored asset mime type — OPFS strips it, players need it back. */
+  mimeType?: string
   alt: string
   kind: 'image' | 'video'
   /** Caption plate, e.g. "Scene 3". */
@@ -11,6 +13,12 @@ export interface LightboxItem {
   prompt?: string
   /** The script excerpt the scene narrates. */
   excerpt?: string
+  /**
+   * The scene's narration take (video items): it plays in sync with the
+   * clip in the viewer, with its own mute toggle.
+   */
+  narrationBlobPath?: string
+  narrationMimeType?: string
 }
 
 /**
@@ -31,9 +39,40 @@ export function Lightbox({
 }) {
   const [index, setIndex] = useState(startIndex)
   const item = items[Math.min(index, items.length - 1)]
-  const url = useBlobUrl(item?.blobPath ?? null)
+  const url = useBlobUrl(item?.blobPath ?? null, item?.mimeType)
+  const narrationUrl = useBlobUrl(
+    item?.narrationBlobPath ?? null,
+    item?.narrationMimeType,
+  )
+  const narrationRef = useRef<HTMLAudioElement | null>(null)
+  const [narrationMuted, setNarrationMuted] = useState(false)
   const hasPrev = index > 0
   const hasNext = index < items.length - 1
+
+  // Keep the narration locked to the clip: same start, same seeks, pause
+  // together — and when the (looping) clip wraps past the narration's end,
+  // the drift check restarts it from the top on the next lap. The narration
+  // is shorter or longer than the clip at times, so never let a finished
+  // take restart mid-lap.
+  const syncNarration = (video: HTMLVideoElement) => {
+    const narration = narrationRef.current
+    if (narration === null) return
+    const withinTake = Number.isFinite(narration.duration)
+      ? video.currentTime < narration.duration - 0.2
+      : true
+    if (
+      withinTake &&
+      Math.abs(narration.currentTime - video.currentTime) > 0.4
+    ) {
+      narration.currentTime = video.currentTime
+    }
+    if (!video.paused && withinTake && narration.paused) {
+      void narration.play().catch(() => undefined)
+    }
+    if ((video.paused || !withinTake) && !narration.paused) {
+      narration.pause()
+    }
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -115,10 +154,63 @@ export function Lightbox({
               autoPlay
               loop
               aria-label={item.alt}
+              onPlay={(e) => {
+                syncNarration(e.currentTarget)
+              }}
+              onPause={(e) => {
+                syncNarration(e.currentTarget)
+              }}
+              onSeeked={(e) => {
+                syncNarration(e.currentTarget)
+              }}
+              onTimeUpdate={(e) => {
+                syncNarration(e.currentTarget)
+              }}
+              onEnded={() => {
+                narrationRef.current?.pause()
+              }}
               style={mediaStyle}
             />
           ) : (
             <img src={url} alt={item.alt} style={mediaStyle} />
+          )}
+          {item.kind === 'video' && narrationUrl !== null && (
+            <>
+              <audio
+                ref={narrationRef}
+                src={narrationUrl}
+                muted={narrationMuted}
+                aria-label={`${item.title ?? 'Scene'} narration (plays with the clip)`}
+              />
+              <button
+                type="button"
+                aria-label="Mute narration"
+                aria-pressed={narrationMuted}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const next = !narrationMuted
+                  setNarrationMuted(next)
+                  if (narrationRef.current !== null) {
+                    narrationRef.current.muted = next
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  right: 'var(--space-4)',
+                  top: 'var(--space-4)',
+                  // Above the caption drape, which is a later sibling.
+                  zIndex: 1,
+                  padding: 'var(--space-1) var(--space-3)',
+                  background: 'rgba(0, 0, 0, 0.55)',
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  color: '#ffffff',
+                  fontSize: 'var(--text-sm)',
+                  cursor: 'pointer',
+                }}
+              >
+                {narrationMuted ? '♪ Unmute narration' : '♪ Mute narration'}
+              </button>
+            </>
           )}
           {(item.prompt != null || item.excerpt != null) && (
             <div

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   API,
   createAndOpenProject,
+  mockTts,
   mockBalance,
   mockChatCompletion,
   mockImageGeneration,
@@ -34,7 +35,10 @@ async function mockVideoModels(page: Page): Promise<void> {
               currency: 'USD',
               per_video: { '480p': 0.72, '1080p': 1.8 },
             },
-            supported_parameters: { resolutions: ['1080p', '480p'] },
+            supported_parameters: {
+              resolutions: ['1080p', '480p'],
+              durations: ['5', '8'],
+            },
           },
           {
             id: 'mock/text-only',
@@ -138,6 +142,11 @@ test('resolution defaults to the cheapest tier and the confirm shows the price',
   // Model advertises ['1080p', '480p']; Kairo must default to 480p.
   await expect(page.getByLabel('Video resolution')).toHaveValue('480p')
 
+  // The duration select offers exactly what the model advertises — never a
+  // length the backend would silently clamp (Angel's 8s→5s surprise).
+  const durationOptions = page.getByLabel('Clip duration').locator('option')
+  await expect(durationOptions).toHaveText(['5s', '8s'])
+
   const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   const dialog = page.getByRole('dialog')
@@ -234,6 +243,112 @@ test('clip history: edit the motion prompt, confirm the price, verbatim submit',
   await expect
     .poll(() => submittedPrompt)
     .toBe('the lantern light sweeps slowly across the waves')
+})
+
+test('a relative video URL is collected from NanoGPT with the key — never the app origin', async ({
+  page,
+}) => {
+  // grok-imagine-video returns '/api/generate-video/content?...'; before
+  // the fix this resolved against the app origin and stored index.html as
+  // the clip (LESSONS.md 2026-08-22).
+  let contentAuth: string | null = null
+  await page.route(`${API}/generate-video`, (route) =>
+    route.fulfill({
+      json: { runId: 'vid_rel_1', status: 'pending', cost: 0.35 },
+    }),
+  )
+  await page.route(`${API}/video/status**`, (route) =>
+    route.fulfill({
+      json: {
+        requestId: 'vid_rel_1',
+        data: {
+          status: 'COMPLETED',
+          output: {
+            video: {
+              url: '/api/generate-video/content?model=mock&runId=r1&variant=video',
+            },
+          },
+          cost: 0.35,
+          error: null,
+        },
+      },
+    }),
+  )
+  await page.route(`${API}/generate-video/content**`, (route) => {
+    contentAuth = route.request().headers()['x-api-key'] ?? null
+    return route.fulfill({
+      body: Buffer.from(FAKE_MP4, 'base64'),
+      contentType: 'video/mp4',
+    })
+  })
+
+  await page
+    .getByLabel('Video model', { exact: true })
+    .selectOption('mock/animator-1')
+  const scene1 = page.getByLabel('Scene 1 animation workbench')
+  await scene1.getByRole('button', { name: 'Animate scene' }).click()
+  await page.getByRole('button', { name: 'Submit and charge' }).click()
+  await expect(page.getByLabel('Scene 1 video')).toBeVisible({
+    timeout: 15000,
+  })
+  expect(contentAuth).toBe('e2e-key')
+})
+
+test('narration rides the clip player with a mute toggle', async ({ page }) => {
+  await mockTts(page)
+  await mockVideoPipeline(page, { inProgressPolls: 0 })
+
+  // Narrate scene 1 on the Audio stage, then come back.
+  await page.getByRole('button', { name: 'Audio', exact: true }).click()
+  await page.getByRole('button', { name: 'Narrate scene' }).click()
+  await expect(
+    page.getByLabel('Scene 1 narration', { exact: true }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Animation', exact: true }).click()
+
+  // Generate the clip so the workbench holds both players.
+  await page
+    .getByLabel('Video model', { exact: true })
+    .selectOption('mock/animator-1')
+  const scene1 = page.getByLabel('Scene 1 animation workbench')
+  await scene1.getByRole('button', { name: 'Animate scene' }).click()
+  await page.getByRole('button', { name: 'Submit and charge' }).click()
+  await expect(page.getByLabel('Scene 1 video')).toBeVisible({
+    timeout: 15000,
+  })
+
+  // Narration sits beside the clip with a working mute toggle.
+  await expect(scene1.getByText('plays along with the clip')).toBeVisible()
+  await expect(
+    scene1.getByLabel('Scene 1 narration', { exact: true }),
+  ).toBeVisible()
+  const mute = scene1.getByRole('button', { name: 'Mute narration' })
+  await expect(mute).toHaveAttribute('aria-pressed', 'false')
+  await mute.click()
+  await expect(mute).toHaveAttribute('aria-pressed', 'true')
+  await expect(mute).toHaveText('Unmute')
+
+  // The fullscreen viewer carries the narration too, with its own toggle.
+  await page.getByLabel('View scene 1 large').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  const viewerMute = dialog.getByRole('button', { name: 'Mute narration' })
+  await expect(viewerMute).toHaveAttribute('aria-pressed', 'false')
+  await viewerMute.click()
+  await expect(viewerMute).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+})
+
+test('a clip file imports as a free take', async ({ page }) => {
+  await page.getByLabel('Import a clip file for scene 1').setInputFiles({
+    name: 'external-clip.mp4',
+    mimeType: 'video/mp4',
+    buffer: Buffer.from(FAKE_MP4, 'base64'),
+  })
+  await expect(page.getByLabel('Scene 1 video')).toBeVisible()
+  // Free: the spend summary still shows only the breakdown + image.
+  await expect(page.getByLabel('Project spend')).toContainText('2 generations')
 })
 
 test('a job interrupted by reload resumes and collects the clip', async ({

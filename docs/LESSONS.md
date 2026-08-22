@@ -139,3 +139,76 @@ up" check, so the suite tests whatever bundle that stray server has.
 than 4173, and must kill their server in a `finally`. If e2e failures claim
 freshly-changed UI is missing, check for a stale listener on the e2e port
 first (`ss -ltnp | grep 4173`) before debugging the app.
+
+### 2026-08-22 — A clip that played fine on NanoGPT rendered as a black player in Kairo
+
+**What happened:** Angel animated a scene with Grok Imagine Video; NanoGPT's
+usage page played the finished clip, but Kairo's player stayed black with no
+duration. Another model's clip (Bytedance Waver) played fine through the
+identical code path.
+
+**Root cause:** OPFS hands files back with an EMPTY MIME type — our blob
+paths have no file extension, and `File.type` comes from the extension. The
+object URLs we fed `<video>`/`<audio>` therefore carried no type at all, and
+playback silently depended on Chromium sniffing the container. That works
+for plain mp4 but fails for other containers some video models ship. NanoGPT
+plays the same file because their CDN sends a correct `Content-Type` header.
+We had stored the true type in `AssetVersion.mimeType` all along — display
+just never used it.
+
+**Rule going forward:** Never hand a raw OPFS `File` to a media element.
+`useBlobUrl` takes the stored `mimeType` and re-wraps the blob with it —
+every new media call site must pass it. And when collecting a paid asset
+from a CDN, validate the response (non-empty, not text/html or JSON) before
+storing; a stored "clip" that is really an error page is a silent money
+loss.
+
+### 2026-08-22 — The test Chromium cannot decode h264
+
+**What happened:** A screenshot fixture generated with ffmpeg's libx264
+failed with `DEMUXER_ERROR_NO_SUPPORTED_STREAMS` in the Playwright-bundled
+Chromium, which ships without proprietary codecs. It looked exactly like the
+production bug just fixed.
+
+**Rule going forward:** Media fixtures for e2e/screenshot runs must use
+royalty-free codecs — VP9 in webm for video (`-c:v libvpx-vp9`), mp3/opus
+for audio. If a video loads in real Chrome but not in the test browser,
+suspect the codec before the code.
+
+### 2026-08-22 — Grok's "video URL" was relative, so Kairo stored its own index.html as the clip
+
+**What happened:** The unified status endpoint returned
+`output.video.url = "/api/generate-video/content?..."` for
+grok-imagine-video — a RELATIVE path. `fetch(url)` resolved it against the
+app's own origin, the Vite dev server answered any unknown route with the
+SPA shell, and 988 bytes of Kairo's index.html were stored as a completed,
+paid clip. Absolute CDN URLs (Bytedance) worked fine through the same code,
+which made it look model-specific.
+
+**Root cause:** Two assumptions baked into collection: that the status URL
+is always absolute, and that downloading it needs no auth. Grok's content
+URL is both relative and on NanoGPT's authenticated API.
+
+**Rule going forward:** Resolve every collected media URL against the
+NanoGPT origin (`new URL(raw, origin)`) before fetching, attach the API key
+ONLY when the URL's origin is NanoGPT's (a third-party CDN must never see
+the key), and validate that what came back is media, not text/html or JSON.
+When a stored asset misbehaves, inspect its first bytes before theorizing —
+one look at `<!doctype html>` told us everything.
+
+### 2026-08-22 — NanoGPT's content endpoint redirects to an R2 bucket with no CORS
+
+**What happened:** With the relative-URL fix in place, the authenticated
+download of a Grok clip still failed: `/api/generate-video/content`
+answers with a redirect to a presigned `*.r2.cloudflarestorage.com` URL,
+and that bucket sends no `Access-Control-Allow-Origin` — the browser is
+forbidden from READING the bytes, whatever headers or method we use.
+NanoGPT's own site is unaffected (same origin there). This is a hard
+platform wall for a pure client-side app, not a Kairo bug.
+
+**Rule going forward:** When a finished clip cannot be collected because
+the fetch throws `TypeError` (the CORS signature), fail the job with the
+honest instruction — the clip exists, download it from the NanoGPT gallery
+and use "Import clip" (free) — never a generic "download failed". Worth
+reporting to NanoGPT: CORS on the content redirect target would let API
+clients collect clips directly.

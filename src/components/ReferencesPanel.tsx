@@ -177,7 +177,10 @@ function ReferenceCard({
     reference.imageVersions.find(
       (v) => v.id === reference.activeImageVersionId,
     ) ?? null
-  const activeUrl = useBlobUrl(activeVersion?.blobPath ?? null)
+  const activeUrl = useBlobUrl(
+    activeVersion?.blobPath ?? null,
+    activeVersion?.mimeType,
+  )
   const generating = status?.generating === true
   const perImageUsd =
     model === null ? null : getPerImagePriceUsd(model, resolution)

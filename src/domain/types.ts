@@ -203,6 +203,30 @@ export function createReference(
  * projects saved by older builds load cleanly (additive changes only —
  * breaking changes require a schemaVersion bump + real migration).
  */
+/**
+ * Media versions must carry a MIME type of their own kind: OPFS strips
+ * types on read, so display re-wraps blobs with the stored one (see
+ * useBlobUrl). Early builds stored whatever Content-Type the CDN sent —
+ * sometimes `application/octet-stream` — which leaves a real video
+ * unplayable. Heal such versions to their kind's default container.
+ */
+function healMimeType(version: AssetVersion): AssetVersion {
+  const family =
+    version.kind === 'video'
+      ? 'video/'
+      : version.kind === 'audio'
+        ? 'audio/'
+        : 'image/'
+  if (version.mimeType.startsWith(family)) return version
+  const fallback =
+    version.kind === 'video'
+      ? 'video/mp4'
+      : version.kind === 'audio'
+        ? 'audio/mpeg'
+        : 'image/png'
+  return { ...version, mimeType: fallback }
+}
+
 export function normalizeProject(project: Project): Project {
   return {
     ...project,
@@ -210,13 +234,15 @@ export function normalizeProject(project: Project): Project {
     stylePresetId: project.stylePresetId ?? null,
     references: (project.references ?? []).map((reference) => ({
       ...reference,
-      imageVersions: reference.imageVersions ?? [],
+      imageVersions: (reference.imageVersions ?? []).map(healMimeType),
       activeImageVersionId: reference.activeImageVersionId ?? null,
     })),
     scenes: project.scenes.map((scene) => ({
       ...scene,
       referenceIds: scene.referenceIds ?? [],
-      audioVersions: scene.audioVersions ?? [],
+      imageVersions: scene.imageVersions.map(healMimeType),
+      videoVersions: scene.videoVersions.map(healMimeType),
+      audioVersions: (scene.audioVersions ?? []).map(healMimeType),
       activeAudioVersionId: scene.activeAudioVersionId ?? null,
     })),
   }

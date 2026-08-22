@@ -181,6 +181,12 @@ interface ProjectState {
     resolution: string | null,
     promptOverride?: string,
   ) => Promise<boolean>
+  /**
+   * Import a video file as a NEW clip take for a scene. The escape hatch
+   * for models whose storage blocks browser downloads (CORS): download the
+   * clip from NanoGPT's site, then bring it in here — no regeneration cost.
+   */
+  importSceneClip: (sceneId: string, file: Blob) => Promise<boolean>
   /** Submit video jobs for every scene with an image but no video. */
   generateAllVideos: (
     model: VideoModel,
@@ -1313,6 +1319,58 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
+  importSceneClip: async (sceneId: string, file: Blob) => {
+    const { project } = get()
+    if (project === null) return false
+    const scene = project.scenes.find((s) => s.id === sceneId)
+    if (scene === undefined) return false
+    if (!file.type.startsWith('video/')) {
+      set({
+        sceneVideoStatus: {
+          ...get().sceneVideoStatus,
+          [sceneId]: {
+            generating: false,
+            error: 'Only video files can be imported as clips.',
+          },
+        },
+      })
+      return false
+    }
+    const repo = await getRepository()
+    const versionId = crypto.randomUUID()
+    const blobPath = `${project.id}/${versionId}`
+    await repo.blobs.put(blobPath, file)
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'video',
+      model: 'imported',
+      prompt: '',
+      costUsd: null,
+      blobPath,
+      mimeType: file.type,
+      createdAt: nowIso(),
+    }
+    const current = get().project
+    if (current === null) return false
+    const updated: Project = {
+      ...current,
+      scenes: current.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              videoVersions: [...s.videoVersions, version],
+              activeVideoVersionId: version.id,
+            }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    const { [sceneId]: _cleared, ...restStatus } = get().sceneVideoStatus
+    set({ project: updated, sceneVideoStatus: restStatus })
+    await persistProject(updated)
+    return true
+  },
+
   generateAllVideos: async (
     model: VideoModel,
     duration: string,
@@ -1456,11 +1514,31 @@ async function pollVideoJobTick(
       if (status.videoUrl === null) {
         throw new Error('The job completed but no video URL was returned.')
       }
-      const response = await fetch(status.videoUrl)
-      if (!response.ok) {
-        throw new Error('The finished video could not be downloaded.')
+      // Through the client: NanoGPT-origin URLs need the API key; CDN
+      // URLs never receive it. A TypeError here is the browser refusing a
+      // cross-origin read (CORS) — the clip EXISTS, it just cannot be
+      // fetched by a web page; say so instead of a generic failure.
+      let blob: Blob
+      try {
+        blob = await getClient(apiKey).downloadVideo(status.videoUrl)
+      } catch (error) {
+        if (error instanceof TypeError) {
+          throw new Error(
+            'The clip is ready on NanoGPT, but its storage blocks browser downloads for this model. Download the file from your NanoGPT gallery, then use "Import clip" on this scene — no need to regenerate.',
+          )
+        }
+        throw error
       }
-      const blob = await response.blob()
+      // A paid job must land as an actual video — never store an error page
+      // or a JSON envelope as a "clip" that silently refuses to play.
+      if (
+        blob.size === 0 ||
+        /^(text\/|application\/(json|xml))/.test(blob.type)
+      ) {
+        throw new Error(
+          'The video URL returned something that is not a video file. Retry the generation — and if it keeps happening with this model, it likely needs a fix in Kairo.',
+        )
+      }
       const versionId = crypto.randomUUID()
       const blobPath = `${job.projectId}/${versionId}`
       await repo.blobs.put(blobPath, blob)
@@ -1481,7 +1559,9 @@ async function pollVideoJobTick(
           prompt: job.prompt ?? '',
           costUsd: job.submittedCostUsd ?? status.costUsd,
           blobPath,
-          mimeType: blob.type.length > 0 ? blob.type : 'video/mp4',
+          // Keep the CDN's real video type (some models don't ship plain
+          // mp4); anything non-video (e.g. octet-stream) is called mp4.
+          mimeType: blob.type.startsWith('video/') ? blob.type : 'video/mp4',
           createdAt: nowIso(),
         }
         const sceneId = job.sceneId
