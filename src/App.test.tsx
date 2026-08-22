@@ -8,7 +8,7 @@ describe('App', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'Kairo' })).toBeInTheDocument()
     expect(
-      await screen.findByRole('heading', { name: 'Projects' }),
+      await screen.findByRole('heading', { name: 'Your productions' }),
     ).toBeInTheDocument()
   })
 

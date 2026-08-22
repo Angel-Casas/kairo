@@ -2,6 +2,92 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15 — Audio stage: TTS narration (2026-08-22, ADR-012)
+
+- New **Audio** stage between Scenes and Images: each scene's script
+  excerpt can be narrated with NanoGPT text-to-speech. Skippable by
+  design — Images never waits for narration.
+- Curated TTS catalog (`src/domain/ttsModels.ts`): Kokoro-82m (cheap
+  default, 7 voices), gpt-4o-mini-tts, tts-1, tts-1-hd, ElevenLabs Turbo
+  — hand-checked prices per 1k characters, voice lists, input caps
+  (NanoGPT has no TTS listing endpoint to fetch).
+- **Exact pricing**: TTS bills by input characters, so the price shown
+  before the click is exact, not an estimate — the UI says so, and the
+  cost log records estimate = actual. `formatUsd` now keeps at least two
+  significant digits below a cent (a $0.000055 narration no longer
+  renders as "$0").
+- Takes are append-only audio `AssetVersion`s in OPFS with the standard
+  active-take switch, history viewer and edit-and-regenerate (edited text
+  reprices live, "this exact text will be narrated"). Batch "Narrate N
+  remaining scenes" with an exact total. Additive schema
+  (`audioVersions`/`activeAudioVersionId`, backfilled) and `.kairo`
+  export/import carry narrations.
+- Animation stage plays each scene's narration beside its clips and shows
+  the narration's duration so clip length can be matched to it. The clips
+  zip now includes `narration-NN.mp3` for every narrated scene, clipless
+  ones included.
+- Tests: 188 unit, 33 e2e (narrate → takes → exact cost logged → reload;
+  Images stays unlocked without audio; deck expects Audio after Scenes).
+
+## Slice 14.2 — Images/Animation polish (2026-08-22, from Angel's feedback)
+
+- **Lightbox**: frames and clips expand into a fullscreen viewer (hover
+  expand button or double-click); closes on outside click or Escape;
+  prev/next arrows and arrow-key navigation; the scene's prompt and
+  script excerpt overlay the media on translucent glass. Media always
+  renders at 92vh, however small the source.
+- **Artistic style hub**: the style bar on Images is collapsible, shows a
+  "notes set" indicator while closed, and now owns the visual style notes
+  and style-from-image tools (moved out of Scenes; the scenes-side "Add
+  art style" button is gone).
+- Panel titles got a real hierarchy (bold title + muted explainer), the
+  navbar/cost bar say "Spent", and stage panels' captions moved inside
+  their glass boxes.
+
+## Slice 14.1 — Contrast pass (2026-08-22, from Angel's feedback)
+
+- Muted (secondary) text was failing WCAG AA in every light palette
+  (~3.4:1); all ten palettes got new `textMuted` values, measured, not
+  eyeballed: light themes now sit at 5.8–6.1:1, dark themes at ~9:1.
+- The glass got denser so text reads over the bubbles: dark surfaces
+  0.10→0.14 (panels) and 0.16→0.22 (controls), borders 0.22→0.30; light
+  surfaces 0.55→0.72 and 0.90→0.95.
+- Same tokens, no component changes — every theme picked the values up
+  automatically.
+- Placeholder text was still the browser's own dark gray (unreadable on
+  dark glass): `::placeholder` now uses the contrast-checked muted token,
+  with opacity forced to 1 for Firefox. Disabled buttons went 0.45 → 0.55
+  opacity — still clearly disabled, no longer illegible.
+- Dark-mode glass flipped from white-tint to black-tint (Angel's call):
+  brightening surfaces under white text was REDUCING its contrast. Dark
+  panels are now rgba(10,14,26,0.35) and inputs/controls rgba(8,11,20,0.45)
+  — smoky glass the light text pops against; light mode keeps its white
+  glass, where the same logic favors dark text.
+
+## Slice 14 — Filmstrip workflow (2026-08-21)
+
+- The workflow now presents as film-making equipment (ADR-011), the
+  direction Angel chose from five canvas rounds:
+- **Transport deck** — pipeline nav is a film-leader scrubber (previous
+  button, progress-filled track with stop dots and a playhead, next-stage
+  CTA pill, all on one center line) over a **segmented rail**: one glass
+  control with a named, clickable segment per stage. Hand-drawn SVG state
+  icons: punched-reel check (done), aperture (current, with a 4/6-style
+  progress note), film-canister padlock (locked). Stage labels dropped
+  their number prefixes.
+- **The reel** — Images and Animation show scenes as 9:16 frames between
+  film perforations; selecting a frame drives a three-panel workbench
+  below (prompt / generate / takes; motion / animate / clips). Six scenes
+  fit one screen. Batch generate, reference attachment notes, verbatim
+  history regeneration and the video cost dialog all carried over intact.
+- **Poster wall** — projects are 9:16 one-sheets with theme-seeded gradient
+  art; create/import live in the page header.
+- Wide layout: 96rem main container; Script keeps a 64rem reading column;
+  Scenes becomes a responsive card grid; Export's panels sit in one row.
+- Tests: 184 unit, 30 e2e (deck walks forward/back and respects locks;
+  stage-nav selectors are exact-name; scene interactions go through the
+  selected-frame workbench).
+
 ## Slice 13.1 — Palette dropdown & settings overlay (2026-08-21, from Angel's feedback)
 
 - The light/dark toggle is gone: one palette dropdown now holds all ten

@@ -18,6 +18,14 @@ describe('formatUsd', () => {
     expect(formatUsd(0.0005)).toBe('$0.0005')
   })
 
+  it('never collapses a tiny-but-real price to "$0"', () => {
+    // 33 characters of Kokoro narration cost $0.000033 — the exact price
+    // must render, not round away to zero.
+    expect(formatUsd(0.000033)).toBe('$0.000033')
+    expect(formatUsd(0.00001)).toBe('$0.00001')
+    expect(formatUsd(0.0000001)).toBe('$0.0000001')
+  })
+
   it('handles negative amounts', () => {
     expect(formatUsd(-1.5)).toBe('-$1.50')
   })

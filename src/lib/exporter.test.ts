@@ -24,6 +24,19 @@ function videoVersion(
   }
 }
 
+function audioVersion(projectId: string, id: string): AssetVersion {
+  return {
+    id,
+    kind: 'audio',
+    model: 'tts/model',
+    prompt: 'spoken text',
+    costUsd: 0.0001,
+    blobPath: `${projectId}/${id}`,
+    mimeType: 'audio/mpeg',
+    createdAt: nowIso(),
+  }
+}
+
 async function seed() {
   const blobs = new MemoryBlobStore()
   const project = createProject('My Great Short!', nowIso)
@@ -31,16 +44,24 @@ async function seed() {
   // Scene order deliberately scrambled to verify sorting.
   const sceneB = createScene(1)
   const sceneA = createScene(0)
-  const sceneC = createScene(2) // no clip
+  const sceneC = createScene(2) // no clip — but it DOES have narration
   const clipA = videoVersion(project.id, 'clip-a')
   const clipB = videoVersion(project.id, 'clip-b', 'video/webm')
+  const voiceA = audioVersion(project.id, 'voice-a')
+  const voiceC = audioVersion(project.id, 'voice-c')
   sceneA.videoVersions = [clipA]
   sceneA.activeVideoVersionId = clipA.id
+  sceneA.audioVersions = [voiceA]
+  sceneA.activeAudioVersionId = voiceA.id
   sceneB.videoVersions = [clipB]
   sceneB.activeVideoVersionId = clipB.id
+  sceneC.audioVersions = [voiceC]
+  sceneC.activeAudioVersionId = voiceC.id
   project.scenes = [sceneB, sceneC, sceneA]
   await blobs.put(clipA.blobPath, new Blob(['clip-a-bytes']))
   await blobs.put(clipB.blobPath, new Blob(['clip-b-bytes']))
+  await blobs.put(voiceA.blobPath, new Blob(['voice-a-bytes']))
+  await blobs.put(voiceC.blobPath, new Blob(['voice-c-bytes']))
   return { project, blobs }
 }
 
@@ -63,11 +84,18 @@ describe('buildClipsZip', () => {
     expect(plan.missingSceneNumbers).toEqual([3])
 
     const entries = unzipSync(new Uint8Array(await zip.arrayBuffer()))
+    // Narration exports for every scene that has one — including scene 3,
+    // whose clip is still missing (Slice 15).
     expect(Object.keys(entries).sort()).toEqual([
+      'narration-01.mp3',
+      'narration-03.mp3',
       'scene-01.mp4',
       'scene-02.webm',
       'script.txt',
     ])
+    expect(strFromU8(entries['narration-01.mp3'] ?? new Uint8Array())).toBe(
+      'voice-a-bytes',
+    )
     expect(strFromU8(entries['script.txt'] ?? new Uint8Array())).toBe(
       'Narration text here.',
     )

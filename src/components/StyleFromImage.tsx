@@ -57,17 +57,17 @@ export function StyleFromImage() {
   return (
     <details
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)',
-        padding: 'var(--space-3)',
-        marginBottom: 'var(--space-4)',
+        marginTop: 'var(--space-3)',
+        borderTop: '1px solid var(--color-border)',
+        paddingTop: 'var(--space-3)',
       }}
     >
       <summary
         style={{
           cursor: 'pointer',
-          fontSize: 'var(--text-sm)',
-          color: 'var(--color-text-muted)',
+          fontSize: 'var(--text-base)',
+          fontWeight: 700,
+          color: 'var(--color-text)',
         }}
       >
         Describe a style from an image
@@ -198,7 +198,7 @@ export function StyleFromImage() {
                 style={{
                   width: '100%',
                   resize: 'vertical',
-                  background: 'var(--color-surface)',
+                  background: 'var(--color-surface-2)',
                   color: 'var(--color-text)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius)',

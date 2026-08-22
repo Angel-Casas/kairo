@@ -89,7 +89,14 @@ export function ExportStage() {
     <section>
       <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Export</h3>
 
-      <p aria-label="Export readiness">
+      <p
+        aria-label="Export readiness"
+        className="card"
+        style={{
+          padding: 'var(--space-3) var(--space-4)',
+          margin: '0 0 var(--space-4)',
+        }}
+      >
         {clipCount} of {totalScenes} {totalScenes === 1 ? 'scene' : 'scenes'}{' '}
         {clipCount === 1 ? 'has' : 'have'} a finished clip.
         {plan.missingSceneNumbers.length > 0 &&
@@ -97,92 +104,99 @@ export function ExportStage() {
       </p>
 
       <div
-        className="card"
         style={{
-          padding: 'var(--space-4)',
-          marginBottom: 'var(--space-4)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))',
+          gap: 'var(--space-4)',
+          alignItems: 'start',
         }}
       >
-        <h4 style={{ marginTop: 0 }}>Clips for your video editor</h4>
-        <p
+        <div
+          className="card"
           style={{
-            color: 'var(--color-text-muted)',
-            fontSize: 'var(--text-sm)',
+            padding: 'var(--space-4)',
           }}
         >
-          A zip with the clips numbered in scene order plus the script as a text
-          file — import them into any editor to polish and publish.
-        </p>
-        <button
-          type="button"
-          className="primary"
-          disabled={busy !== null || clipCount === 0}
-          onClick={() => void downloadClipsZip()}
-        >
-          {busy === 'zip' ? 'Building zip…' : `Download clips (.zip)`}
-        </button>
-      </div>
+          <h4 style={{ marginTop: 0 }}>Clips for your video editor</h4>
+          <p
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            A zip with the clips numbered in scene order plus the script as a
+            text file — import them into any editor to polish and publish.
+          </p>
+          <button
+            type="button"
+            className="primary"
+            disabled={busy !== null || clipCount === 0}
+            onClick={() => void downloadClipsZip()}
+          >
+            {busy === 'zip' ? 'Building zip…' : `Download clips (.zip)`}
+          </button>
+        </div>
 
-      <div
-        className="card"
-        style={{
-          padding: 'var(--space-4)',
-          marginBottom: 'var(--space-4)',
-        }}
-      >
-        <h4 style={{ marginTop: 0 }}>Stitched draft</h4>
-        <p
+        <div
+          className="card"
           style={{
-            color: 'var(--color-text-muted)',
-            fontSize: 'var(--text-sm)',
+            padding: 'var(--space-4)',
           }}
         >
-          One MP4 with all clips back to back — a quick preview or quick-publish
-          draft. The video engine (~31 MB) downloads the first time you use
-          this. Works best when all clips come from the same model and settings;
-          if stitching fails, use the clips zip.
-        </p>
-        <button
-          type="button"
-          disabled={busy !== null || clipCount === 0}
-          onClick={() => void downloadStitchedDraft()}
-        >
-          {busy === 'stitch-loading'
-            ? 'Downloading video engine…'
-            : busy === 'stitch-running'
-              ? 'Stitching…'
-              : 'Create stitched draft (.mp4)'}
-        </button>
-      </div>
+          <h4 style={{ marginTop: 0 }}>Stitched draft</h4>
+          <p
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            One MP4 with all clips back to back — a quick preview or
+            quick-publish draft. The video engine (~31 MB) downloads the first
+            time you use this. Works best when all clips come from the same
+            model and settings; if stitching fails, use the clips zip.
+          </p>
+          <button
+            type="button"
+            disabled={busy !== null || clipCount === 0}
+            onClick={() => void downloadStitchedDraft()}
+          >
+            {busy === 'stitch-loading'
+              ? 'Downloading video engine…'
+              : busy === 'stitch-running'
+                ? 'Stitching…'
+                : 'Create stitched draft (.mp4)'}
+          </button>
+        </div>
 
-      <div
-        className="card"
-        style={{
-          padding: 'var(--space-4)',
-        }}
-      >
-        <h4 style={{ marginTop: 0 }}>Project backup</h4>
-        <p
+        <div
+          className="card"
           style={{
-            color: 'var(--color-text-muted)',
-            fontSize: 'var(--text-sm)',
+            padding: 'var(--space-4)',
           }}
         >
-          The whole project — script, scenes, every image and clip version — as
-          one .kairo file. This file is not meant to be opened directly: bring
-          it back into Kairo with the "Import project (.kairo)" button on the
-          project list, on any device. (Under the hood it is a standard zip
-          archive — rename it to .zip if you ever want to peek inside.)
-        </p>
-        <button
-          type="button"
-          disabled={busy !== null}
-          onClick={() => void downloadBackup()}
-        >
-          {busy === 'backup'
-            ? 'Building backup…'
-            : 'Download project backup (.kairo)'}
-        </button>
+          <h4 style={{ marginTop: 0 }}>Project backup</h4>
+          <p
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            The whole project — script, scenes, every image and clip version —
+            as one .kairo file. This file is not meant to be opened directly:
+            bring it back into Kairo with the "Import project (.kairo)" button
+            on the project list, on any device. (Under the hood it is a standard
+            zip archive — rename it to .zip if you ever want to peek inside.)
+          </p>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void downloadBackup()}
+          >
+            {busy === 'backup'
+              ? 'Building backup…'
+              : 'Download project backup (.kairo)'}
+          </button>
+        </div>
       </div>
 
       {error !== null && (

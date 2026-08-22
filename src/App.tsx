@@ -93,13 +93,13 @@ function App() {
               getByLabel never collides with CostSummary's "Project spend". */}
           {openProject !== null && spendUsd !== null && (
             <span
-              aria-label="Spend in the open project"
+              aria-label="Spent in the open project"
               style={{
                 color: 'var(--color-text-muted)',
                 fontSize: 'var(--text-sm)',
               }}
             >
-              Spend{' '}
+              Spent{' '}
               <strong style={{ color: 'var(--color-text)' }}>
                 {formatUsd(spendUsd)}
               </strong>{' '}
@@ -190,7 +190,7 @@ function App() {
       <main
         style={{
           padding: 'var(--space-6) var(--space-8) var(--space-8)',
-          maxWidth: '56rem',
+          maxWidth: '96rem',
           width: '100%',
           margin: '0 auto',
         }}

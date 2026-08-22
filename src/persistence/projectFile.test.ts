@@ -38,6 +38,8 @@ describe('project file export/import', () => {
       activeImageVersionId: v.id,
       videoVersions: [],
       activeVideoVersionId: null,
+      audioVersions: [],
+      activeAudioVersionId: null,
     })
     await source.put(v.blobPath, new Blob(['png-bytes']))
 

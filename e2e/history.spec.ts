@@ -31,13 +31,13 @@ test.beforeEach(async ({ page }) => {
   await createAndOpenProject(page, 'History test')
   await page.getByLabel('Script text').fill('A lighthouse stands on the cliff.')
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
   await page
     .getByLabel('Text model', { exact: true })
     .selectOption('mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
-  await page.getByRole('button', { name: '3. Images' }).click()
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
   await page
     .getByLabel('Image model', { exact: true })
     .selectOption('mock/painter-1')
@@ -46,9 +46,9 @@ test.beforeEach(async ({ page }) => {
 test('history shows the exact prompt; edit & regenerate sends it verbatim', async ({
   page,
 }) => {
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 images' })
+  const scene1 = page.getByLabel('Scene 1 workbench')
   await scene1.getByRole('button', { name: 'Generate image' }).click()
-  await expect(scene1.getByAltText('Scene 1 active image')).toBeVisible()
+  await expect(page.getByAltText('Scene 1 active image')).toBeVisible()
 
   // Open the history: the stored prompt is fully visible.
   await scene1.getByLabel('Scene 1 image history').click()
@@ -98,9 +98,9 @@ test('copy prompt puts the stored prompt on the clipboard', async ({
   context,
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 images' })
+  const scene1 = page.getByLabel('Scene 1 workbench')
   await scene1.getByRole('button', { name: 'Generate image' }).click()
-  await expect(scene1.getByAltText('Scene 1 active image')).toBeVisible()
+  await expect(page.getByAltText('Scene 1 active image')).toBeVisible()
 
   await scene1.getByLabel('Scene 1 image history').click()
   await scene1

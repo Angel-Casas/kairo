@@ -13,6 +13,8 @@ function scene(overrides: Partial<Scene> = {}): Scene {
     activeImageVersionId: null,
     videoVersions: [],
     activeVideoVersionId: null,
+    audioVersions: [],
+    activeAudioVersionId: null,
     ...overrides,
   }
 }

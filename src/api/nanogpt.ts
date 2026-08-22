@@ -105,6 +105,15 @@ export interface ChatCompletionResult {
   usage: ChatUsage | null
 }
 
+export interface SpeechGenerationParams {
+  model: string
+  /** The text to narrate; billed by character count. */
+  input: string
+  voice: string
+  /** Playback rate multiplier (0.5–2.0); defaults to 1. */
+  speed?: number
+}
+
 export interface ImageGenerationParams {
   model: string
   prompt: string
@@ -364,6 +373,42 @@ export class NanoGptClient {
       url: img.url ?? null,
       b64Json: img.b64_json ?? null,
     }))
+  }
+
+  /**
+   * POST /v1/audio/speech — synchronous TTS (docs-verified 2026-08-22).
+   * Returns the finished audio file as raw bytes; billed by input
+   * characters, so the caller knows the exact price up front.
+   */
+  async generateSpeech(params: SpeechGenerationParams): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/v1/audio/speech`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: params.model,
+        input: params.input,
+        voice: params.voice,
+        response_format: 'mp3',
+        ...(params.speed !== undefined ? { speed: params.speed } : {}),
+      }),
+    })
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new InvalidApiKeyError()
+      }
+      let message = `NanoGPT request failed (HTTP ${String(response.status)}).`
+      try {
+        const data = (await response.json()) as { message?: string }
+        if (typeof data.message === 'string') message = data.message
+      } catch {
+        // Non-JSON error body; keep the generic message.
+      }
+      throw new NanoGptError(response.status, message)
+    }
+    return response.blob()
   }
 
   /** POST /generate-video — async; returns a runId to poll. */

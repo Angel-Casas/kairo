@@ -95,7 +95,9 @@ test('settings opens as an overlay over the page and the gear becomes an X', asy
     overlay.getByRole('heading', { name: 'NanoGPT API key' }),
   ).toBeVisible()
   // The page stays mounted behind the overlay.
-  await expect(page.getByRole('heading', { name: 'Projects' })).toBeAttached()
+  await expect(
+    page.getByRole('heading', { name: 'Your productions' }),
+  ).toBeAttached()
 
   // The gear is now an X that closes the overlay.
   await page.getByRole('button', { name: 'Close settings' }).click()

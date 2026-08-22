@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { VideoModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
 import { formatUsd } from '../lib/format'
@@ -6,7 +6,9 @@ import { sortVideoResolutionsCheapestFirst } from '../lib/resolution'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
 import { GenerationHistory } from './GenerationHistory'
+import { Lightbox, type LightboxItem } from './Lightbox'
 import { VideoModelPicker } from './ModelPicker'
+import { ReelShell } from './Reel'
 import { useBlobUrl } from './useBlobUrl'
 
 const DURATIONS = ['5', '8', '10']
@@ -29,6 +31,12 @@ type PendingConfirm =
   | { type: 'all'; count: number }
   | { type: 'tweak'; sceneId: string; label: string; prompt: string }
 
+/**
+ * The Animation stage as a reel (ADR-011): frames show each scene's source
+ * image with a clip badge once animated; the workbench below plays and
+ * regenerates the selected scene's clip. Every submission still passes the
+ * cost-confirmation dialog (Slice 6.1) — video is the expensive kind.
+ */
 export function AnimationStage() {
   const project = useProjectStore((s) => s.project)
   const generateAllVideos = useProjectStore((s) => s.generateAllVideos)
@@ -38,9 +46,17 @@ export function AnimationStage() {
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<PendingConfirm | null>(null)
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
+  const [lightboxStart, setLightboxStart] = useState<number | null>(null)
 
   if (project === null) return null
   const scenes = [...project.scenes].sort((a, b) => a.order - b.order)
+  const selectedScene =
+    scenes.find((s) => s.id === selectedSceneId) ?? scenes[0] ?? null
+  const selectedIndex =
+    selectedScene === null
+      ? 0
+      : scenes.findIndex((s) => s.id === selectedScene.id)
 
   const resolutionOptions = sortVideoResolutionsCheapestFirst(
     model !== null && model.resolutions.length > 0
@@ -60,144 +76,97 @@ export function AnimationStage() {
       ? ''
       : `${countLabel} with ${model.name} at ${effectiveResolution ?? 'default resolution'}, ${duration}s. ${describeClipPrice(model)}`
 
-  return (
-    <section>
-      <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Animation</h3>
+  // The lightbox walks the scenes' media in reel order: the active clip
+  // where one exists, otherwise the still image that will be animated.
+  const lightboxItems: LightboxItem[] = []
+  const lightboxIndexByScene = new Map<string, number>()
+  for (const [i, scene] of scenes.entries()) {
+    const clip =
+      scene.videoVersions.find((v) => v.id === scene.activeVideoVersionId) ??
+      null
+    const still =
+      scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ??
+      null
+    const media = clip ?? still
+    if (media !== null) {
+      lightboxIndexByScene.set(scene.id, lightboxItems.length)
+      lightboxItems.push({
+        blobPath: media.blobPath,
+        alt: `Scene ${String(i + 1)} ${clip !== null ? 'clip' : 'image'} — enlarged`,
+        kind: clip !== null ? 'video' : 'image',
+        title: `Scene ${String(i + 1)}`,
+        prompt: scene.visualDescription.trim(),
+        excerpt: scene.textExcerpt.trim(),
+      })
+    }
+  }
 
-      <div
-        className="card"
-        style={{
-          padding: 'var(--space-4)',
-          marginBottom: 'var(--space-6)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-3)',
-        }}
-      >
-        <h4 style={{ margin: 0 }}>Video model</h4>
-        <VideoModelPicker
-          selectedId={model?.id ?? null}
-          onSelect={(m) => {
-            setModel(m)
-            setResolution(null)
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--space-4)',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          <label>
-            <span
-              style={{
-                color: 'var(--color-text-muted)',
-                fontSize: 'var(--text-sm)',
-                marginRight: 'var(--space-2)',
-              }}
-            >
-              Clip duration (seconds)
-            </span>
-            <select
-              aria-label="Clip duration"
-              value={duration}
-              onChange={(e) => {
-                setDuration(e.target.value)
-              }}
-            >
-              {DURATIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d}s
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span
-              style={{
-                color: 'var(--color-text-muted)',
-                fontSize: 'var(--text-sm)',
-                marginRight: 'var(--space-2)',
-              }}
-            >
-              Resolution
-            </span>
-            <select
-              aria-label="Video resolution"
-              value={effectiveResolution ?? ''}
-              onChange={(e) => {
-                setResolution(e.target.value)
-              }}
-            >
-              {resolutionOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p
-          style={{
-            color: 'var(--color-text-muted)',
-            fontSize: 'var(--text-sm)',
-            margin: 0,
-          }}
-        >
-          {model === null
-            ? 'Pick a model to see its price. Resolution and duration are the main cost drivers — Kairo defaults to the cheapest resolution.'
-            : describeClipPrice(model)}{' '}
-          Generation can take a few minutes per clip — you can close the tab,
-          Kairo resumes and collects finished clips when you return.
-        </p>
-        {pendingCount > 0 && (
-          <div>
-            <button
-              type="button"
-              className="primary"
-              disabled={model === null}
-              onClick={() => {
-                setConfirming({ type: 'all', count: pendingCount })
-              }}
-            >
-              {`Animate ${String(pendingCount)} remaining ${pendingCount === 1 ? 'scene' : 'scenes'}`}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {scenes.length === 0 ? (
+  if (scenes.length === 0) {
+    return (
+      <section>
+        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Animation</h3>
         <p style={{ color: 'var(--color-text-muted)' }}>
           No scenes yet — build the scene breakdown first.
         </p>
-      ) : (
-        <ol style={{ listStyle: 'none', padding: 0 }}>
-          {scenes.map((scene, index) => (
-            <SceneVideoCard
-              key={scene.id}
-              scene={scene}
-              index={index}
-              model={model}
-              onRequestGenerate={() => {
-                setConfirming({
-                  type: 'one',
-                  sceneId: scene.id,
-                  label: `Animate scene ${String(index + 1)}`,
-                })
-              }}
-              onRequestTweak={(prompt) => {
-                setConfirming({
-                  type: 'tweak',
-                  sceneId: scene.id,
-                  label: `Animate scene ${String(index + 1)} with the edited motion prompt`,
-                  prompt,
-                })
-              }}
-            />
-          ))}
-        </ol>
+      </section>
+    )
+  }
+
+  return (
+    <section>
+      <ReelShell hint="select a frame to animate it below">
+        {scenes.map((scene, index) => (
+          <AnimationFrame
+            key={scene.id}
+            scene={scene}
+            index={index}
+            selected={selectedScene?.id === scene.id}
+            onSelect={() => {
+              setSelectedSceneId(scene.id)
+            }}
+            onExpand={() => {
+              const at = lightboxIndexByScene.get(scene.id)
+              if (at !== undefined) setLightboxStart(at)
+            }}
+          />
+        ))}
+      </ReelShell>
+
+      {selectedScene !== null && (
+        <AnimationWorkbench
+          key={selectedScene.id}
+          scene={selectedScene}
+          index={selectedIndex}
+          model={model}
+          onSelectModel={(m) => {
+            setModel(m)
+            setResolution(null)
+          }}
+          duration={duration}
+          onSelectDuration={setDuration}
+          effectiveResolution={effectiveResolution}
+          resolutionOptions={resolutionOptions}
+          onSelectResolution={setResolution}
+          pendingCount={pendingCount}
+          onRequestGenerate={() => {
+            setConfirming({
+              type: 'one',
+              sceneId: selectedScene.id,
+              label: `Animate scene ${String(selectedIndex + 1)}`,
+            })
+          }}
+          onRequestTweak={(prompt) => {
+            setConfirming({
+              type: 'tweak',
+              sceneId: selectedScene.id,
+              label: `Animate scene ${String(selectedIndex + 1)} with the edited motion prompt`,
+              prompt,
+            })
+          }}
+          onRequestAll={() => {
+            setConfirming({ type: 'all', count: pendingCount })
+          }}
+        />
       )}
 
       {confirming !== null && model !== null && (
@@ -240,55 +209,87 @@ export function AnimationStage() {
           }}
         />
       )}
+
+      {lightboxStart !== null && lightboxItems.length > 0 && (
+        <Lightbox
+          items={lightboxItems}
+          startIndex={lightboxStart}
+          onClose={() => {
+            setLightboxStart(null)
+          }}
+        />
+      )}
     </section>
   )
 }
 
-function SceneVideoCard({
+function AnimationFrame({
   scene,
   index,
-  model,
-  onRequestGenerate,
-  onRequestTweak,
+  selected,
+  onSelect,
+  onExpand,
 }: {
   scene: Scene
   index: number
-  model: VideoModel | null
-  onRequestGenerate: () => void
-  onRequestTweak: (prompt: string) => void
+  selected: boolean
+  onSelect: () => void
+  onExpand: () => void
 }) {
-  const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
-
   const activeImage =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
-  const activeVideo =
-    scene.videoVersions.find((v) => v.id === scene.activeVideoVersionId) ?? null
   const imageUrl = useBlobUrl(activeImage?.blobPath ?? null)
-  const videoUrl = useBlobUrl(activeVideo?.blobPath ?? null)
+  const hasClip = scene.videoVersions.length > 0
   const generating = status?.generating === true
+  const n = String(index + 1)
+
+  const hasMedia = hasClip || imageUrl !== null
 
   return (
-    <li
-      aria-label={`Scene ${String(index + 1)} animation`}
-      className="card"
+    <div
+      className="frame-wrap"
       style={{
-        padding: 'var(--space-4)',
-        marginBottom: 'var(--space-3)',
-        display: 'flex',
-        gap: 'var(--space-4)',
+        position: 'relative',
+        flexShrink: 0,
+        width: selected ? '11.5rem' : '10rem',
       }}
     >
-      <div style={{ width: '8rem', flexShrink: 0 }}>
+      <button
+        type="button"
+        aria-label={`Scene ${n} frame`}
+        aria-pressed={selected}
+        onClick={onSelect}
+        onDoubleClick={() => {
+          if (hasMedia) onExpand()
+        }}
+        style={{
+          padding: 0,
+          display: 'block',
+          width: '100%',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          position: 'relative',
+          border: selected
+            ? '2px solid var(--color-accent)'
+            : imageUrl !== null
+              ? '1px solid var(--color-border)'
+              : '1px dashed var(--color-border)',
+          boxShadow: selected
+            ? '0 0 0 5px var(--color-accent-soft), var(--shadow-card)'
+            : 'none',
+          background: 'var(--color-surface)',
+          cursor: 'pointer',
+        }}
+      >
         {imageUrl !== null ? (
           <img
             src={imageUrl}
-            alt={`Scene ${String(index + 1)} source image`}
+            alt={`Scene ${n} source image`}
             style={{
               width: '100%',
               aspectRatio: '9 / 16',
               objectFit: 'cover',
-              borderRadius: 'var(--radius)',
               display: 'block',
             }}
           />
@@ -298,49 +299,244 @@ function SceneVideoCard({
               width: '100%',
               aspectRatio: '9 / 16',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px dashed var(--color-border)',
-              borderRadius: 'var(--radius)',
+              gap: 'var(--space-2)',
               color: 'var(--color-text-muted)',
               fontSize: 'var(--text-sm)',
-              textAlign: 'center',
               padding: 'var(--space-2)',
+              textAlign: 'center',
             }}
           >
+            <span style={{ fontSize: '20px' }}>◌</span>
             No image — generate one on the Images stage
           </div>
         )}
-      </div>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <strong>Scene {index + 1}</strong>
-        <p
+        <span
           style={{
-            color: 'var(--color-text-muted)',
-            fontSize: 'var(--text-sm)',
-            margin: 'var(--space-1) 0 var(--space-3)',
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: 'var(--space-2)',
+            fontSize: '12px',
+            textAlign: 'left',
+            color: 'var(--color-text)',
+            background:
+              imageUrl !== null
+                ? 'linear-gradient(transparent, rgba(0, 0, 0, 0.65))'
+                : 'transparent',
+            fontWeight: selected ? 700 : 400,
           }}
         >
-          {scene.visualDescription}
+          {n} ·{' '}
+          {generating
+            ? 'animating…'
+            : hasClip
+              ? `clip ✓ (${String(scene.videoVersions.length)})`
+              : 'no clip yet'}
+        </span>
+      </button>
+      {hasMedia && (
+        <button
+          type="button"
+          className="expand-btn"
+          aria-label={`View scene ${n} large`}
+          onClick={onExpand}
+          style={{
+            position: 'absolute',
+            right: 'var(--space-2)',
+            bottom: '2rem',
+            width: '30px',
+            height: '30px',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.55)',
+            border: '1px solid rgba(255, 255, 255, 0.4)',
+            color: '#ffffff',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true">
+            <path
+              d="M8 1.5 H11.5 V5 M11.5 1.5 L7.5 5.5 M5 11.5 H1.5 V8 M1.5 11.5 L5.5 7.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
+function AnimationWorkbench({
+  scene,
+  index,
+  model,
+  onSelectModel,
+  duration,
+  onSelectDuration,
+  effectiveResolution,
+  resolutionOptions,
+  onSelectResolution,
+  pendingCount,
+  onRequestGenerate,
+  onRequestTweak,
+  onRequestAll,
+}: {
+  scene: Scene
+  index: number
+  model: VideoModel | null
+  onSelectModel: (m: VideoModel) => void
+  duration: string
+  onSelectDuration: (d: string) => void
+  effectiveResolution: string | null
+  resolutionOptions: string[]
+  onSelectResolution: (r: string) => void
+  pendingCount: number
+  onRequestGenerate: () => void
+  onRequestTweak: (prompt: string) => void
+  onRequestAll: () => void
+}) {
+  const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
+  const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
+
+  const n = String(index + 1)
+  const generating = status?.generating === true
+  const activeImage =
+    scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
+  const activeVideo =
+    scene.videoVersions.find((v) => v.id === scene.activeVideoVersionId) ?? null
+  const videoUrl = useBlobUrl(activeVideo?.blobPath ?? null)
+  const activeAudio =
+    scene.audioVersions.find((v) => v.id === scene.activeAudioVersionId) ?? null
+  const audioUrl = useBlobUrl(activeAudio?.blobPath ?? null)
+  const [narrationSeconds, setNarrationSeconds] = useState<number | null>(null)
+
+  const panel: CSSProperties = {
+    padding: 'var(--space-4)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--space-3)',
+    minWidth: 0,
+  }
+  const panelTitle: CSSProperties = {
+    fontSize: 'var(--text-sm)',
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-muted)',
+  }
+
+  return (
+    <div
+      aria-label={`Scene ${n} animation workbench`}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1.2fr 1fr 1fr',
+        gap: 'var(--space-4)',
+        alignItems: 'start',
+      }}
+    >
+      {/* Motion panel */}
+      <div className="card" style={panel}>
+        <div style={panelTitle}>Scene {n} — motion</div>
+        <p style={{ margin: 0, lineHeight: 1.6 }}>{scene.visualDescription}</p>
+        <p
+          style={{
+            margin: 0,
+            color: 'var(--color-text-muted)',
+            fontSize: 'var(--text-sm)',
+          }}
+        >
+          {model === null
+            ? 'Pick a model to see its price. Resolution and duration are the main cost drivers — Kairo defaults to the cheapest resolution.'
+            : describeClipPrice(model)}{' '}
+          Generation can take a few minutes per clip — you can close the tab,
+          Kairo resumes and collects finished clips when you return.
         </p>
+      </div>
 
-        {videoUrl !== null && (
-          <video
-            src={videoUrl}
-            controls
-            aria-label={`Scene ${String(index + 1)} video`}
-            style={{
-              width: '10rem',
-              aspectRatio: '9 / 16',
-              borderRadius: 'var(--radius)',
-              background: 'var(--color-surface)',
-              display: 'block',
-              marginBottom: 'var(--space-3)',
-            }}
-          />
-        )}
-
+      {/* Animate panel */}
+      <div className="card" style={panel}>
+        <div style={panelTitle}>Animate</div>
+        <VideoModelPicker
+          selectedId={model?.id ?? null}
+          onSelect={onSelectModel}
+        />
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-3)',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          <label>
+            <span
+              style={{
+                color: 'var(--color-text-muted)',
+                fontSize: 'var(--text-sm)',
+                marginRight: 'var(--space-2)',
+              }}
+            >
+              Duration
+            </span>
+            <select
+              aria-label="Clip duration"
+              value={duration}
+              onChange={(e) => {
+                onSelectDuration(e.target.value)
+              }}
+            >
+              {DURATIONS.map((d) => (
+                <option key={d} value={d}>
+                  {d}s
+                </option>
+              ))}
+            </select>
+          </label>
+          {narrationSeconds !== null && (
+            <span
+              aria-label="Narration duration"
+              style={{
+                color: 'var(--color-accent)',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              narration runs {narrationSeconds.toFixed(1)}s — pick a clip
+              duration to match
+            </span>
+          )}
+          <label>
+            <span
+              style={{
+                color: 'var(--color-text-muted)',
+                fontSize: 'var(--text-sm)',
+                marginRight: 'var(--space-2)',
+              }}
+            >
+              Resolution
+            </span>
+            <select
+              aria-label="Video resolution"
+              value={effectiveResolution ?? ''}
+              onChange={(e) => {
+                onSelectResolution(e.target.value)
+              }}
+            >
+              {resolutionOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div
           style={{
             display: 'flex',
@@ -351,6 +547,7 @@ function SceneVideoCard({
         >
           <button
             type="button"
+            className="primary"
             disabled={model === null || activeImage === null || generating}
             onClick={onRequestGenerate}
           >
@@ -374,72 +571,128 @@ function SceneVideoCard({
           )}
         </div>
         {status?.error != null && (
-          <p role="alert" style={{ color: 'var(--color-danger)' }}>
+          <p role="alert" style={{ margin: 0, color: 'var(--color-danger)' }}>
             {status.error}
           </p>
         )}
-
-        {scene.videoVersions.length > 1 && (
-          <div style={{ marginTop: 'var(--space-3)' }}>
-            <span
-              style={{
-                color: 'var(--color-text-muted)',
-                fontSize: 'var(--text-sm)',
-                display: 'block',
-                marginBottom: 'var(--space-1)',
-              }}
+        {pendingCount > 0 && (
+          <div
+            style={{
+              borderTop: '1px solid var(--color-border)',
+              paddingTop: 'var(--space-3)',
+            }}
+          >
+            <button
+              type="button"
+              disabled={model === null}
+              onClick={onRequestAll}
             >
-              Clip versions (click to make active)
-            </span>
-            <div
-              style={{
-                display: 'flex',
-                gap: 'var(--space-2)',
-                flexWrap: 'wrap',
-              }}
-            >
-              {scene.videoVersions.map((version, vIndex) => (
-                <button
-                  key={version.id}
-                  type="button"
-                  aria-label={`Scene ${String(index + 1)} clip ${String(vIndex + 1)}`}
-                  aria-pressed={version.id === scene.activeVideoVersionId}
-                  onClick={() =>
-                    void setActiveVideoVersion(scene.id, version.id)
-                  }
-                  style={{
-                    border:
-                      version.id === scene.activeVideoVersionId
-                        ? '2px solid var(--color-accent)'
-                        : '1px solid var(--color-border)',
-                    background:
-                      version.id === scene.activeVideoVersionId
-                        ? 'var(--color-accent-soft)'
-                        : 'var(--color-surface)',
-                    color: 'var(--color-text)',
-                    padding: 'var(--space-1) var(--space-3)',
-                    cursor: 'pointer',
-                    fontSize: 'var(--text-sm)',
-                  }}
-                >
-                  Clip {vIndex + 1}
-                </button>
-              ))}
-            </div>
+              {`Animate ${String(pendingCount)} remaining ${pendingCount === 1 ? 'scene' : 'scenes'}`}
+            </button>
           </div>
         )}
+      </div>
 
+      {/* Clips panel */}
+      <div className="card" style={panel}>
+        <div style={panelTitle}>Clips — scene {n}</div>
+        {videoUrl !== null ? (
+          <video
+            src={videoUrl}
+            controls
+            aria-label={`Scene ${n} video`}
+            style={{
+              width: '10rem',
+              aspectRatio: '9 / 16',
+              borderRadius: 'var(--radius)',
+              background: 'var(--color-surface)',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            No clip yet — the first animation lands here.
+          </p>
+        )}
+        {scene.videoVersions.length > 1 && (
+          <div
+            style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}
+          >
+            {scene.videoVersions.map((version, vIndex) => (
+              <button
+                key={version.id}
+                type="button"
+                aria-label={`Scene ${n} clip ${String(vIndex + 1)}`}
+                aria-pressed={version.id === scene.activeVideoVersionId}
+                onClick={() => void setActiveVideoVersion(scene.id, version.id)}
+                style={{
+                  border:
+                    version.id === scene.activeVideoVersionId
+                      ? '2px solid var(--color-accent)'
+                      : '1px solid var(--color-border)',
+                  background:
+                    version.id === scene.activeVideoVersionId
+                      ? 'var(--color-accent-soft)'
+                      : 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  padding: 'var(--space-1) var(--space-3)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                Clip {vIndex + 1}
+              </button>
+            ))}
+          </div>
+        )}
+        {audioUrl !== null && (
+          <div
+            style={{
+              borderTop: '1px solid var(--color-border)',
+              paddingTop: 'var(--space-3)',
+            }}
+          >
+            <p style={{ margin: '0 0 var(--space-2)' }}>
+              <strong style={{ fontSize: 'var(--text-sm)' }}>Narration</strong>{' '}
+              <span
+                style={{
+                  color: 'var(--color-text-muted)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                — play it along with the clip
+              </span>
+            </p>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption -- generated narration of the scene's script excerpt, shown as text on the Audio stage */}
+            <audio
+              src={audioUrl}
+              controls
+              aria-label={`Scene ${n} narration`}
+              onLoadedMetadata={(e) => {
+                const seconds = e.currentTarget.duration
+                if (Number.isFinite(seconds)) setNarrationSeconds(seconds)
+              }}
+              style={{ width: '100%' }}
+            />
+          </div>
+        )}
         <GenerationHistory
           versions={scene.videoVersions}
           activeVersionId={scene.activeVideoVersionId}
-          label={`Scene ${String(index + 1)} clip`}
+          label={`Scene ${n} clip`}
           onRegenerate={onRequestTweak}
           regenerateDisabled={
             model === null || activeImage === null || generating
           }
           regenerateDisabledHint={
             model === null
-              ? 'Pick a video model above first.'
+              ? 'Pick a video model first.'
               : activeImage === null
                 ? 'The scene needs an active image first.'
                 : 'A generation is already running for this scene.'
@@ -447,6 +700,6 @@ function SceneVideoCard({
           regenerateCostText="You will confirm the exact price before the job is submitted."
         />
       </div>
-    </li>
+    </div>
   )
 }

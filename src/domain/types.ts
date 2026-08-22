@@ -9,9 +9,9 @@
 
 export type ProjectFormat = 'short'
 
-export type AssetKind = 'image' | 'video'
+export type AssetKind = 'image' | 'video' | 'audio'
 
-export type GenerationKind = 'text' | 'image' | 'video'
+export type GenerationKind = 'text' | 'image' | 'video' | 'audio'
 
 /** One generated asset (an image or a video clip). Append-only; never mutated. */
 export interface AssetVersion {
@@ -42,6 +42,9 @@ export interface Scene {
   activeImageVersionId: string | null
   videoVersions: AssetVersion[]
   activeVideoVersionId: string | null
+  /** Narration takes (Slice 15): TTS of the scene's script excerpt. */
+  audioVersions: AssetVersion[]
+  activeAudioVersionId: string | null
 }
 
 export type ReferenceKind = 'character' | 'location' | 'style'
@@ -175,6 +178,8 @@ export function createScene(order: number): Scene {
     activeImageVersionId: null,
     videoVersions: [],
     activeVideoVersionId: null,
+    audioVersions: [],
+    activeAudioVersionId: null,
   }
 }
 
@@ -211,6 +216,8 @@ export function normalizeProject(project: Project): Project {
     scenes: project.scenes.map((scene) => ({
       ...scene,
       referenceIds: scene.referenceIds ?? [],
+      audioVersions: scene.audioVersions ?? [],
+      activeAudioVersionId: scene.activeAudioVersionId ?? null,
     })),
   }
 }

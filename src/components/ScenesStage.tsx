@@ -15,12 +15,9 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { TextModelPicker } from './ModelPicker'
 import { ReferencesPanel } from './ReferencesPanel'
 import { referenceDisplayName } from './referenceDisplay'
-import { StyleFromImage } from './StyleFromImage'
 
 export function ScenesStage() {
   const project = useProjectStore((s) => s.project)
-  const updateStyleNotes = useProjectStore((s) => s.updateStyleNotes)
-  const flushProject = useProjectStore((s) => s.flushProject)
   const addScene = useProjectStore((s) => s.addScene)
   const generateScenes = useProjectStore((s) => s.generateScenes)
   const genStatus = useProjectStore((s) => s.scenesGenStatus)
@@ -51,45 +48,6 @@ export function ScenesStage() {
     <section>
       <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Scenes</h3>
 
-      <label
-        style={{
-          display: 'block',
-          marginBottom: 'var(--space-4)',
-        }}
-      >
-        <span
-          style={{
-            display: 'block',
-            color: 'var(--color-text-muted)',
-            fontSize: 'var(--text-sm)',
-            marginBottom: 'var(--space-1)',
-          }}
-        >
-          Visual style notes (carried into every image prompt)
-        </span>
-        <textarea
-          value={project.styleNotes}
-          onChange={(e) => {
-            updateStyleNotes(e.target.value)
-          }}
-          onBlur={() => void flushProject()}
-          placeholder="e.g. watercolor, warm tones, 1800s naval setting"
-          aria-label="Visual style notes"
-          rows={2}
-          style={{
-            width: '100%',
-            resize: 'vertical',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)',
-            padding: 'var(--space-2)',
-          }}
-        />
-      </label>
-
-      <StyleFromImage />
-
       <ReferencesPanel />
 
       {scenes.length === 0 ? (
@@ -98,7 +56,16 @@ export function ScenesStage() {
           for 5–10 scenes for a short.
         </p>
       ) : (
-        <ol style={{ listStyle: 'none', padding: 0 }}>
+        <ol
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(26rem, 1fr))',
+            gap: 'var(--space-3)',
+            alignItems: 'start',
+          }}
+        >
           {scenes.map((scene, index) => (
             <SceneCard
               key={scene.id}
@@ -209,7 +176,6 @@ function SceneCard({
       className="card"
       style={{
         padding: 'var(--space-4)',
-        marginBottom: 'var(--space-3)',
       }}
     >
       <div
@@ -267,7 +233,7 @@ function SceneCard({
           style={{
             width: '100%',
             resize: 'vertical',
-            background: 'var(--color-surface)',
+            background: 'var(--color-surface-2)',
             color: 'var(--color-text)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius)',
@@ -296,7 +262,7 @@ function SceneCard({
           style={{
             width: '100%',
             resize: 'vertical',
-            background: 'var(--color-surface)',
+            background: 'var(--color-surface-2)',
             color: 'var(--color-text)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius)',

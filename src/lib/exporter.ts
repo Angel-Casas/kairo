@@ -43,7 +43,18 @@ export function planClipsExport(project: Project): ClipsExportPlan {
   return { included, missingSceneNumbers }
 }
 
-/** Build the clips zip: numbered clips + script.txt. */
+function audioExtensionForMime(mimeType: string): string {
+  if (mimeType.includes('wav')) return 'wav'
+  if (mimeType.includes('ogg')) return 'ogg'
+  return 'mp3'
+}
+
+/**
+ * Build the clips zip: numbered clips + matching numbered narration files
+ * (Slice 15) + script.txt. Narration is exported for EVERY scene that has
+ * one — including scenes whose clip is still missing — so the editor gets
+ * all the voice that exists.
+ */
 export async function buildClipsZip(
   project: Project,
   blobs: BlobStore,
@@ -60,6 +71,18 @@ export async function buildClipsZip(
     const blob = await blobs.get(active.blobPath)
     if (blob === null) continue
     files[fileName] = new Uint8Array(await blob.arrayBuffer())
+  }
+  const orderedScenes = [...project.scenes].sort((a, b) => a.order - b.order)
+  for (const [index, scene] of orderedScenes.entries()) {
+    const narration = scene.audioVersions.find(
+      (v) => v.id === scene.activeAudioVersionId,
+    )
+    if (narration === undefined) continue
+    const blob = await blobs.get(narration.blobPath)
+    if (blob === null) continue
+    const number = String(index + 1).padStart(2, '0')
+    files[`narration-${number}.${audioExtensionForMime(narration.mimeType)}`] =
+      new Uint8Array(await blob.arrayBuffer())
   }
   const zipped = zipSync(files, { level: 0 }) // clips are already compressed
   const bytes = new Uint8Array(zipped.length)

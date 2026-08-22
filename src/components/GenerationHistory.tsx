@@ -67,7 +67,8 @@ export function GenerationHistory({
         style={{
           cursor: 'pointer',
           fontSize: 'var(--text-sm)',
-          color: 'var(--color-text-muted)',
+          fontWeight: 600,
+          color: 'var(--color-text)',
         }}
       >
         History ({versions.length})
@@ -136,7 +137,7 @@ export function GenerationHistory({
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'anywhere',
                     fontSize: 'var(--text-sm)',
-                    background: 'var(--color-surface)',
+                    background: 'var(--color-surface-2)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius)',
                     padding: 'var(--space-2)',
@@ -197,7 +198,7 @@ export function GenerationHistory({
                           style={{
                             width: '100%',
                             resize: 'vertical',
-                            background: 'var(--color-surface)',
+                            background: 'var(--color-surface-2)',
                             color: 'var(--color-text)',
                             border: '1px solid var(--color-border)',
                             borderRadius: 'var(--radius)',

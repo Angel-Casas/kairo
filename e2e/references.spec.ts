@@ -41,7 +41,7 @@ test.beforeEach(async ({ page }) => {
     .getByLabel('Script text')
     .fill('Mara climbs the lighthouse stairs. Waves crash below.')
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
   await page
     .getByLabel('Text model', { exact: true })
     .selectOption('mock/writer-1')
@@ -92,7 +92,7 @@ test('create a reference, tick a scene, generate its image, survive reload', asy
   // Everything survives a reload.
   await page.reload()
   await page.getByRole('button', { name: /References test/ }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
   await expect(page.getByLabel('Reference Mara name')).toHaveValue('Mara')
   await expect(page.getByLabel('Scene 1 uses Mara')).toBeChecked()
   await expect(page.getByLabel('Scene 2 uses Mara')).not.toBeChecked()
@@ -113,13 +113,13 @@ test('scene generation attaches the reference image for i2i models and says so',
   })
   await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
 
-  await page.getByRole('button', { name: '3. Images' }).click()
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
 
   // A model without image-to-image is honest about skipping the image.
   await page
     .getByLabel('Image model', { exact: true })
     .selectOption('mock/painter-1')
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 images' })
+  const scene1 = page.getByLabel('Scene 1 workbench')
   await expect(
     scene1.getByText(
       'This model cannot use reference images — descriptions still apply, but the images will be skipped.',
@@ -138,8 +138,13 @@ test('scene generation attaches the reference image for i2i models and says so',
       'One reference image will be attached to this generation.',
     ),
   ).toBeVisible()
-  const scene2 = page.getByRole('listitem', { name: 'Scene 2 images' })
-  await expect(scene2.getByText('reference image')).toHaveCount(0)
+  // Scene 2 has no ticked reference — no attachment note in its workbench
+  // (the model-filter checkbox may still mention reference images).
+  await page.getByRole('button', { name: 'Scene 2 frame' }).click()
+  await expect(
+    page.getByLabel('Scene 2 workbench').getByText('will be attached'),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: 'Scene 1 frame' }).click()
 
   // Capture the actual request: it must carry input_references + the
   // descriptor verbatim in the prompt.
@@ -149,7 +154,7 @@ test('scene generation attaches the reference image for i2i models and says so',
     return route.fulfill({ json: { data: [{ b64_json: TINY_PNG_B64 }] } })
   })
   await scene1.getByRole('button', { name: 'Generate image' }).click()
-  await expect(scene1.getByAltText('Scene 1 active image')).toBeVisible()
+  await expect(page.getByAltText('Scene 1 active image')).toBeVisible()
 
   expect(requestBody.prompt).toContain(DESCRIPTOR)
   const references = requestBody.input_references as string[]

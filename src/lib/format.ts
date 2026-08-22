@@ -13,8 +13,12 @@ export function formatUsd(amount: number): string {
   if (amount < 0) return `-${formatUsd(-amount)}`
   if (amount === 0) return '$0.00'
   if (amount < 0.01) {
-    // Up to 4 significant-ish decimals for sub-cent amounts, trimmed.
-    return `$${amount.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`
+    // Sub-cent amounts keep at least two significant digits (capped at 8
+    // decimals) so a tiny-but-real price never collapses to "$0" — TTS
+    // narrations can cost fractions of a tenth of a cent, and "exact cost"
+    // must never read as free.
+    const digits = Math.min(8, Math.max(4, -Math.floor(Math.log10(amount)) + 1))
+    return `$${amount.toFixed(digits).replace(/0+$/, '').replace(/\.$/, '')}`
   }
   return `$${amount.toFixed(2)}`
 }

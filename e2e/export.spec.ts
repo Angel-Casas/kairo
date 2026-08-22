@@ -72,41 +72,37 @@ test.beforeEach(async ({ page }) => {
   await createAndOpenProject(page, 'Export test')
   await page.getByLabel('Script text').fill('A lighthouse stands on the cliff.')
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await expect(page.getByRole('button', { name: '5. Export' })).toBeDisabled()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Export', exact: true }),
+  ).toBeDisabled()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
   await page
     .getByLabel('Text model', { exact: true })
     .selectOption('mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
-  await page.getByRole('button', { name: '3. Images' }).click()
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
   await page
     .getByLabel('Image model', { exact: true })
     .selectOption('mock/painter-1')
   await page
-    .getByRole('listitem', { name: 'Scene 1 images' })
+    .getByLabel('Scene 1 workbench')
     .getByRole('button', { name: 'Generate image' })
     .click()
-  await expect(
-    page
-      .getByRole('listitem', { name: 'Scene 1 images' })
-      .getByAltText('Scene 1 active image'),
-  ).toBeVisible()
-  await page.getByRole('button', { name: '4. Animation' }).click()
+  await expect(page.getByAltText('Scene 1 active image')).toBeVisible()
+  await page.getByRole('button', { name: 'Animation', exact: true }).click()
   await page
     .getByLabel('Video model', { exact: true })
     .selectOption('mock/animator-1')
   await page
-    .getByRole('listitem', { name: 'Scene 1 animation' })
+    .getByLabel('Scene 1 animation workbench')
     .getByRole('button', { name: 'Animate scene' })
     .click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
-  await expect(
-    page
-      .getByRole('listitem', { name: 'Scene 1 animation' })
-      .getByLabel('Scene 1 video'),
-  ).toBeVisible({ timeout: 30_000 })
-  await page.getByRole('button', { name: '5. Export' }).click()
+  await expect(page.getByLabel('Scene 1 video')).toBeVisible({
+    timeout: 30_000,
+  })
+  await page.getByRole('button', { name: 'Export', exact: true }).click()
 })
 
 test('clips zip downloads with numbered clips and the script', async ({
@@ -154,7 +150,7 @@ test('project backup downloads and re-imports as a new project', async ({
     .getByRole('button', { name: /Export test/ })
     .nth(0)
     .click()
-  await page.getByRole('button', { name: '5. Export' }).click()
+  await page.getByRole('button', { name: 'Export', exact: true }).click()
   await expect(page.getByLabel('Export readiness')).toContainText(
     '1 of 1 scene has a finished clip',
   )

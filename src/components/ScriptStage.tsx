@@ -49,58 +49,65 @@ export function ScriptStage() {
   }
 
   return (
-    <section>
+    <section style={{ maxWidth: '64rem', margin: '0 auto' }}>
       <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Script</h3>
 
-      <textarea
-        value={script.text}
-        onChange={(e) => {
-          updateScriptText(e.target.value)
-        }}
-        onBlur={() => void flushProject()}
-        disabled={script.locked}
-        placeholder="Write your narration script here, or generate one below."
-        aria-label="Script text"
-        rows={10}
-        style={{
-          width: '100%',
-          resize: 'vertical',
-          background: 'var(--color-surface)',
-          color: 'var(--color-text)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius)',
-          padding: 'var(--space-3)',
-          fontSize: 'var(--text-base)',
-          lineHeight: 1.6,
-        }}
-      />
-      <p
-        style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}
-      >
-        {script.locked
-          ? 'Script is locked — it is the basis for the scene breakdown.'
-          : 'Autosaves as you type. Lock it when you are happy with it.'}{' '}
-        {script.text.length > 0 && `${String(script.text.length)} characters.`}
-      </p>
-
-      {script.locked ? (
-        <button
-          type="button"
-          onClick={() => {
-            setConfirmingUnlock(true)
+      <div className="card" style={{ padding: 'var(--space-4)' }}>
+        <textarea
+          value={script.text}
+          onChange={(e) => {
+            updateScriptText(e.target.value)
+          }}
+          onBlur={() => void flushProject()}
+          disabled={script.locked}
+          placeholder="Write your narration script here, or generate one below."
+          aria-label="Script text"
+          rows={10}
+          style={{
+            width: '100%',
+            resize: 'vertical',
+            background: 'var(--color-surface-2)',
+            color: 'var(--color-text)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius)',
+            padding: 'var(--space-3)',
+            fontSize: 'var(--text-base)',
+            lineHeight: 1.6,
+          }}
+        />
+        <p
+          style={{
+            color: 'var(--color-text-muted)',
+            fontSize: 'var(--text-sm)',
+            margin: 'var(--space-2) 0 var(--space-3)',
           }}
         >
-          Unlock script
-        </button>
-      ) : (
-        <button
-          type="button"
-          disabled={script.text.trim().length === 0}
-          onClick={() => void setScriptLocked(true)}
-        >
-          Lock script
-        </button>
-      )}
+          {script.locked
+            ? 'Script is locked — it is the basis for the scene breakdown.'
+            : 'Autosaves as you type. Lock it when you are happy with it.'}{' '}
+          {script.text.length > 0 &&
+            `${String(script.text.length)} characters.`}
+        </p>
+
+        {script.locked ? (
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmingUnlock(true)
+            }}
+          >
+            Unlock script
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={script.text.trim().length === 0}
+            onClick={() => void setScriptLocked(true)}
+          >
+            Lock script
+          </button>
+        )}
+      </div>
 
       {!script.locked && (
         <div
@@ -127,7 +134,7 @@ export function ScriptStage() {
               aria-label="Generation instructions"
               rows={3}
               style={{
-                background: 'var(--color-surface)',
+                background: 'var(--color-surface-2)',
                 color: 'var(--color-text)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius)',

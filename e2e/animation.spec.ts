@@ -98,26 +98,22 @@ test.beforeEach(async ({ page }) => {
   await createAndOpenProject(page, 'Animation test')
   await page.getByLabel('Script text').fill('A lighthouse stands on the cliff.')
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
   await page
     .getByLabel('Text model', { exact: true })
     .selectOption('mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
-  await page.getByRole('button', { name: '3. Images' }).click()
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
   await page
     .getByLabel('Image model', { exact: true })
     .selectOption('mock/painter-1')
   await page
-    .getByRole('listitem', { name: 'Scene 1 images' })
+    .getByLabel('Scene 1 workbench')
     .getByRole('button', { name: 'Generate image' })
     .click()
-  await expect(
-    page
-      .getByRole('listitem', { name: 'Scene 1 images' })
-      .getByAltText('Scene 1 active image'),
-  ).toBeVisible()
-  await page.getByRole('button', { name: '4. Animation' }).click()
+  await expect(page.getByAltText('Scene 1 active image')).toBeVisible()
+  await page.getByRole('button', { name: 'Animation', exact: true }).click()
 })
 
 test('the video model picker only offers image-to-video models, with prices', async ({
@@ -142,7 +138,7 @@ test('resolution defaults to the cheapest tier and the confirm shows the price',
   // Model advertises ['1080p', '480p']; Kairo must default to 480p.
   await expect(page.getByLabel('Video resolution')).toHaveValue('480p')
 
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 animation' })
+  const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('480p')
@@ -159,7 +155,7 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
     .getByLabel('Video model', { exact: true })
     .selectOption('mock/animator-1')
 
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 animation' })
+  const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
   await expect(scene1.getByRole('button', { name: /Generating/ })).toBeVisible()
@@ -170,6 +166,16 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
     timeout: 30_000,
   })
   await expect(page.getByLabel('Project spend')).toContainText('3 generations')
+
+  // The finished clip plays enlarged in the lightbox.
+  await page.getByRole('button', { name: 'View scene 1 large' }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Scene 1 clip — enlarged' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByRole('dialog', { name: 'Scene 1 clip — enlarged' }),
+  ).not.toBeVisible()
 })
 
 test('clip history: edit the motion prompt, confirm the price, verbatim submit', async ({
@@ -180,7 +186,7 @@ test('clip history: edit the motion prompt, confirm the price, verbatim submit',
     .getByLabel('Video model', { exact: true })
     .selectOption('mock/animator-1')
 
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 animation' })
+  const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
   await expect(scene1.getByLabel('Scene 1 video')).toBeVisible({
@@ -237,7 +243,7 @@ test('a job interrupted by reload resumes and collects the clip', async ({
   await page
     .getByLabel('Video model', { exact: true })
     .selectOption('mock/animator-1')
-  const scene1 = page.getByRole('listitem', { name: 'Scene 1 animation' })
+  const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
   await expect(scene1.getByRole('button', { name: /Generating/ })).toBeVisible()
@@ -249,11 +255,11 @@ test('a job interrupted by reload resumes and collects the clip', async ({
   await mockVideoPipeline(page, { inProgressPolls: 0 })
   await page.reload()
   await page.getByRole('button', { name: /Animation test/ }).click()
-  await page.getByRole('button', { name: '4. Animation' }).click()
+  await page.getByRole('button', { name: 'Animation', exact: true }).click()
 
   // Resume happens inside project load; the clip may land before this stage
   // is even opened, so assert only the outcome: the collected video.
-  const resumed = page.getByRole('listitem', { name: 'Scene 1 animation' })
+  const resumed = page.getByLabel('Scene 1 animation workbench')
   await expect(resumed.getByLabel('Scene 1 video')).toBeVisible({
     timeout: 30_000,
   })

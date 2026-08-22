@@ -184,16 +184,37 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       all-palettes swatch dropdown (picking a palette picks its mode), and
       settings became a fullscreen overlay with a gear→X navbar button._
 
-- [ ] **Slice 14 — i18n & ship (ADR-007).** Extract strings, add target
+- [x] **Slice 14 — Filmstrip workflow (ADR-011).** _(done 2026-08-21)_ The
+      chosen redesign of the workflow itself: transport-deck pipeline nav
+      (film-leader scrubber + segmented rail with hand-drawn SVG state
+      icons), the reel + workbench layout for Images and Animation, the
+      poster-wall projects page, and the wide 96rem layout (Script keeps a
+      reading column; Scenes and Export go to grids). Direction and every
+      nav detail picked by Angel across four design-canvas rounds. 184 unit + 30 e2e. _Animations still deliberately deferred — next job._
+
+- [x] **Slice 15 — Audio stage (ADR-012).** _(done 2026-08-22)_ Per-scene TTS
+      narration between Scenes and Images (skippable — Images never waits):
+      curated NanoGPT TTS catalog (no listing endpoint exists), character-based
+      **exact** pricing shown before every click, append-only audio takes in
+      OPFS with history + edit-and-regenerate, batch narrate, narration
+      players + duration hints in Animation, `narration-NN.mp3` in the clips
+      zip. 188 unit + 33 e2e. _Moved up from the V2 backlog at Angel's
+      request._
+
+- [ ] **Slice 16 — i18n & ship (ADR-007).** Extract strings, add target
       languages; README with screenshots; deploy to GitHub Pages; skim NanoGPT ToS
-      re: third-party apps and affiliate usage before announcing.
+      re: third-party apps and affiliate usage before announcing. _Before or
+      with this: the promised animation/transition pass (deck playhead travel,
+      rail transitions, reel frame selection, lightbox zoom, settings-overlay
+      fade, bubble drift)._
 
 ## V2 backlog (not now — resist scope creep)
 
-Long-form videos (multi-minute, many scenes); audio: voiceover/TTS and music via
-NanoGPT audio models; caption/subtitle generation; prompt/style template library;
-project sync across devices; community template sharing. (Character & style
-consistency tooling moved up and shipped as Slice 10 — References.)
+Long-form videos (multi-minute, many scenes); music via NanoGPT audio models;
+caption/subtitle generation; per-voice TTS preview samples; prompt/style
+template library; project sync across devices; community template sharing.
+(Character & style consistency tooling moved up and shipped as Slice 10 —
+References; voiceover/TTS moved up and shipped as Slice 15 — Audio.)
 
 ## Recurring maintenance
 

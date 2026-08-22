@@ -30,6 +30,7 @@ import {
   STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { getPerImagePriceUsd } from '../lib/resolution'
+import { ttsCostUsd, type TtsModel } from '../domain/ttsModels'
 import { withGenerationJob } from './generationJob'
 import { getClient } from './settings'
 import { getRepository } from './repo'
@@ -139,6 +140,27 @@ interface ProjectState {
     model: ImageModel,
     resolution: string | null,
   ) => Promise<void>
+  /** Per-scene narration (TTS) status, keyed by scene id. */
+  sceneAudioStatus: Record<
+    string,
+    { generating: boolean; error: string | null }
+  >
+  /** Progress of a running narrate-all, or null when not running. */
+  allAudioProgress: { done: number; total: number } | null
+  setActiveAudioVersion: (sceneId: string, versionId: string) => Promise<void>
+  /**
+   * Narrate one scene's script excerpt as a NEW audio version. TTS is billed
+   * by input characters, so the cost is EXACT before the call. `textOverride`
+   * narrates the given text verbatim instead of the excerpt.
+   */
+  generateSceneAudio: (
+    sceneId: string,
+    model: TtsModel,
+    voice: string,
+    textOverride?: string,
+  ) => Promise<boolean>
+  /** Narrate sequentially every scene without narration. */
+  generateAllAudio: (model: TtsModel, voice: string) => Promise<void>
   /** Per-scene video generation status, keyed by scene id. */
   sceneVideoStatus: Record<
     string,
@@ -183,6 +205,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   scenesGenError: null,
   sceneImageStatus: {},
   allImagesProgress: null,
+  sceneAudioStatus: {},
+  allAudioProgress: null,
   sceneVideoStatus: {},
   referenceImageStatus: {},
 
@@ -195,6 +219,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       scenesGenError: null,
       sceneImageStatus: {},
       allImagesProgress: null,
+      sceneAudioStatus: {},
+      allAudioProgress: null,
       sceneVideoStatus: {},
       referenceImageStatus: {},
       styleFromImageStatus: 'idle',
@@ -1011,6 +1037,150 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({ allImagesProgress: { done, total: pending.length } })
     }
     set({ allImagesProgress: null })
+  },
+
+  setActiveAudioVersion: async (sceneId: string, versionId: string) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      scenes: project.scenes.map((s) =>
+        s.id === sceneId && s.audioVersions.some((v) => v.id === versionId)
+          ? { ...s, activeAudioVersionId: versionId }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+  },
+
+  generateSceneAudio: async (
+    sceneId: string,
+    model: TtsModel,
+    voice: string,
+    textOverride?: string,
+  ) => {
+    const { project } = get()
+    const apiKey = useSettingsStore.getState().apiKey
+    if (project === null || apiKey === null) return false
+    const scene = project.scenes.find((s) => s.id === sceneId)
+    if (scene === undefined) return false
+    const text = (textOverride ?? scene.textExcerpt).trim()
+    if (text.length === 0) return false
+    if (text.length > model.maxInputChars) {
+      set({
+        sceneAudioStatus: {
+          ...get().sceneAudioStatus,
+          [sceneId]: {
+            generating: false,
+            error: `This excerpt is ${String(text.length)} characters — ${model.name} accepts at most ${String(model.maxInputChars)}.`,
+          },
+        },
+      })
+      return false
+    }
+
+    set({
+      sceneAudioStatus: {
+        ...get().sceneAudioStatus,
+        [sceneId]: { generating: true, error: null },
+      },
+    })
+
+    const repo = await getRepository()
+    // Billed by input characters — this price is exact, not an estimate.
+    const priceUsd = ttsCostUsd(model, text)
+
+    const outcome = await withGenerationJob({
+      projectId: project.id,
+      sceneId,
+      kind: 'audio',
+      model: model.id,
+      estimatedUsd: priceUsd,
+      run: async () => {
+        const blob = await getClient(apiKey).generateSpeech({
+          model: model.id,
+          input: text,
+          voice,
+        })
+        const versionId = crypto.randomUUID()
+        const blobPath = `${project.id}/${versionId}`
+        await repo.blobs.put(blobPath, blob)
+        return { blob, versionId, blobPath }
+      },
+    })
+
+    if (!outcome.ok) {
+      set({
+        sceneAudioStatus: {
+          ...get().sceneAudioStatus,
+          [sceneId]: { generating: false, error: outcome.error.message },
+        },
+      })
+      return false
+    }
+    const { blob, versionId, blobPath } = outcome.value
+
+    const current = get().project
+    if (current === null) return false
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'audio',
+      model: model.id,
+      prompt: text,
+      costUsd: priceUsd,
+      blobPath,
+      mimeType: blob.type.length > 0 ? blob.type : 'audio/mpeg',
+      createdAt: nowIso(),
+    }
+    const updated: Project = {
+      ...current,
+      scenes: current.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              audioVersions: [...s.audioVersions, version],
+              activeAudioVersionId: version.id,
+            }
+          : s,
+      ),
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'audio',
+          model: model.id,
+          estimatedUsd: priceUsd,
+          actualUsd: priceUsd,
+          note: 'Scene narration',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    const { [sceneId]: _doneAudio, ...restAudioStatus } = get().sceneAudioStatus
+    set({ project: updated, sceneAudioStatus: restAudioStatus })
+    await persistProject(updated)
+    return true
+  },
+
+  generateAllAudio: async (model: TtsModel, voice: string) => {
+    const { project, generateSceneAudio } = get()
+    if (project === null) return
+    const pending = [...project.scenes]
+      .sort((a, b) => a.order - b.order)
+      .filter((s) => s.audioVersions.length === 0)
+      .filter((s) => s.textExcerpt.trim().length > 0)
+    if (pending.length === 0) return
+    set({ allAudioProgress: { done: 0, total: pending.length } })
+    let done = 0
+    for (const scene of pending) {
+      await generateSceneAudio(scene.id, model, voice)
+      done += 1
+      set({ allAudioProgress: { done, total: pending.length } })
+    }
+    set({ allAudioProgress: null })
   },
 
   setActiveVideoVersion: async (sceneId: string, versionId: string) => {

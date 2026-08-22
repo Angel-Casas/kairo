@@ -132,7 +132,10 @@ export function ReferencesPanel() {
       )}
 
       <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        {(Object.keys(KIND_LABELS) as ReferenceKind[]).map((kind) => (
+        {/* No "Add art style" here — the look of the project is managed by
+            the Artistic style hub on the Images stage. Existing style
+            references keep working (the kind dropdown still offers it). */}
+        {(['character', 'location'] as ReferenceKind[]).map((kind) => (
           <button
             key={kind}
             type="button"
@@ -264,7 +267,7 @@ function ReferenceCard({
             style={{
               flex: 1,
               minWidth: '10rem',
-              background: 'var(--color-surface)',
+              background: 'var(--color-surface-2)',
               color: 'var(--color-text)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius)',
@@ -303,7 +306,7 @@ function ReferenceCard({
             style={{
               width: '100%',
               resize: 'vertical',
-              background: 'var(--color-surface)',
+              background: 'var(--color-surface-2)',
               color: 'var(--color-text)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius)',

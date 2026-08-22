@@ -1,13 +1,40 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '../state/project'
 import { AnimationStage } from './AnimationStage'
+import { AudioStage } from './AudioStage'
 import { CostSummary } from './CostSummary'
 import { ExportStage } from './ExportStage'
 import { ImagesStage } from './ImagesStage'
 import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
 import { buildStages, type Stage } from '../domain/stages'
+import type { Project } from '../domain/types'
 import { StagesNav } from './StagesNav'
+
+/** Short "where am I" note for the rail's active segment, e.g. "4/6". */
+function stageProgressNote(project: Project, stage: Stage): string | null {
+  const total = project.scenes.length
+  if (stage === 'scenes') return total > 0 ? String(total) : null
+  if (stage === 'audio') {
+    const done = project.scenes.filter(
+      (s) => s.activeAudioVersionId !== null,
+    ).length
+    return total > 0 ? `${String(done)}/${String(total)}` : null
+  }
+  if (stage === 'images') {
+    const done = project.scenes.filter(
+      (s) => s.activeImageVersionId !== null,
+    ).length
+    return total > 0 ? `${String(done)}/${String(total)}` : null
+  }
+  if (stage === 'animation') {
+    const done = project.scenes.filter(
+      (s) => s.activeVideoVersionId !== null,
+    ).length
+    return total > 0 ? `${String(done)}/${String(total)}` : null
+  }
+  return null
+}
 
 export function ProjectView({
   projectId,
@@ -80,10 +107,12 @@ export function ProjectView({
         stages={buildStages(project)}
         active={stage}
         onSelect={setStage}
+        progressNote={stageProgressNote(project, stage)}
       />
       <CostSummary />
       {stage === 'script' && <ScriptStage />}
       {stage === 'scenes' && <ScenesStage />}
+      {stage === 'audio' && <AudioStage />}
       {stage === 'images' && <ImagesStage />}
       {stage === 'animation' && <AnimationStage />}
       {stage === 'export' && <ExportStage />}

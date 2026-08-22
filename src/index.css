@@ -10,11 +10,11 @@
 :root {
   /* Color (Emberlight dark — overwritten by applyTheme on boot) */
   --color-bg: #1d2434;
-  --color-surface: rgba(255, 255, 255, 0.1);
-  --color-surface-2: rgba(255, 255, 255, 0.16);
-  --color-border: rgba(255, 255, 255, 0.22);
+  --color-surface: rgba(10, 14, 26, 0.35);
+  --color-surface-2: rgba(8, 11, 20, 0.45);
+  --color-border: rgba(255, 255, 255, 0.3);
   --color-text: #f1f3f7;
-  --color-text-muted: #a9b2c6;
+  --color-text-muted: #bfc8db;
   --color-accent: #e9cf8f;
   --color-accent-soft: rgba(242, 217, 140, 0.4);
   --color-cta-bg: #f1f3f7;
@@ -222,7 +222,7 @@ button {
   cursor: pointer;
 }
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 button.primary {
@@ -248,6 +248,14 @@ option {
   color: initial;
 }
 
+/* Browsers paint placeholders in their own default gray, which is unreadable
+   on dark glass — claim them for the theme's (contrast-checked) muted token.
+   Firefox also dims placeholders with opacity; force it back to 1. */
+::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
 a {
   color: var(--color-accent);
 }
@@ -267,4 +275,17 @@ a {
   .nav-middle {
     display: none;
   }
+}
+
+/* -- Reel frames ------------------------------------------------------------ */
+
+/* The expand control appears only while the frame is hovered (or the button
+   itself is focused via keyboard). Instant for now — motion comes with the
+   animation pass. */
+.frame-wrap .expand-btn {
+  opacity: 0;
+}
+.frame-wrap:hover .expand-btn,
+.frame-wrap .expand-btn:focus-visible {
+  opacity: 1;
 }

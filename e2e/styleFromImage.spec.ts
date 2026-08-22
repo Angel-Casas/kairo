@@ -24,7 +24,12 @@ test.beforeEach(async ({ page }) => {
   await createAndOpenProject(page, 'Style test')
   await page.getByLabel('Script text').fill('A short tale.')
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
+  // The style tools live on the Images stage now, inside the Artistic
+  // style bar — Images needs at least one scene to unlock.
+  await page.getByRole('button', { name: 'Add scene' }).click()
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
+  await page.getByText('Artistic style', { exact: true }).click()
   await page.getByText('Describe a style from an image').click()
 })
 
@@ -92,7 +97,8 @@ test('style-from-image: vision-filtered picker, multimodal request, apply to not
     .toBe(STYLE_NOTES)
   await page.reload()
   await page.getByRole('button', { name: /Style test/ }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
+  await page.getByText('Artistic style', { exact: true }).click()
   await expect(page.getByLabel('Visual style notes')).toHaveValue(STYLE_NOTES)
 
   // Spend log recorded the vision call.

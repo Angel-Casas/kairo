@@ -29,7 +29,7 @@ export function CostSummary() {
       }}
     >
       <span aria-label="Project spend">
-        Project spend: {allActual ? '' : '~'}
+        Spent: {allActual ? '' : '~'}
         {formatUsd(totalUsd)} ({String(project.costLog.length)}{' '}
         {project.costLog.length === 1 ? 'generation' : 'generations'})
       </span>{' '}

@@ -42,14 +42,18 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('scenes stage is gated on a locked script', async ({ page }) => {
-  await expect(page.getByRole('button', { name: '2. Scenes' })).toBeDisabled()
+  await expect(
+    page.getByRole('button', { name: 'Scenes', exact: true }),
+  ).toBeDisabled()
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await expect(page.getByRole('button', { name: '2. Scenes' })).toBeEnabled()
+  await expect(
+    page.getByRole('button', { name: 'Scenes', exact: true }),
+  ).toBeEnabled()
 })
 
 test('AI breakdown → edit → reorder → survives reload', async ({ page }) => {
   await page.getByRole('button', { name: 'Lock script' }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
 
   // Generate with upfront estimate.
   await page
@@ -68,10 +72,6 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
     .getByLabel('Scene 1 visual description')
     .fill('A silver telescope drifting past Jupiter')
   await page.getByLabel('Scene 1 visual description').blur()
-
-  // Style notes.
-  await page.getByLabel('Visual style notes').fill('watercolor, warm tones')
-  await page.getByLabel('Visual style notes').blur()
 
   // Reorder: move scene 2 up.
   await page.getByLabel('Move scene 2 up').click()
@@ -99,15 +99,12 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
   // Everything survives a reload.
   await page.reload()
   await page.getByRole('button', { name: /Scenes test/ }).click()
-  await page.getByRole('button', { name: '2. Scenes' }).click()
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
   await expect(page.getByLabel('Scene 1 script excerpt')).toHaveValue(
     'It catches light older than Earth itself.',
   )
   await expect(page.getByLabel('Scene 2 visual description')).toHaveValue(
     'A silver telescope drifting past Jupiter',
-  )
-  await expect(page.getByLabel('Visual style notes')).toHaveValue(
-    'watercolor, warm tones',
   )
 
   // Delete a scene.
@@ -126,4 +123,24 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
   await expect(page.getByLabel('Scene 1 script excerpt')).toHaveValue(
     'The James Webb telescope sees the universe in infrared.',
   )
+})
+
+test('the transport deck walks forward and back through unlocked stages', async ({
+  page,
+}) => {
+  // Locked gates: next is disabled until the script is locked.
+  await expect(
+    page.getByRole('button', { name: 'Next stage: Scenes' }),
+  ).toBeDisabled()
+  await page.getByRole('button', { name: 'Lock script' }).click()
+  await page.getByRole('button', { name: 'Next stage: Scenes' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Scenes', exact: true }),
+  ).toBeVisible()
+  // No scenes yet — Audio (the next stage) stays locked.
+  await expect(
+    page.getByRole('button', { name: 'Next stage: Audio' }),
+  ).toBeDisabled()
+  await page.getByRole('button', { name: 'Previous stage: Script' }).click()
+  await expect(page.getByLabel('Script text')).toBeVisible()
 })

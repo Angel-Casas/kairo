@@ -300,3 +300,106 @@ above it) and the gear button becomes an X while open; Escape closes it.
 tests); the UI only calls `chooseTheme`. The e2e helper closes settings via
 "Close settings" now. The overlay and dropdown are the first components that
 will need enter/leave transitions in the animation pass.
+
+## ADR-011 — Filmstrip workflow: transport deck, the reel, poster wall (2026-08-21)
+
+**Context.** After Slice 13 the pages still ran as one narrow centered column:
+wide desktop screens wasted both sides while long stages (Scenes, Images)
+scrolled forever. Angel called the result generic and asked for a distinctive
+workflow presentation. Five layout directions went through the design canvas;
+Filmstrip won, then its pipeline nav went through two more pick-one rounds
+(three nav concepts, then five Transport-deck stylings — Segmented rail won).
+
+**Decision.** The app presents the workflow as film-making equipment:
+
+- **Transport deck** (`StagesNav`, kept name): pipeline navigation is a
+  film-leader scrubber — previous-stage button, track with progress fill,
+  stop dots and a playhead, next-stage CTA pill, all on one center line —
+  over a segmented rail: one continuous glass control, one named clickable
+  segment per stage. Stage labels lost their number prefixes. State icons
+  are hand-drawn SVGs: a punched-reel check (done), an aperture mark
+  (current, with a progress note like 4/6), a film-canister padlock
+  (locked). Locked segments and deck buttons disable exactly like the old
+  nav (same `StageItem.available` gates and hints).
+- **The reel** (Images and Animation stages): scenes run horizontally as
+  9:16 frames between film-perforation strips (`ReelShell`); selecting a
+  frame drives a three-panel workbench below (prompt / generate / takes for
+  images; motion / animate / clips for video). Six scenes now fit one
+  screen. All Slice-6.1/10/11 behavior is preserved: batch generation,
+  reference attachment notes, verbatim history regeneration, and the video
+  cost-confirmation dialog.
+- **Poster wall** (`ProjectList`): projects are 9:16 one-sheets with the
+  title on a plate; posters wear a deterministic gradient seeded from the
+  project id and mixed from the active theme's bubble colors, so the wall
+  follows every palette. Create/import moved into the page header.
+- **Width**: main container widened to 96rem; Script stays a 64rem reading
+  column; Scenes becomes a responsive card grid; Export's three panels sit
+  in one row.
+
+**Alternatives considered.** Cockpit (sticky control column + gallery grid) —
+strongest ergonomics, rejected as too conventional; Constellation, Broadsheet,
+Atelier — rejected by Angel in review. For the nav: slate tabs and countdown
+dial lost to the playhead; chips, underline tabs, tickets and keycaps lost to
+the segmented rail.
+
+**Consequences.** E2e stage-nav selectors use exact names now ('Scenes', not
+'2. Scenes') — exactness matters because getByRole substring-matches and
+stage names appear inside other button labels. Scene interactions in specs go
+through the selected-frame workbench (`Scene N workbench` /
+`Scene N animation workbench`) instead of per-scene list items. The reel is
+the second component (after the settings overlay) queued for the animation
+pass — frame selection, playhead travel and rail transitions should all move.
+
+## ADR-012 — Audio stage: per-scene TTS narration with exact pricing (2026-08-22)
+
+**Context.** Scenes carried text and pictures but no voice: the exported
+shorts had nothing to say. NanoGPT exposes an OpenAI-compatible
+`POST /v1/audio/speech` endpoint (raw audio bytes back, no job polling) that
+is billed **by input character count** — unlike tokens, the price of a
+narration is knowable to the cent before the request leaves the browser.
+There is no TTS model-listing endpoint, so models cannot be discovered at
+runtime the way text/image/video models are.
+
+**Decision.** A dedicated **Audio** stage sits between Scenes and Images
+(gated on a locked script + scenes existing, and skippable — Images never
+waits for narration):
+
+- **Curated catalog** (`src/domain/ttsModels.ts`): a hand-checked list of
+  NanoGPT TTS models (Kokoro-82m as the cheap default, the OpenAI tts
+  family, ElevenLabs Turbo) with per-1k-char prices, voice lists and input
+  caps, since the API offers no listing to fetch. Updating it is a code
+  change, reviewed like any other price surface.
+- **Exact cost, not an estimate**: `ttsCostUsd(model, text)` =
+  chars/1000 × price. The UI says "Exact cost" (and the narration-text
+  panel explains why); the cost log records the same number for estimate
+  and actual. `formatUsd` learned to keep at least two significant digits
+  below a cent so a $0.000055 narration never renders as "$0".
+- **Narration text = the scene's script excerpt, verbatim** — what you read
+  is exactly what is billed and narrated. Edit-and-regenerate (Slice 11
+  history pattern) passes edited text as an override with the price
+  recomputed live.
+- **Takes are append-only `AssetVersion`s** (kind `'audio'`, stored in
+  OPFS like frames and clips), with the same active-version switch,
+  history viewer and generation-job lifecycle (`withGenerationJob`, kind
+  `'audio'`) as images and video. Schema stays additive:
+  `scene.audioVersions`/`activeAudioVersionId` backfilled by
+  `normalizeProject`.
+- **Animation integration**: the clips panel plays the scene's narration
+  next to the clip and shows its duration ("narration runs 4.2s") so clip
+  length can be chosen to match. The clips zip exports `narration-NN.mp3`
+  for every narrated scene — clipless scenes included, so a voice-only
+  scene still ships its audio.
+
+**Alternatives considered.** Fetching TTS models from `/v1/models` —
+rejected: they are not listed there. Narrating the whole script as one
+take — rejected: per-scene audio is what the Animation stage and the
+export zip need to sync clips against. Blocking Images behind Audio —
+rejected: narration is optional by design (silent shorts with captions are
+a real use).
+
+**Consequences.** The stage rail grew to six segments (Script → Scenes →
+Audio → Images → Animation → Export); e2e nav tests that asserted "next is
+Images" now expect Audio. `GenerationKind`/`AssetKind` accept `'audio'`
+everywhere (job resume included). Voice previews would cost real money, so
+voices are picked by label only — a future slice could cache one sample
+per voice.

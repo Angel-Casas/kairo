@@ -137,3 +137,13 @@ export async function createAndOpenProject(
   await page.getByRole('button', { name: 'Create project' }).click()
   await page.getByRole('button', { name: new RegExp(title) }).click()
 }
+
+/** Mock the TTS endpoint with tiny fake audio bytes (never spends money). */
+export async function mockTts(page: Page): Promise<void> {
+  await page.route(`${API}/v1/audio/speech`, (route) =>
+    route.fulfill({
+      contentType: 'audio/mpeg',
+      body: Buffer.from('fake-mp3-bytes'),
+    }),
+  )
+}

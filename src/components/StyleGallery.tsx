@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { STYLE_PRESETS } from '../domain/stylePresets'
 import { useProjectStore } from '../state/project'
+import { StyleFromImage } from './StyleFromImage'
 
 /**
  * Visual style picker (ADR-008): a gallery of preset cards with pregenerated
@@ -10,21 +11,53 @@ import { useProjectStore } from '../state/project'
 export function StyleGallery() {
   const project = useProjectStore((s) => s.project)
   const setStylePreset = useProjectStore((s) => s.setStylePreset)
+  const updateStyleNotes = useProjectStore((s) => s.updateStyleNotes)
+  const flushProject = useProjectStore((s) => s.flushProject)
 
   if (project === null) return null
   const selectedId = project.stylePresetId
+  const selectedPreset = STYLE_PRESETS.find((p) => p.id === selectedId) ?? null
+  const styleNotes = project.styleNotes.trim()
 
   return (
-    <div style={{ marginBottom: 'var(--space-6)' }}>
+    <details
+      className="card"
+      style={{
+        marginBottom: 'var(--space-4)',
+        padding: 'var(--space-3) var(--space-4)',
+      }}
+    >
+      {/* The collapsed bar still tells the whole story: which preset is on,
+          and whether Scenes-stage style notes are riding along. */}
+      <summary style={{ cursor: 'pointer' }}>
+        <strong style={{ fontSize: 'var(--text-base)' }}>Artistic style</strong>{' '}
+        <span
+          style={{
+            color: 'var(--color-text-muted)',
+            fontSize: 'var(--text-sm)',
+          }}
+        >
+          — {selectedPreset !== null ? selectedPreset.name : 'no preset'}
+          {styleNotes.length > 0 && (
+            <>
+              {' '}
+              ·{' '}
+              <span style={{ color: 'var(--color-accent)' }}>
+                style notes ✓
+              </span>
+            </>
+          )}
+        </span>
+      </summary>
       <p
         style={{
           color: 'var(--color-text-muted)',
           fontSize: 'var(--text-sm)',
-          margin: '0 0 var(--space-2)',
+          margin: 'var(--space-3) 0 var(--space-2)',
         }}
       >
-        Artistic style (applied to every scene image; fine-tune with the style
-        notes on the Scenes stage)
+        Applied to every scene image; the preset and the style notes below
+        travel together into each prompt.
       </p>
       <div
         role="radiogroup"
@@ -52,7 +85,46 @@ export function StyleGallery() {
           />
         ))}
       </div>
-    </div>
+      <div
+        style={{
+          marginTop: 'var(--space-3)',
+          borderTop: '1px solid var(--color-border)',
+          paddingTop: 'var(--space-3)',
+        }}
+      >
+        <p style={{ margin: '0 0 var(--space-2)' }}>
+          <strong>Style notes</strong>{' '}
+          <span
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            — added word for word to every image prompt
+          </span>
+        </p>
+        <textarea
+          value={project.styleNotes}
+          onChange={(e) => {
+            updateStyleNotes(e.target.value)
+          }}
+          onBlur={() => void flushProject()}
+          placeholder="e.g. watercolor, warm tones, 1800s naval setting"
+          aria-label="Visual style notes"
+          rows={2}
+          style={{
+            width: '100%',
+            resize: 'vertical',
+            background: 'var(--color-surface-2)',
+            color: 'var(--color-text)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius)',
+            padding: 'var(--space-2)',
+          }}
+        />
+        <StyleFromImage />
+      </div>
+    </details>
   )
 }
 

@@ -102,6 +102,10 @@ export async function importProject(
         ...v,
         blobPath: rerootPath(v.blobPath, oldId, newId),
       })),
+      audioVersions: scene.audioVersions.map((v) => ({
+        ...v,
+        blobPath: rerootPath(v.blobPath, oldId, newId),
+      })),
     })),
   }
 
