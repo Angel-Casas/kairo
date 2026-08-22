@@ -50,6 +50,8 @@ describe('normalizeProject — Slice 10 backfill', () => {
     const normalized = normalizeProject(stored)
     expect(normalized.references).toEqual([])
     expect(normalized.scenes[0]?.referenceIds).toEqual([])
+    // Slice 15.6: camera notes backfill to empty on older projects.
+    expect(normalized.scenes[0]?.cameraNotes).toBe('')
   })
 
   it('backfills image fields on references stored before Part B', () => {

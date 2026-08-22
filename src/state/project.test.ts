@@ -11,7 +11,7 @@ import {
   expect,
   it,
 } from 'vitest'
-import type { TextModel } from '../api/nanogpt'
+import type { TextModel, TtsModel } from '../api/nanogpt'
 import { createProject } from '../domain/types'
 import { __resetRepositoryForTests, getRepository } from './repo'
 import { useProjectStore } from './project'
@@ -40,6 +40,7 @@ const MODEL: TextModel = {
   promptPricePerMTok: 2,
   completionPricePerMTok: 10,
   supportsVision: false,
+  releasedAt: null,
 }
 
 async function seedProject(title = 'P') {
@@ -385,6 +386,7 @@ const IMAGE_MODEL: ImageModel = {
   perImageUsd: { '768*1344': 0.012 },
   resolutions: ['768x1344'],
   supportsImageToImage: false,
+  releasedAt: null,
 }
 
 const PNG_B64 = btoa('fake-png-bytes')
@@ -405,6 +407,7 @@ const I2I_MODEL: ImageModel = {
   id: 'img/i2i-model',
   name: 'I2I Model',
   supportsImageToImage: true,
+  releasedAt: null,
 }
 
 describe('project store — reference images (Slice 10 Part B)', () => {
@@ -875,6 +878,7 @@ describe('project store — style from image (Slice 12)', () => {
     id: 'seer/model',
     name: 'Seer',
     supportsVision: true,
+    releasedAt: null,
   }
   const pngFile = () => new Blob(['fake-png'], { type: 'image/png' })
 
@@ -964,4 +968,219 @@ describe('project store — style from image (Slice 12)', () => {
     expect(jobs.at(-1)?.state).toBe('failed')
     expect((await repo.getProject(project.id))?.costLog).toHaveLength(0)
   })
+})
+
+describe('project store — voice previews (Slice 15.9)', () => {
+  const TTS: TtsModel = {
+    id: 'Kokoro-82m',
+    name: 'Kokoro 82M',
+    description: '',
+    pricing: { kind: 'perKChars', usdPerKChars: 0.0017 },
+    voices: ['af_bella'],
+    maxInputChars: 10_000,
+    releasedAt: null,
+  }
+
+  it('generates once, logs the exact tiny spend, then serves from cache', async () => {
+    const project = await seedProject()
+    let calls = 0
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () => {
+        calls += 1
+        return new HttpResponse('fake-mp3', {
+          headers: { 'content-type': 'audio/mpeg' },
+        })
+      }),
+    )
+
+    const first = await useProjectStore.getState().previewVoice(TTS, 'af_bella')
+    expect(first.ok).toBe(true)
+    expect(calls).toBe(1)
+    const log = useProjectStore.getState().project?.costLog ?? []
+    expect(log).toHaveLength(1)
+    expect(log[0]?.note).toBe('Voice preview — Bella — American female')
+    expect(log[0]?.actualUsd).toBeCloseTo(
+      (45 / 1000) * 0.0017, // VOICE_PREVIEW_TEXT is 45 chars
+      10,
+    )
+
+    // Second listen: straight from the OPFS cache — no request, no spend.
+    const second = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(second.ok).toBe(true)
+    expect(calls).toBe(1)
+    expect(useProjectStore.getState().project?.costLog).toHaveLength(1)
+
+    // The preview lives OUTSIDE the project's blob prefix — deleting the
+    // project must not evict the shared cache.
+    const repo = await getRepository()
+    expect(await repo.blobs.list(project.id)).toHaveLength(0)
+    expect(
+      await repo.blobs.get('voice-previews/Kokoro-82m/af_bella'),
+    ).not.toBeNull()
+  })
+
+  it('re-types audio whose provider ignored response_format (15.9.1)', async () => {
+    await seedProject()
+    // WAV magic bytes, but the response claims audio/mpeg.
+    const wav = new Uint8Array([
+      0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+      0x66, 0x6d, 0x74, 0x20,
+    ])
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () => {
+        return new HttpResponse(wav.buffer.slice(0), {
+          headers: { 'content-type': 'audio/mpeg' },
+        })
+      }),
+    )
+    const result = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.blob.type).toBe('audio/wav')
+  })
+
+  it('surfaces the API error on failure and logs nothing (not billed)', async () => {
+    await seedProject()
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () =>
+        HttpResponse.json(
+          { message: 'model temporarily offline' },
+          {
+            status: 500,
+          },
+        ),
+      ),
+    )
+    const result = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('model temporarily offline')
+    expect(useProjectStore.getState().project?.costLog).toHaveLength(0)
+  })
+
+  it('billed-but-unplayable: spend logged, junk not cached (15.9.2)', async () => {
+    await seedProject()
+    // HTTP 200, JSON body, but neither audio nor an async envelope.
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () =>
+        HttpResponse.json({ status: 'done', detail: 'weird envelope' }),
+      ),
+    )
+    const result = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain('not playable audio')
+    // Honest books: the provider billed the call, so the spend is logged...
+    expect(useProjectStore.getState().project?.costLog).toHaveLength(1)
+    // ...but no junk was cached, so a retry can succeed after a fix.
+    const repo = await getRepository()
+    expect(
+      await repo.blobs.get('voice-previews/Kokoro-82m/af_bella'),
+    ).toBeNull()
+  })
+
+  it('evicts a cached pending-receipt and regenerates (15.9.2)', async () => {
+    await seedProject()
+    const repo = await getRepository()
+    // What the pre-fix code cached for async models: the queue envelope.
+    await repo.blobs.put(
+      'voice-previews/Kokoro-82m/af_bella',
+      new Blob(['{"status":"pending","runId":"r-1","charged":true}'], {
+        type: 'audio/mpeg',
+      }),
+    )
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () => {
+        return new HttpResponse('fresh-mp3', {
+          headers: { 'content-type': 'audio/mpeg' },
+        })
+      }),
+    )
+    const result = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(result.ok).toBe(true)
+    const healed = await repo.blobs.get('voice-previews/Kokoro-82m/af_bella')
+    expect(await healed?.text()).toBe('fresh-mp3')
+  })
+
+  it('polls queued models until completed, then downloads the audio (15.9.2)', async () => {
+    await seedProject()
+    let polls = 0
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () =>
+        HttpResponse.json({
+          status: 'pending',
+          runId: 'run-77',
+          charged: true,
+          cost: 0.000306,
+          paymentSource: 'USD',
+        }),
+      ),
+      http.get(`${BASE}/tts/status`, ({ request }) => {
+        const url = new URL(request.url)
+        expect(url.searchParams.get('runId')).toBe('run-77')
+        expect(url.searchParams.get('model')).toBe('Kokoro-82m')
+        polls += 1
+        if (polls < 3) {
+          return HttpResponse.json({ status: 'pending', queuePosition: 2 })
+        }
+        return HttpResponse.json({
+          status: 'completed',
+          audioUrl: `${BASE}/finished/run-77.mp3`,
+          contentType: 'audio/mpeg',
+        })
+      }),
+      http.get(`${BASE}/finished/run-77.mp3`, ({ request }) => {
+        // Same origin as the API — the key rides along.
+        expect(request.headers.get('x-api-key')).toBe('key-1234')
+        return new HttpResponse('queued-mp3-bytes', {
+          headers: { 'content-type': 'audio/mpeg' },
+        })
+      }),
+    )
+    const result = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(await result.blob.text()).toBe('queued-mp3-bytes')
+    expect(polls).toBe(3)
+    // Billed once, logged once.
+    expect(useProjectStore.getState().project?.costLog).toHaveLength(1)
+  }, 20000) // three real 2s poll ticks
+
+  it('a queued run that fails is still booked — charged at submission (15.9.3)', async () => {
+    await seedProject()
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () =>
+        HttpResponse.json({
+          status: 'pending',
+          runId: 'run-88',
+          charged: true,
+          cost: 0.15,
+          paymentSource: 'USD',
+        }),
+      ),
+      http.get(`${BASE}/tts/status`, () =>
+        HttpResponse.json({ status: 'failed', error: 'provider exploded' }),
+      ),
+    )
+    const result = await useProjectStore
+      .getState()
+      .previewVoice(TTS, 'af_bella')
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('provider exploded')
+      expect(result.error).toContain('charged this run at submission')
+    }
+    const log = useProjectStore.getState().project?.costLog ?? []
+    expect(log).toHaveLength(1)
+    expect(log[0]?.actualUsd).toBe(0.15) // the envelope's authoritative cost
+    expect(log[0]?.note).toContain('failed after being charged')
+  }, 20000)
 })

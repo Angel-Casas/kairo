@@ -10,6 +10,7 @@ function model(overrides: Partial<ImageModel>): ImageModel {
     perImageUsd: {},
     resolutions: [],
     supportsImageToImage: false,
+    releasedAt: null,
     ...overrides,
   }
 }

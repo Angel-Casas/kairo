@@ -71,6 +71,23 @@ describe('buildVideoPrompt', () => {
     expect(prompt).toContain('no readable text')
     expect(prompt).toContain('keep the original style')
   })
+
+  it("the user's camera direction replaces the gentle-drift default", () => {
+    const prompt = buildVideoPrompt(
+      'A castle at dawn',
+      'fixed tripod, slow zoom in',
+    )
+    expect(prompt).toContain('Camera: fixed tripod, slow zoom in')
+    expect(prompt).not.toContain('camera drifts gently')
+    expect(prompt).toContain('one continuous natural action')
+    expect(prompt).toContain('no frozen figures')
+  })
+
+  it('blank camera notes keep the default drift', () => {
+    expect(buildVideoPrompt('A castle at dawn', '   ')).toContain(
+      'camera drifts gently with that action',
+    )
+  })
 })
 
 describe('sceneBreakdownSystemPrompt craft rules', () => {

@@ -138,6 +138,46 @@ export async function createAndOpenProject(
   await page.getByRole('button', { name: new RegExp(title) }).click()
 }
 
+/** Mock the TTS catalog: two real TTS models plus a music leak to filter. */
+export async function mockTtsModels(page: Page): Promise<void> {
+  await page.route(`${API}/v1/audio-models?detailed=true&type=tts`, (route) =>
+    route.fulfill({
+      json: {
+        object: 'list',
+        data: [
+          {
+            id: 'mock/tts-1',
+            name: 'Mock Narrator',
+            category: 'audio_tts',
+            created: 1747008000,
+            pricing: { per_thousand_chars: 0.001, currency: 'USD' },
+            capabilities: { text_to_speech: true },
+            supported_parameters: {
+              max_chars: 10000,
+              voices: ['af_bella', 'am_adam'],
+            },
+          },
+          {
+            id: 'mock/tts-flat',
+            name: 'Mock Flat Voice',
+            category: 'audio_tts',
+            pricing: { per_generation: 0.15, currency: 'USD' },
+            capabilities: { text_to_speech: true },
+            supported_parameters: { voices: ['emma'] },
+          },
+          {
+            id: 'mock/music-1',
+            name: 'Mock Music',
+            category: 'audio_music',
+            pricing: { per_second: 0.01, currency: 'USD' },
+            capabilities: { text_to_music: true },
+          },
+        ],
+      },
+    }),
+  )
+}
+
 /** Mock the TTS endpoint with tiny fake audio bytes (never spends money). */
 export async function mockTts(page: Page): Promise<void> {
   await page.route(`${API}/v1/audio/speech`, (route) =>
@@ -162,4 +202,19 @@ export async function expectSpendBreakdown(
   await expect(dialog).toContainText(text)
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible()
+}
+
+/**
+ * Choose a model in the rich model menu (Slice 15.8): click the trigger
+ * (its accessible name is the picker label, e.g. 'Text model'), then click
+ * the option — matched by MODEL ID, which every row renders and which stays
+ * unique where display names collide ('Mock Painter' ⊂ 'Mock Painter I2I').
+ */
+export async function pickModel(
+  page: Page,
+  trigger: string,
+  modelId: string,
+): Promise<void> {
+  await page.getByRole('button', { name: trigger, exact: true }).click()
+  await page.getByRole('option', { name: modelId }).click()
 }

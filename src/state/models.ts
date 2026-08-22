@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import type { ImageModel, TextModel, VideoModel } from '../api/nanogpt'
+import type {
+  ImageModel,
+  TextModel,
+  TtsModel,
+  VideoModel,
+} from '../api/nanogpt'
 import { getClient } from './settings'
 import { useSettingsStore } from './settings'
 
@@ -20,6 +25,9 @@ interface ModelsState {
   videoModels: VideoModel[]
   videoModelsStatus: CatalogStatus
   loadVideoModels: (force?: boolean) => Promise<void>
+  ttsModels: TtsModel[]
+  ttsModelsStatus: CatalogStatus
+  loadTtsModels: (force?: boolean) => Promise<void>
 }
 
 export const useModelsStore = create<ModelsState>((set, get) => ({
@@ -29,6 +37,8 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
   imageModelsStatus: 'idle',
   videoModels: [],
   videoModelsStatus: 'idle',
+  ttsModels: [],
+  ttsModelsStatus: 'idle',
 
   loadTextModels: async (force = false) => {
     const { textModelsStatus } = get()
@@ -84,6 +94,25 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
       set({ videoModels: models, videoModelsStatus: 'ready' })
     } catch {
       set({ videoModelsStatus: 'error' })
+    }
+  },
+
+  loadTtsModels: async (force = false) => {
+    const { ttsModelsStatus } = get()
+    if (
+      !force &&
+      (ttsModelsStatus === 'ready' || ttsModelsStatus === 'loading')
+    ) {
+      return
+    }
+    const apiKey = useSettingsStore.getState().apiKey
+    if (apiKey === null) return
+    set({ ttsModelsStatus: 'loading' })
+    try {
+      const models = await getClient(apiKey).listTtsModels()
+      set({ ttsModels: models, ttsModelsStatus: 'ready' })
+    } catch {
+      set({ ttsModelsStatus: 'error' })
     }
   },
 }))

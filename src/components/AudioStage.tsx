@@ -1,11 +1,15 @@
 import { useState, type CSSProperties } from 'react'
-import { TTS_MODELS, ttsCostUsd, type TtsModel } from '../domain/ttsModels'
+import type { TtsModel } from '../api/nanogpt'
+import { ttsCostUsd, ttsPriceNote } from '../domain/ttsModels'
 import type { Scene } from '../domain/types'
 import { formatUsd } from '../lib/format'
+import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
 import { GenerationHistory } from './GenerationHistory'
+import { TtsModelPicker } from './ModelPicker'
 import { ReelShell } from './Reel'
 import { useBlobUrl } from './useBlobUrl'
+import { VoicePicker } from './VoicePicker'
 
 /**
  * The Audio stage (Slice 15): narrate each scene's script excerpt with TTS.
@@ -19,10 +23,10 @@ export function AudioStage() {
   const generateAllAudio = useProjectStore((s) => s.generateAllAudio)
   const allAudioProgress = useProjectStore((s) => s.allAudioProgress)
 
-  const [modelId, setModelId] = useState<string>(TTS_MODELS[0]?.id ?? '')
-  const model: TtsModel | null =
-    TTS_MODELS.find((m) => m.id === modelId) ?? null
-  const [voice, setVoice] = useState<string>(TTS_MODELS[0]?.voices[0]?.id ?? '')
+  const ttsModels = useModelsStore((s) => s.ttsModels)
+  const [modelId, setModelId] = useState<string | null>(null)
+  const model: TtsModel | null = ttsModels.find((m) => m.id === modelId) ?? null
+  const [voice, setVoice] = useState<string>('')
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
 
   if (project === null) return null
@@ -33,13 +37,14 @@ export function AudioStage() {
   const pending = scenes
     .filter((s) => s.audioVersions.length === 0)
     .filter((s) => s.textExcerpt.trim().length > 0)
-  const allExactUsd =
+  const perSceneUsd =
     model === null
+      ? []
+      : pending.map((s) => ttsCostUsd(model, s.textExcerpt.trim()))
+  const allExactUsd =
+    model === null || perSceneUsd.some((c) => c === null)
       ? null
-      : pending.reduce(
-          (sum, s) => sum + ttsCostUsd(model, s.textExcerpt.trim()),
-          0,
-        )
+      : perSceneUsd.reduce((sum: number, c) => sum + (c ?? 0), 0)
 
   if (scenes.length === 0) {
     return (
@@ -76,7 +81,7 @@ export function AudioStage() {
           model={model}
           onSelectModel={(m) => {
             setModelId(m.id)
-            setVoice(m.voices[0]?.id ?? '')
+            setVoice(m.voices[0] ?? '')
           }}
           voice={voice}
           onSelectVoice={setVoice}
@@ -256,8 +261,10 @@ function AudioWorkbench({
               paddingTop: 'var(--space-3)',
             }}
           >
-            {text.length} characters. TTS is billed by character, so the price
-            shown is exact — not an estimate.
+            {text.length} characters.{' '}
+            {model === null
+              ? 'TTS is billed by character, so the price shown is exact — not an estimate.'
+              : ttsPriceNote(model.pricing)}
           </p>
         )}
       </div>
@@ -265,55 +272,13 @@ function AudioWorkbench({
       {/* Voice panel */}
       <div className="card" style={panel}>
         <div style={panelTitle}>Narrate</div>
-        <label>
-          <span
-            style={{
-              color: 'var(--color-text-muted)',
-              fontSize: 'var(--text-sm)',
-              marginRight: 'var(--space-2)',
-            }}
-          >
-            Model
-          </span>
-          <select
-            aria-label="Narration model"
-            value={model?.id ?? ''}
-            onChange={(e) => {
-              const next = TTS_MODELS.find((m) => m.id === e.target.value)
-              if (next !== undefined) onSelectModel(next)
-            }}
-          >
-            {TTS_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} — {formatUsd(m.pricePerKChars)}/1k chars
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span
-            style={{
-              color: 'var(--color-text-muted)',
-              fontSize: 'var(--text-sm)',
-              marginRight: 'var(--space-2)',
-            }}
-          >
-            Voice
-          </span>
-          <select
-            aria-label="Voice"
-            value={voice}
-            onChange={(e) => {
-              onSelectVoice(e.target.value)
-            }}
-          >
-            {(model?.voices ?? []).map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <TtsModelPicker
+          selectedId={model?.id ?? null}
+          onSelect={onSelectModel}
+        />
+        {model !== null && model.voices.length > 0 && (
+          <VoicePicker model={model} voice={voice} onSelect={onSelectVoice} />
+        )}
         <div
           style={{
             display: 'flex',
@@ -349,9 +314,11 @@ function AudioWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            {model === null || exactUsd === null
+            {model === null
               ? 'Pick a model to see the price.'
-              : `Exact cost: ${formatUsd(exactUsd)}`}
+              : exactUsd === null
+                ? 'Price varies — charged at submission.'
+                : `Exact cost: ${formatUsd(exactUsd)}`}
           </span>
         </div>
         {status?.error != null && (
@@ -386,9 +353,11 @@ function AudioWorkbench({
                 fontSize: 'var(--text-sm)',
               }}
             >
-              {allExactUsd === null
+              {model === null
                 ? 'Pick a model to see the total.'
-                : `Exact total: ${formatUsd(allExactUsd)}`}
+                : allExactUsd === null
+                  ? 'Prices vary — charged at submission.'
+                  : `Exact total: ${formatUsd(allExactUsd)}`}
             </span>
           </div>
         )}

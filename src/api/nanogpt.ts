@@ -27,6 +27,47 @@ export interface TextModel {
   completionPricePerMTok: number | null
   /** Whether the model accepts image inputs (capabilities.vision). */
   supportsVision: boolean
+  /**
+   * Release date (ISO) from the listing's `created` timestamp, when the
+   * API provides one; null otherwise. Powers newest/oldest sorting and the
+   * date chip in the model menu.
+   */
+  releasedAt: string | null
+}
+
+/**
+ * How a TTS model bills (Slice 15.9, shapes observed live in the
+ * /v1/audio-models listing): almost all bill per 1k input characters; a
+ * couple bill per fixed-size character block (ByteDance Seed Audio) or a
+ * flat price per generation (VibeVoice). All three are EXACT prices —
+ * knowable before submitting, unlike image/video estimates.
+ */
+export type TtsPricing =
+  | { kind: 'perKChars'; usdPerKChars: number }
+  | {
+      kind: 'perCharBlock'
+      usdPerBlock: number
+      blockChars: number
+      minimumUsd: number
+    }
+  | { kind: 'perGeneration'; usd: number }
+
+export interface TtsModel {
+  id: string
+  name: string
+  description: string
+  /** null when the listing carries no recognizable price. */
+  pricing: TtsPricing | null
+  /** Voice preset ids as the API expects them (e.g. "af_bella", "Eve"). */
+  voices: string[]
+  /** The endpoint rejects longer inputs; null when the listing has no cap. */
+  maxInputChars: number | null
+  /**
+   * Release date (ISO) from the listing's `created` timestamp, when the
+   * API provides one; null otherwise. Powers newest/oldest sorting and the
+   * date chip in the model menu.
+   */
+  releasedAt: string | null
 }
 
 export interface ImageModel {
@@ -37,6 +78,12 @@ export interface ImageModel {
   perImageUsd: Record<string, number>
   resolutions: string[]
   supportsImageToImage: boolean
+  /**
+   * Release date (ISO) from the listing's `created` timestamp, when the
+   * API provides one; null otherwise. Powers newest/oldest sorting and the
+   * date chip in the model menu.
+   */
+  releasedAt: string | null
 }
 
 export interface VideoModel {
@@ -60,6 +107,69 @@ export interface VideoModel {
    * model may silently produce the nearest length it supports.
    */
   durations: string[]
+  /**
+   * Release date (ISO) from the listing's `created` timestamp, when the
+   * API provides one; null otherwise. Powers newest/oldest sorting and the
+   * date chip in the model menu.
+   */
+  releasedAt: string | null
+}
+
+/** `created` unix seconds → ISO date string; null when absent/invalid. */
+export function releasedAtFromCreated(created: unknown): string | null {
+  if (
+    typeof created !== 'number' ||
+    !Number.isFinite(created) ||
+    created <= 0
+  ) {
+    return null
+  }
+  return new Date(created * 1000).toISOString()
+}
+
+/**
+ * Recognize a TTS pricing object. Precedence mirrors what the listing
+ * means: a positive per-1k-chars rate wins (VibeVoice carries
+ * `per_thousand_chars: 0` NEXT TO its real `per_generation` price, so a
+ * zero rate is "not this shape", not "free"); then block pricing; then a
+ * flat per-generation price. Null when nothing matches.
+ */
+export function parseTtsPricing(
+  pricing:
+    | {
+        per_thousand_chars?: number
+        per_prompt_char_block?: number
+        prompt_char_block_size?: number
+        per_generation?: number
+        minimum?: number
+      }
+    | undefined,
+): TtsPricing | null {
+  if (pricing === undefined) return null
+  const perK = pricing.per_thousand_chars
+  if (typeof perK === 'number' && perK > 0) {
+    return { kind: 'perKChars', usdPerKChars: perK }
+  }
+  const perBlock = pricing.per_prompt_char_block
+  const blockChars = pricing.prompt_char_block_size
+  if (
+    typeof perBlock === 'number' &&
+    perBlock > 0 &&
+    typeof blockChars === 'number' &&
+    blockChars > 0
+  ) {
+    return {
+      kind: 'perCharBlock',
+      usdPerBlock: perBlock,
+      blockChars,
+      minimumUsd: pricing.minimum ?? perBlock,
+    }
+  }
+  const perGen = pricing.per_generation
+  if (typeof perGen === 'number' && perGen > 0) {
+    return { kind: 'perGeneration', usd: perGen }
+  }
+  return null
 }
 
 /** Recursively collect numeric leaves of a pricing object (skips currency). */
@@ -155,6 +265,14 @@ export interface SpeechGenerationParams {
   voice: string
   /** Playback rate multiplier (0.5–2.0); defaults to 1. */
   speed?: number
+  /** Queue-poll interval for async models (tests shorten it). */
+  pollIntervalMs?: number
+  /**
+   * Fired when the request lands on a queue instead of returning audio.
+   * Queue models charge AT SUBMISSION (`charged: true` in the envelope) —
+   * callers use this to log the spend even if the run later fails.
+   */
+  onQueued?: (info: { charged: boolean; costUsd: number | null }) => void
 }
 
 export interface ImageGenerationParams {
@@ -291,6 +409,7 @@ export class NanoGptClient {
         description?: string
         pricing?: { prompt?: number; completion?: number }
         capabilities?: { vision?: boolean }
+        created?: number
       }[]
     }
     return data.data.map((m) => ({
@@ -300,6 +419,7 @@ export class NanoGptClient {
       promptPricePerMTok: m.pricing?.prompt ?? null,
       completionPricePerMTok: m.pricing?.completion ?? null,
       supportsVision: m.capabilities?.vision ?? false,
+      releasedAt: releasedAtFromCreated(m.created),
     }))
   }
 
@@ -316,6 +436,7 @@ export class NanoGptClient {
         pricing?: { per_image?: Record<string, number> }
         capabilities?: { image_to_image?: boolean }
         supported_parameters?: { resolutions?: string[] }
+        created?: number
       }[]
     }
     return data.data.map((m) => ({
@@ -325,6 +446,7 @@ export class NanoGptClient {
       perImageUsd: m.pricing?.per_image ?? {},
       resolutions: m.supported_parameters?.resolutions ?? [],
       supportsImageToImage: m.capabilities?.image_to_image ?? false,
+      releasedAt: releasedAtFromCreated(m.created),
     }))
   }
 
@@ -344,6 +466,7 @@ export class NanoGptClient {
           resolutions?: string[]
           durations?: (string | number)[]
         }
+        created?: number
       }[]
     }
     return data.data.map((m) => ({
@@ -355,7 +478,55 @@ export class NanoGptClient {
       priceRangeUsd: extractPriceRange(m.pricing),
       resolutions: m.supported_parameters?.resolutions ?? [],
       durations: (m.supported_parameters?.durations ?? []).map(String),
+      releasedAt: releasedAtFromCreated(m.created),
     }))
+  }
+
+  /**
+   * GET /v1/audio-models?type=tts — the TTS catalog (Slice 15.9).
+   * The `type=tts` filter still leaks music/SFX/utility models (observed
+   * live: Mureka song tools, ACE-Step, stem separation…), so we keep only
+   * entries that are actually text-to-speech: the `text_to_speech`
+   * capability, the `audio_tts` category, or a non-empty voice list.
+   */
+  async listTtsModels(): Promise<TtsModel[]> {
+    const data = (await this.request(
+      'GET',
+      '/v1/audio-models?detailed=true&type=tts',
+    )) as {
+      data: {
+        id: string
+        name?: string
+        description?: string
+        category?: string
+        pricing?: {
+          per_thousand_chars?: number
+          per_prompt_char_block?: number
+          prompt_char_block_size?: number
+          per_generation?: number
+          minimum?: number
+        }
+        capabilities?: { text_to_speech?: boolean }
+        supported_parameters?: { max_chars?: number; voices?: string[] }
+        created?: number
+      }[]
+    }
+    return data.data
+      .filter(
+        (m) =>
+          m.capabilities?.text_to_speech === true ||
+          m.category === 'audio_tts' ||
+          (m.supported_parameters?.voices ?? []).length > 0,
+      )
+      .map((m) => ({
+        id: m.id,
+        name: m.name ?? m.id,
+        description: m.description ?? '',
+        pricing: parseTtsPricing(m.pricing),
+        voices: m.supported_parameters?.voices ?? [],
+        maxInputChars: m.supported_parameters?.max_chars ?? null,
+        releasedAt: releasedAtFromCreated(m.created),
+      }))
   }
 
   /** POST /v1/chat/completions — OpenAI-compatible, non-streaming. */
@@ -437,7 +608,8 @@ export class NanoGptClient {
       body: JSON.stringify({
         model: params.model,
         input: params.input,
-        voice: params.voice,
+        // A rare model may list no voice presets; let the API default then.
+        ...(params.voice.length > 0 ? { voice: params.voice } : {}),
         response_format: 'mp3',
         ...(params.speed !== undefined ? { speed: params.speed } : {}),
       }),
@@ -454,6 +626,133 @@ export class NanoGptClient {
         // Non-JSON error body; keep the generic message.
       }
       throw new NanoGptError(response.status, message)
+    }
+
+    // Some models are SYNCHRONOUS (audio bytes right here); others are
+    // queue-based and answer 200/202 with {"status":"pending","runId"}
+    // (observed live 2026-08-22: ElevenLabs, VibeVoice, Omnivoice, Qwen,
+    // ByteDance Seed Audio). Detect the envelope and poll /tts/status.
+    const contentType = response.headers.get('content-type') ?? ''
+    if (!/json/i.test(contentType)) return response.blob()
+    const envelope = (await response.json()) as {
+      status?: string
+      runId?: string
+      charged?: boolean
+      cost?: number
+      paymentSource?: string
+    }
+    if (envelope.status !== 'pending' || typeof envelope.runId !== 'string') {
+      // JSON but not the async envelope — hand the payload back as a blob;
+      // the caller's normalizer knows how to unwrap base64 envelopes.
+      return new Blob([JSON.stringify(envelope)], {
+        type: 'application/json',
+      })
+    }
+    params.onQueued?.({
+      charged: envelope.charged === true,
+      costUsd: typeof envelope.cost === 'number' ? envelope.cost : null,
+    })
+    return this.pollTtsRun(envelope, params)
+  }
+
+  /** Poll GET /tts/status until a queued TTS run finishes, then download. */
+  private async pollTtsRun(
+    envelope: { runId?: string; cost?: number; paymentSource?: string },
+    params: SpeechGenerationParams,
+  ): Promise<Blob> {
+    const intervalMs = params.pollIntervalMs ?? 2000
+    const deadline = Date.now() + 5 * 60 * 1000
+    const query = new URLSearchParams({
+      runId: envelope.runId ?? '',
+      model: params.model,
+      ...(envelope.cost !== undefined ? { cost: String(envelope.cost) } : {}),
+      ...(envelope.paymentSource !== undefined
+        ? { paymentSource: envelope.paymentSource }
+        : {}),
+      isApiRequest: 'true',
+    })
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+      const status = (await this.request(
+        'GET',
+        `/tts/status?${query.toString()}`,
+      )) as {
+        status?: string
+        audioUrl?: string
+        error?: string
+        message?: string
+        terminal?: boolean
+      }
+      const state = (status.status ?? '').toLowerCase()
+      if (state === 'completed' || typeof status.audioUrl === 'string') {
+        const raw = status.audioUrl
+        if (typeof raw !== 'string' || raw.length === 0) {
+          throw new NanoGptError(
+            200,
+            'The narration finished but no audio URL came back.',
+          )
+        }
+        // Grok lesson: URLs may be relative — resolve against OUR origin.
+        const url = /^https?:\/\//.test(raw)
+          ? raw
+          : new URL(raw, new URL(this.baseUrl).origin).toString()
+        return this.downloadAudio(url)
+      }
+      // `terminal: true` marks any state that will never progress (seen
+      // live on microsoft/vibevoice: {"status":"error","terminal":true}) —
+      // stop polling immediately, whatever the status string says.
+      if (
+        state === 'failed' ||
+        state === 'error' ||
+        (status.terminal === true && state !== 'completed')
+      ) {
+        throw new NanoGptError(
+          200,
+          status.error ??
+            status.message ??
+            'NanoGPT reported the narration failed.',
+        )
+      }
+      if (Date.now() > deadline) {
+        throw new NanoGptError(
+          200,
+          'The narration is still queued after 5 minutes — try again later.',
+        )
+      }
+    }
+  }
+
+  /**
+   * Download finished audio. The key is sacred: it rides along ONLY when
+   * the URL is on the NanoGPT origin — third-party CDNs never see it.
+   */
+  async downloadAudio(url: string): Promise<Blob> {
+    const sameOrigin = new URL(url).origin === new URL(this.baseUrl).origin
+    let response: Response
+    try {
+      response = await fetch(
+        url,
+        sameOrigin ? { headers: { 'x-api-key': this.apiKey } } : undefined,
+      )
+    } catch (error) {
+      // fetch TypeError = the browser was FORBIDDEN from reading the bytes
+      // (no CORS on the file's host — the R2 wall from the video pipeline).
+      if (error instanceof TypeError) {
+        throw new NanoGptError(
+          0,
+          'The narration finished, but its storage host blocks browser downloads (no CORS).',
+        )
+      }
+      throw error
+    }
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new InvalidApiKeyError()
+      }
+      throw new NanoGptError(
+        response.status,
+        `The finished narration could not be downloaded (HTTP ${String(response.status)}).`,
+      )
     }
     return response.blob()
   }

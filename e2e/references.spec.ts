@@ -6,6 +6,7 @@ import {
   mockImageGeneration,
   mockImageModels,
   mockTextModels,
+  pickModel,
   readStoredProjects,
   setUpApiKey,
   TINY_PNG_B64,
@@ -42,9 +43,7 @@ test.beforeEach(async ({ page }) => {
     .fill('Mara climbs the lighthouse stairs. Waves crash below.')
   await page.getByRole('button', { name: 'Lock script' }).click()
   await page.getByRole('button', { name: 'Scenes', exact: true }).click()
-  await page
-    .getByLabel('Text model', { exact: true })
-    .selectOption('mock/writer-1')
+  await pickModel(page, 'Text model', 'mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 2' })).toBeVisible()
 })
@@ -67,9 +66,7 @@ test('create a reference, tick a scene, generate its image, survive reload', asy
 
   // Generate the reference image from the descriptor (mocked, $0.01).
   await page.getByText('Image model for generating reference images').click()
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-i2i')
+  await pickModel(page, 'Image model', 'mock/painter-i2i')
   await expect(page.getByText('Cost: $0.02; importing is free.')).toBeVisible()
   await page.getByRole('button', { name: 'Generate from description' }).click()
   await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
@@ -116,9 +113,7 @@ test('scene generation attaches the reference image for i2i models and says so',
   await page.getByRole('button', { name: 'Images', exact: true }).click()
 
   // A model without image-to-image is honest about skipping the image.
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-1')
+  await pickModel(page, 'Image model', 'mock/painter-1')
   const scene1 = page.getByLabel('Scene 1 workbench')
   await expect(
     scene1.getByText(
@@ -130,9 +125,7 @@ test('scene generation attaches the reference image for i2i models and says so',
   await page
     .getByLabel('Only show models that can use reference images')
     .check()
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-i2i')
+  await pickModel(page, 'Image model', 'mock/painter-i2i')
   await expect(
     scene1.getByText(
       'One reference image will be attached to this generation.',

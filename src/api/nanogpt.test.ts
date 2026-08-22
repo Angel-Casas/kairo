@@ -86,6 +86,7 @@ describe('model listings', () => {
               name: 'Some Model',
               description: 'desc',
               pricing: { prompt: 1.25, completion: 5 },
+              created: 1747008000, // 2025-05-12
             },
             { id: 'bare/model' },
           ],
@@ -101,7 +102,9 @@ describe('model listings', () => {
       promptPricePerMTok: 1.25,
       completionPricePerMTok: 5,
       supportsVision: false,
+      releasedAt: new Date(1747008000 * 1000).toISOString(),
     })
+    expect(models[1]?.releasedAt).toBeNull()
     expect(models[1]?.name).toBe('bare/model')
     expect(models[1]?.promptPricePerMTok).toBeNull()
     expect(models[1]?.supportsVision).toBe(false)
@@ -191,6 +194,123 @@ describe('model listings', () => {
     ).toEqual({ min: 0.1, max: 2 })
     expect(extractPriceRange({ currency: 'USD' })).toBeNull()
     expect(extractPriceRange(undefined)).toBeNull()
+  })
+
+  it('listTtsModels keeps only real TTS models and parses every pricing shape', async () => {
+    server.use(
+      http.get(`${BASE}/v1/audio-models`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [
+            {
+              id: 'Kokoro-82m',
+              name: 'Kokoro 82M',
+              created: 1787425313,
+              category: 'audio_tts',
+              pricing: { per_thousand_chars: 0.0017, currency: 'USD' },
+              capabilities: { text_to_speech: true },
+              supported_parameters: {
+                max_chars: 10000,
+                voices: ['af_bella', 'am_adam'],
+              },
+            },
+            {
+              // Block pricing (ByteDance Seed Audio shape).
+              id: 'bytedance/seed-audio-1.0',
+              name: 'ByteDance Seed Audio 1.0',
+              pricing: {
+                per_prompt_char_block: 0.09,
+                prompt_char_block_size: 300,
+                minimum: 0.09,
+                currency: 'USD',
+              },
+              supported_parameters: { max_chars: 5000, voices: ['skye'] },
+            },
+            {
+              // Flat per-generation NEXT TO a zero per-1k rate (VibeVoice).
+              id: 'microsoft/vibevoice',
+              name: 'VibeVoice',
+              pricing: {
+                per_generation: 0.15,
+                per_thousand_chars: 0,
+                currency: 'USD',
+              },
+              supported_parameters: { voices: ['emma'] },
+            },
+            {
+              // Music model leaked by type=tts — must be dropped.
+              id: 'Minimax-Music-02',
+              name: 'MiniMax Music 02',
+              category: 'audio_music',
+              pricing: { per_second: 0, minimum: 0.05, currency: 'USD' },
+              capabilities: { text_to_music: true },
+              supported_parameters: { min_duration: 10, max_duration: 300 },
+            },
+          ],
+        }),
+      ),
+    )
+    const models = await client().listTtsModels()
+    expect(models.map((m) => m.id)).toEqual([
+      'Kokoro-82m',
+      'bytedance/seed-audio-1.0',
+      'microsoft/vibevoice',
+    ])
+    expect(models[0]?.pricing).toEqual({
+      kind: 'perKChars',
+      usdPerKChars: 0.0017,
+    })
+    expect(models[0]?.voices).toEqual(['af_bella', 'am_adam'])
+    expect(models[0]?.maxInputChars).toBe(10000)
+    expect(models[0]?.releasedAt).toBe(
+      new Date(1787425313 * 1000).toISOString(),
+    )
+    expect(models[1]?.pricing).toEqual({
+      kind: 'perCharBlock',
+      usdPerBlock: 0.09,
+      blockChars: 300,
+      minimumUsd: 0.09,
+    })
+    expect(models[2]?.pricing).toEqual({ kind: 'perGeneration', usd: 0.15 })
+    expect(models[2]?.maxInputChars).toBeNull()
+  })
+})
+
+describe('generateSpeech (async queue)', () => {
+  it('stops on terminal:true whatever the status string says', async () => {
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, () =>
+        HttpResponse.json({
+          status: 'pending',
+          runId: 'run-vv',
+          charged: true,
+          cost: 0.15,
+        }),
+      ),
+      http.get(`${BASE}/tts/status`, () =>
+        HttpResponse.json({
+          status: 'error',
+          error: 'Request failed. Please check your input parameters.',
+          terminal: true,
+        }),
+      ),
+    )
+    let queued: { charged: boolean; costUsd: number | null } | null = null
+    const error = await client()
+      .generateSpeech({
+        model: 'microsoft/vibevoice',
+        input: 'Hi.',
+        voice: 'en-Alice_woman',
+        pollIntervalMs: 1,
+        onQueued: (info) => {
+          queued = info
+        },
+      })
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(NanoGptError)
+    expect((error as Error).message).toContain('check your input parameters')
+    // The submission charge was reported before the failure.
+    expect(queued).toEqual({ charged: true, costUsd: 0.15 })
   })
 })
 

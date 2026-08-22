@@ -227,3 +227,77 @@ padding.
 (spacing: 1, 2, 3, 4, 6, 8). When a spacing/color looks absent at runtime
 but the style is clearly written, suspect a phantom token first — and
 `grep -rn "space-5\|space-7"` style scans confirm the codebase is clean.
+
+### 2026-08-22 — NanoGPT's `type=tts` filter leaks music and SFX models
+
+**What happened:** `GET /v1/audio-models?detailed=true&type=tts` returned
+63 entries, but only ~22 are text-to-speech: the rest are music
+generators, SFX tools and utilities (Mureka song tools, ACE-Step, stem
+separation…) that the server-side type filter fails to exclude. Bonus
+trap: VibeVoice carries `per_thousand_chars: 0` RIGHT NEXT TO its real
+`per_generation: 0.15` price — a zero-valued price field means "not this
+pricing shape", never "free".
+
+**Rule going forward:** Never trust a listing filter blindly — keep only
+entries positively identified as the wanted kind (here:
+`capabilities.text_to_speech`, `category === 'audio_tts'`, or a
+non-empty `voices` list), and treat zero-valued price fields as absent
+when a sibling field carries the real price. Verified against a live
+response captured by Angel (the docs only show a placeholder template).
+
+### 2026-08-22 — Some TTS models "played" silence: providers ignore response_format
+
+**What happened:** Voice previews generated (and billed) fine but never
+made a sound on some models, while others worked — the split was the
+clue. `/v1/audio/speech` fronts many providers, and several ignore
+`response_format: 'mp3'`: they return WAV or OGG bytes, or a JSON
+envelope holding base64 audio, while the Content-Type still claims mp3.
+`<audio>` trusts the type, picks the wrong demuxer, and fails with no
+error event reaching the UI. OPFS cache reads made it worse by stripping
+the type entirely (the Slice 15 lesson, again).
+
+**Rule going forward:** For any media blob crossing a provider boundary,
+trust the BYTES: sniff the container from magic numbers
+(`src/lib/audioBlob.ts`), unwrap JSON/base64 envelopes, re-type the
+blob, and surface an honest error when no real media is found — the
+same family of defense as the video pipeline's blob validation. And
+always attach onerror/catch handlers to media playback so failure is a
+message, not silence.
+
+### 2026-08-22 — "Silent" TTS models were async: the endpoint returns a queue receipt
+
+**What happened:** After the byte-sniffer fix, a stubborn set of models
+(ElevenLabs, VibeVoice, Omnivoice, Qwen-3-TTS, ByteDance Seed Audio)
+still produced no audio. Angel's console probe showed why: for these,
+`POST /v1/audio/speech` answers 200/202 with
+`{"status":"pending","runId":…,"charged":true,"cost":…}` — a queue
+receipt, not audio. One endpoint, two contracts: synchronous bytes for
+some models, an async job for others, distinguishable only by the
+response's content-type. Kairo validated "is this audio?" but never
+asked "is this a job?", so it cached 167-byte receipts as previews —
+after the user had already been charged.
+
+**Rule going forward:** Any NanoGPT generation response that is JSON
+with `status: "pending"` and a `runId` is a JOB — poll its status
+endpoint (`GET /tts/status?runId&model` for TTS) until `completed`,
+then download the result URL with the same-origin key gating and
+relative-URL resolution the video pipeline uses. And when a provider
+has billed a call (`charged: true` or an HTTP 200), log the spend even
+if the payload turns out unusable — the books must match the balance.
+
+### 2026-08-22 — A queued run can be charged at submission and then fail
+
+**What happened:** VibeVoice previews vanished without a trace: NanoGPT
+accepted the submission (202, `charged: true`, $0.15), then the run
+died on the FIRST status poll with
+`{"status":"error","error":"Request failed…","terminal":true}`. Kairo
+logged spend only after a fully successful run, so the charge never
+reached the books — Angel concluded "we didn't even pay" while $0.15
+per attempt was leaving his balance.
+
+**Rule going forward:** The moment an envelope says `charged: true`,
+that money is spent — book it, even (especially) when the run later
+fails, using the envelope's own `cost` as the authoritative amount.
+Honor `terminal: true` as "stop polling now" regardless of the status
+string. And when a model fails server-side at a flat per-run price,
+the kind thing is a clear error message, not silent retries.

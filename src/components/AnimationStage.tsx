@@ -9,6 +9,7 @@ import { GenerationHistory } from './GenerationHistory'
 import { Lightbox, type LightboxItem } from './Lightbox'
 import { VideoModelPicker } from './ModelPicker'
 import { ReelShell } from './Reel'
+import { SceneDescriptionEditor } from './SceneDescriptionEditor'
 import { useBlobUrl } from './useBlobUrl'
 
 const DURATIONS = ['5', '8', '10']
@@ -433,6 +434,7 @@ function AnimationWorkbench({
 }) {
   const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
   const importSceneClip = useProjectStore((s) => s.importSceneClip)
+  const updateScene = useProjectStore((s) => s.updateScene)
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
 
   const n = String(index + 1)
@@ -496,7 +498,33 @@ function AnimationWorkbench({
       {/* Motion panel */}
       <div className="card" style={panel}>
         <div style={panelTitle}>Scene {n} — motion</div>
-        <p style={{ margin: 0, lineHeight: 1.6 }}>{scene.visualDescription}</p>
+        <SceneDescriptionEditor scene={scene} n={n} />
+        <label style={{ display: 'block' }}>
+          <span
+            style={{
+              display: 'block',
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+              marginBottom: 'var(--space-1)',
+            }}
+          >
+            Camera direction (optional) — steers the motion prompt
+          </span>
+          <textarea
+            aria-label="Camera direction"
+            placeholder="Camera position & movement: fixed tripod, slow push-in, pan left, gentle zoom out, drone pull-back…"
+            value={scene.cameraNotes}
+            onChange={(e) => {
+              updateScene(scene.id, { cameraNotes: e.target.value })
+            }}
+            rows={2}
+            style={{
+              width: '100%',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+            }}
+          />
+        </label>
         <p
           style={{
             margin: 0,

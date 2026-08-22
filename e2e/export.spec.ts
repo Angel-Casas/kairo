@@ -7,6 +7,7 @@ import {
   mockImageGeneration,
   mockImageModels,
   mockTextModels,
+  pickModel,
   setUpApiKey,
 } from './helpers'
 
@@ -76,24 +77,18 @@ test.beforeEach(async ({ page }) => {
     page.getByRole('button', { name: 'Export', exact: true }),
   ).toBeDisabled()
   await page.getByRole('button', { name: 'Scenes', exact: true }).click()
-  await page
-    .getByLabel('Text model', { exact: true })
-    .selectOption('mock/writer-1')
+  await pickModel(page, 'Text model', 'mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
   await page.getByRole('button', { name: 'Images', exact: true }).click()
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-1')
+  await pickModel(page, 'Image model', 'mock/painter-1')
   await page
     .getByLabel('Scene 1 workbench')
     .getByRole('button', { name: 'Generate image' })
     .click()
   await expect(page.getByAltText('Scene 1 active image')).toBeVisible()
   await page.getByRole('button', { name: 'Animation', exact: true }).click()
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  await pickModel(page, 'Video model', 'mock/animator-1')
   await page
     .getByLabel('Scene 1 animation workbench')
     .getByRole('button', { name: 'Animate scene' })

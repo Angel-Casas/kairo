@@ -5,6 +5,7 @@ import {
   mockBalance,
   mockImageModels,
   mockTextModels,
+  pickModel,
   readStoredProjects,
   setUpApiKey,
   TINY_PNG_B64,
@@ -37,14 +38,13 @@ test.beforeEach(async ({ page }) => {
 test('style-from-image: vision-filtered picker, multimodal request, apply to notes', async ({
   page,
 }) => {
-  // The picker only offers vision-capable models.
-  const picker = page.getByLabel('Vision model', { exact: true })
-  await expect(picker).toBeVisible()
-  const optionIds = await picker
-    .locator('option:not([disabled])')
-    .allTextContents()
-  expect(optionIds.join(' ')).toContain('Mock Seer')
-  expect(optionIds.join(' ')).not.toContain('Mock Writer')
+  // The menu only offers vision-capable models.
+  await page.getByRole('button', { name: 'Vision model', exact: true }).click()
+  const menu = page.getByRole('dialog', { name: 'Vision model menu' })
+  await expect(menu).toContainText('Mock Seer')
+  await expect(menu).not.toContainText('Mock Writer')
+  await page.keyboard.press('Escape')
+  await expect(menu).not.toBeVisible()
 
   await page.getByLabel('Style reference image file').setInputFiles({
     name: 'style-ref.png',
@@ -52,7 +52,7 @@ test('style-from-image: vision-filtered picker, multimodal request, apply to not
     buffer: Buffer.from(TINY_PNG_B64, 'base64'),
   })
   await expect(page.getByText('style-ref.png')).toBeVisible()
-  await picker.selectOption('mock/seer-1')
+  await pickModel(page, 'Vision model', 'mock/seer-1')
   await expect(page.getByText(/Estimated cost: up to ~/)).toBeVisible()
   await expect(page.getByText(/plus the image input/)).toBeVisible()
 
@@ -115,9 +115,7 @@ test('replacing existing style notes asks for confirmation first', async ({
     mimeType: 'image/png',
     buffer: Buffer.from(TINY_PNG_B64, 'base64'),
   })
-  await page
-    .getByLabel('Vision model', { exact: true })
-    .selectOption('mock/seer-1')
+  await pickModel(page, 'Vision model', 'mock/seer-1')
   await page.route(`${API}/v1/chat/completions`, (route) =>
     route.fulfill({
       json: {

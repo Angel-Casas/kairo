@@ -6,6 +6,7 @@ import {
   mockImageGeneration,
   mockImageModels,
   mockTextModels,
+  pickModel,
   setUpApiKey,
   TINY_PNG_B64,
 } from './helpers'
@@ -32,15 +33,11 @@ test.beforeEach(async ({ page }) => {
   await page.getByLabel('Script text').fill('A lighthouse stands on the cliff.')
   await page.getByRole('button', { name: 'Lock script' }).click()
   await page.getByRole('button', { name: 'Scenes', exact: true }).click()
-  await page
-    .getByLabel('Text model', { exact: true })
-    .selectOption('mock/writer-1')
+  await pickModel(page, 'Text model', 'mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
   await page.getByRole('button', { name: 'Images', exact: true }).click()
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-1')
+  await pickModel(page, 'Image model', 'mock/painter-1')
 })
 
 test('history shows the exact prompt; edit & regenerate sends it verbatim', async ({

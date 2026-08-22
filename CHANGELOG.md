@@ -2,6 +2,152 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.9.3 — Charged-at-submission bookkeeping; VibeVoice diagnosed (2026-08-22, from Angel's field test)
+
+- Queue-based TTS models charge AT SUBMISSION (`charged: true` in the
+  envelope). Until now a run that was charged and THEN failed left no
+  trace in the spend log — money gone, books blind. Both audio paths
+  (voice previews and scene narrations) now record the charge with the
+  envelope's authoritative `cost` when a queued run fails, with an
+  explicit note; the preview error also says the failed run was billed.
+  Successful queued runs likewise book the envelope's cost, not our
+  computed one.
+- VibeVoice, root-caused with Angel's probe: NanoGPT accepts the job,
+  charges $0.15, and the run then dies instantly server-side —
+  `{"status":"error","terminal":true}` on the first poll. That is a
+  provider-side failure (worth reporting to NanoGPT); Kairo now honors
+  the `terminal: true` flag (stop polling whatever the status string
+  says), surfaces the API's error, and books the charge. Every attempt
+  costs $0.15 flat, so the honest move is the error message, not a
+  retry loop.
+- The finished-audio download now names the CORS wall when a storage
+  host blocks browser reads, instead of a bare "Failed to fetch".
+- Tests: 230 unit (terminal flag; failed-queued-run booking with the
+  envelope cost).
+
+## Slice 15.9.2 — Async TTS models work: poll the queue like the video pipeline (2026-08-22, from Angel's field test)
+
+- Angel's model-by-model test + a console probe cracked it: the models
+  that never played (ElevenLabs, VibeVoice, Omnivoice, Qwen-3-TTS,
+  ByteDance Seed Audio) are QUEUE-BASED — `/v1/audio/speech` answers
+  them with `{"status":"pending","runId",…,"charged":true}` instead of
+  audio, and Kairo was caching that receipt as the "preview". Now
+  `generateSpeech` detects the envelope and polls `GET /tts/status`
+  (2s interval, 5-minute cap) until `completed`, then downloads the
+  `audioUrl` — resolved against the NanoGPT origin if relative (Grok
+  lesson), key attached ONLY same-origin (the key is sacred). Previews
+  and full scene narrations both gain this for free.
+- Honest failure paths (was: a generic line and silence): the API's own
+  error message surfaces in the voice menu; when a provider bills a call
+  but returns unplayable bytes, the spend is logged anyway (honest books)
+  and the junk is NOT cached; previews are decode-verified
+  (`OfflineAudioContext.decodeAudioData`) before caching; and cached
+  junk from before the fix — Angel's paid ByteDance "previews" were
+  167-byte pending receipts — is evicted on the next ▶ and regenerated.
+- Tests: 228 unit (queue poll → download with key gating; billed-but-
+  unplayable books; pending-receipt eviction; real-error surfacing);
+  audio e2e re-run green.
+
+## Slice 15.9.1 — Silent previews fixed: trust the bytes, not the headers (2026-08-22, from Angel's feedback)
+
+- Angel found voice previews loading but never playing on SOME models —
+  the tell that certain providers behind `/v1/audio/speech` ignore
+  `response_format: 'mp3'` and return WAV/OGG bytes (or a JSON envelope
+  of base64 audio) under a lying Content-Type, which makes `<audio>`
+  pick the wrong demuxer and fail in silence. New `normalizeAudioBlob`
+  sniffs the real container from magic bytes (mp3/wav/ogg/flac/m4a),
+  unwraps base64-JSON envelopes, and re-types the blob — applied to
+  voice previews AND scene narrations, plus on preview cache reads
+  (healing OPFS's stripped MIME and any junk cached before the fix).
+  Playback failures now surface as messages, never silence.
+- Voice menu caching (Angel's suggestion): already-cached previews are
+  detected when the menu opens and marked on their ▶ (accent ring —
+  "plays instantly, free"), decoded audio stays in memory for instant
+  replay, and a **Load all ($X)** button fetches every missing preview
+  for the current model — the exact total is stated on the button, spend
+  logged per voice as always, nothing auto-downloads without a click
+  (cost honesty: 22 ElevenLabs voices would be real money).
+- Tests: 225 unit (sniffer corpus: WAV-labeled-mp3, stripped MIME, JSON
+  envelope, error JSON, unknown binary); audio e2e re-run green.
+
+## Slice 15.9 — Live TTS catalog, rich narration menu, voice previews (2026-08-22, from Angel's feedback)
+
+- The narration model list is no longer a hand-curated table of five —
+  it now comes live from NanoGPT's `/v1/audio-models` listing (~22 TTS
+  models: MiniMax Speech, Inworld, Gemini TTS, ElevenLabs, MAI-Voice-2,
+  SpaceXAI, Qwen, Kokoro, OpenAI…), shown in the same rich menu as the
+  other stages: search, provider groups (new glyphs for ElevenLabs,
+  Inworld, Microsoft, Kokoro), $/1k-chars badges, date chips, sort and
+  provider filters. The `type=tts` filter leaks music/SFX models — they
+  are filtered client-side (see LESSONS).
+- Three pricing shapes parsed exactly (per-1k-chars; per-300-char-block
+  with a minimum, ByteDance style; flat per-generation, VibeVoice style)
+  — the workbench's "exact cost" stays exact for all of them, and the
+  billing note adapts.
+- **Voice previews**: the voice dropdown became a menu with humanized
+  names ("af_bella" → "Bella — American female", search box for the
+  65-voice models) and a ▶ button per voice. NanoGPT exposes no free
+  sample files, so ▶ narrates one short fixed sentence through the real
+  endpoint — the exact fraction-of-a-cent price is printed in the menu
+  footer, the spend is logged honestly ("Voice preview — …") — and the
+  audio is cached in OPFS forever: replays are free, and the cache
+  survives project deletion (it lives outside project blob prefixes).
+- Tests: 217 unit; e2e audio spec extended (menu filters the music leak,
+  preview narrates the sample with the right voice, spend logged) — per
+  Angel's ask, only the touched e2e specs were run this slice.
+
+## Slice 15.8 — Rich model menu (2026-08-22, from Angel's feedback)
+
+- All three model pickers (text/vision, image, video) trade the native
+  `<select>` for a NanoGPT-style menu: a search box, models grouped by
+  provider with colored glyphs and counts, per-model price badges
+  ($in/$out per MTok for text, $/img, ≈$ per clip range for video) and
+  release-date chips ("May 2026"), plus a Filters & Sort rail — sort by
+  Provider / Name / Cheapest / Priciest / Newest / Oldest, filter to one
+  provider (with an All reset), footer shows "X of N models".
+- NanoGPT's listings carry no provider field, so the provider is
+  inferred from the model id via a curated substring table (the same
+  trick NanoGPT's own site uses); unmatched ids group under "Other".
+  Release dates come from the listing's `created` unix timestamp, newly
+  parsed into `releasedAt` on all three model types.
+- The menu is a portaled overlay (the navbar transform-traps
+  `position: fixed`, lesson from 15.5) with full keyboard/ARIA wiring:
+  the trigger is a labeled button, the panel a dialog, options a
+  listbox, Escape closes. External picker APIs are unchanged — the
+  wrappers still filter to vision/i2v/img2img models where required.
+- Tests: 205 unit, 37 e2e (e2e helpers gained `pickModel`, which picks
+  by model id since display names collide; the animation spec now
+  asserts the menu offers only image-to-video models with price badges
+  and sort controls).
+
+## Slice 15.7 — Edit the scene prompt from any stage (2026-08-22, from Angel's feedback)
+
+- The scene's visual description is now editable in place on the Images
+  and Animation workbenches (shared `SceneDescriptionEditor`): an Edit
+  button swaps the text for a textarea with Save/Cancel, saving through
+  `updateScene` — one source of truth, so Scenes, Images and Animation
+  all see the change instantly, no walking back a stage. Already-made
+  takes keep the prompts they were generated with (append-only history);
+  only future generations pick up the edit, and the editor says so.
+- Tests: 197 unit, 38 e2e (edit on Images → Scenes shows the new text;
+  Cancel discards).
+
+## Slice 15.6 — Camera direction helper (2026-08-22, from Angel's feedback)
+
+- The Motion panel gains an optional **Camera direction** textarea per
+  scene (stored on the scene, autosaved, additive schema): position and
+  movement hints like "fixed tripod", "slow push-in", "pan left",
+  "gentle zoom out" — the placeholder spells the idea out. (First landed
+  as a cramped one-line input in the Animate panel; moved and widened on
+  Angel's feedback — one home, full placeholder visible.)
+- When set, the note is woven into the video prompt as `Camera: …` and
+  REPLACES the built-in gentle-drift default (a fixed-tripod ask must not
+  fight a baked-in drifting camera); when empty, the default stands.
+  History keeps the full composed prompt for verbatim regeneration as
+  always.
+- Tests: 197 unit, 37 e2e (submitted prompt carries the camera line and
+  drops the drift default).
+
 ## Slice 15.5 — Spend moved into a navbar dropdown (2026-08-22, from Angel's feedback)
 
 - The always-mounted spend bar above the stages is gone — one full strip

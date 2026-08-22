@@ -37,10 +37,10 @@ test('generation shows an upfront estimate, fills the editor, and locks', async 
   await page
     .getByLabel('Generation instructions')
     .fill('The James Webb telescope')
+  // The menu opens, the search narrows, the pick lands.
+  await page.getByRole('button', { name: 'Text model', exact: true }).click()
   await page.getByLabel('Filter text models').fill('Mock')
-  await page
-    .getByLabel('Text model', { exact: true })
-    .selectOption('mock/writer-1')
+  await page.getByRole('option', { name: 'mock/writer-1' }).click()
   await expect(page.getByLabel('Estimated cost')).toContainText(
     'Estimated cost: up to ~$',
   )

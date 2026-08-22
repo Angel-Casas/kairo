@@ -7,6 +7,7 @@ import {
   mockImageGeneration,
   mockImageModels,
   mockTextModels,
+  pickModel,
   readStoredProjects,
   setUpApiKey,
 } from './helpers'
@@ -38,9 +39,7 @@ test.beforeEach(async ({ page }) => {
     .fill('A lighthouse stands on the cliff. Waves crash below.')
   await page.getByRole('button', { name: 'Lock script' }).click()
   await page.getByRole('button', { name: 'Scenes', exact: true }).click()
-  await page
-    .getByLabel('Text model', { exact: true })
-    .selectOption('mock/writer-1')
+  await pickModel(page, 'Text model', 'mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 2' })).toBeVisible()
   await page.getByRole('button', { name: 'Images', exact: true }).click()
@@ -80,9 +79,7 @@ test('generate → version appears → regenerate → switch active → reload',
   await page.getByText('Artistic style', { exact: true }).click()
   await page.getByRole('radio', { name: 'Style: Watercolor' }).click()
   await page.getByText('Artistic style', { exact: true }).click()
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-1')
+  await pickModel(page, 'Image model', 'mock/painter-1')
 
   // Exact per-image cost shown.
   await expect(page.getByText('Total cost: $0.02').first()).toBeVisible()
@@ -123,12 +120,40 @@ test('generate → version appears → regenerate → switch active → reload',
   ).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('the scene prompt edits in place and every stage sees it', async ({
+  page,
+}) => {
+  // Edit on the Images stage…
+  const workbench = page.getByLabel('Scene 1 workbench')
+  await workbench.getByRole('button', { name: 'Edit scene 1 prompt' }).click()
+  await workbench
+    .getByLabel('Scene 1 prompt editor')
+    .fill('A silver telescope drifting past Jupiter')
+  await workbench.getByRole('button', { name: 'Save scene 1 prompt' }).click()
+  await expect(
+    workbench.getByText('A silver telescope drifting past Jupiter'),
+  ).toBeVisible()
+
+  // …and Scenes sees the same text (single source of truth).
+  await page.getByRole('button', { name: 'Scenes', exact: true }).click()
+  await expect(page.getByLabel('Scene 1 visual description')).toHaveValue(
+    'A silver telescope drifting past Jupiter',
+  )
+
+  // Cancel discards: back on Images, an abandoned edit changes nothing.
+  await page.getByRole('button', { name: 'Images', exact: true }).click()
+  await workbench.getByRole('button', { name: 'Edit scene 1 prompt' }).click()
+  await workbench.getByLabel('Scene 1 prompt editor').fill('Discarded draft')
+  await workbench.getByRole('button', { name: 'Cancel' }).click()
+  await expect(
+    workbench.getByText('A silver telescope drifting past Jupiter'),
+  ).toBeVisible()
+})
+
 test('a frame expands into a lightbox and closes on an outside click', async ({
   page,
 }) => {
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-1')
+  await pickModel(page, 'Image model', 'mock/painter-1')
   await page
     .getByLabel('Scene 1 workbench')
     .getByRole('button', { name: 'Generate image' })

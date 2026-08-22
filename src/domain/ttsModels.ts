@@ -1,108 +1,92 @@
+import type { TtsModel, TtsPricing } from '../api/nanogpt'
+
 /**
- * Curated TTS catalog (Slice 15). NanoGPT's speech endpoint has no listing
- * API (docs-verified 2026-08-22), so the models and their per-character
- * prices live here. TTS is billed purely by INPUT CHARACTERS, which means —
- * unlike every other generation kind — the price shown is exact, not an
- * estimate.
+ * TTS helpers (Slice 15.9). The catalog itself now comes live from
+ * NanoGPT's /v1/audio-models listing (it was a hand-curated table before —
+ * five models; the live listing carries the full set). What stays local:
+ * exact cost math, human-readable voice labels, and the fixed preview
+ * sentence every voice preview narrates.
  */
 
-export interface TtsVoice {
-  id: string
-  label: string
+/**
+ * Exact narration price for a text under a model's pricing — TTS is the
+ * one generation kind with no estimates anywhere. Null when the listing
+ * carried no recognizable price (the API then charges at submission).
+ */
+export function ttsCostUsd(model: TtsModel, text: string): number | null {
+  const pricing = model.pricing
+  if (pricing === null) return null
+  switch (pricing.kind) {
+    case 'perKChars':
+      return (text.length / 1000) * pricing.usdPerKChars
+    case 'perCharBlock':
+      return Math.max(
+        pricing.minimumUsd,
+        Math.ceil(text.length / pricing.blockChars) * pricing.usdPerBlock,
+      )
+    case 'perGeneration':
+      return pricing.usd
+  }
 }
 
-export interface TtsModel {
-  id: string
-  name: string
-  /** USD per 1,000 input characters (from the NanoGPT docs). */
-  pricePerKChars: number
-  /** The endpoint rejects longer inputs. */
-  maxInputChars: number
-  voices: TtsVoice[]
+/** One-line billing explanation for the workbench copy. */
+export function ttsPriceNote(pricing: TtsPricing | null): string {
+  if (pricing === null) {
+    return 'This model lists no price — NanoGPT charges at submission.'
+  }
+  switch (pricing.kind) {
+    case 'perKChars':
+      return 'TTS is billed by character, so the price shown is exact — not an estimate.'
+    case 'perCharBlock':
+      return `Billed in blocks of ${String(pricing.blockChars)} characters — the price shown is exact.`
+    case 'perGeneration':
+      return 'Billed at a flat price per narration — exact, regardless of length.'
+  }
 }
 
-export const TTS_MODELS: TtsModel[] = [
-  {
-    id: 'Kokoro-82m',
-    name: 'Kokoro (cheap, natural)',
-    pricePerKChars: 0.001,
-    maxInputChars: 10_000,
-    voices: [
-      { id: 'af_bella', label: 'Bella — American female' },
-      { id: 'af_nicole', label: 'Nicole — American female' },
-      { id: 'af_sarah', label: 'Sarah — American female' },
-      { id: 'am_adam', label: 'Adam — American male' },
-      { id: 'am_michael', label: 'Michael — American male' },
-      { id: 'bf_emma', label: 'Emma — British female' },
-      { id: 'bm_george', label: 'George — British male' },
-    ],
-  },
-  {
-    id: 'gpt-4o-mini-tts',
-    name: 'OpenAI Mini (cheapest)',
-    pricePerKChars: 0.0006,
-    maxInputChars: 4_096,
-    voices: [
-      { id: 'alloy', label: 'Alloy' },
-      { id: 'ash', label: 'Ash' },
-      { id: 'coral', label: 'Coral' },
-      { id: 'echo', label: 'Echo' },
-      { id: 'fable', label: 'Fable' },
-      { id: 'nova', label: 'Nova' },
-      { id: 'onyx', label: 'Onyx' },
-      { id: 'sage', label: 'Sage' },
-      { id: 'shimmer', label: 'Shimmer' },
-    ],
-  },
-  {
-    id: 'tts-1',
-    name: 'OpenAI Standard',
-    pricePerKChars: 0.015,
-    maxInputChars: 4_096,
-    voices: [
-      { id: 'alloy', label: 'Alloy' },
-      { id: 'echo', label: 'Echo' },
-      { id: 'fable', label: 'Fable' },
-      { id: 'nova', label: 'Nova' },
-      { id: 'onyx', label: 'Onyx' },
-      { id: 'shimmer', label: 'Shimmer' },
-    ],
-  },
-  {
-    id: 'tts-1-hd',
-    name: 'OpenAI HD',
-    pricePerKChars: 0.03,
-    maxInputChars: 4_096,
-    voices: [
-      { id: 'alloy', label: 'Alloy' },
-      { id: 'echo', label: 'Echo' },
-      { id: 'fable', label: 'Fable' },
-      { id: 'nova', label: 'Nova' },
-      { id: 'onyx', label: 'Onyx' },
-      { id: 'shimmer', label: 'Shimmer' },
-    ],
-  },
-  {
-    id: 'Elevenlabs-Turbo-V2.5',
-    name: 'ElevenLabs Turbo (premium)',
-    pricePerKChars: 0.06,
-    maxInputChars: 10_000,
-    voices: [
-      { id: 'Rachel', label: 'Rachel' },
-      { id: 'Adam', label: 'Adam' },
-      { id: 'Alice', label: 'Alice' },
-      { id: 'Daniel', label: 'Daniel' },
-      { id: 'Matthew', label: 'Matthew' },
-      { id: 'Sarah', label: 'Sarah' },
-    ],
-  },
-]
-
-export function getTtsModel(id: string): TtsModel | null {
-  return TTS_MODELS.find((m) => m.id === id) ?? null
+/**
+ * Kokoro-style voice ids encode language and gender in a two-letter
+ * prefix ("af_bella" — American female). Decode the known prefixes;
+ * anything else just gets capitalized with separators turned to spaces.
+ */
+const VOICE_LANGS: Record<string, string> = {
+  a: 'American',
+  b: 'British',
+  e: 'Spanish',
+  f: 'French',
+  h: 'Hindi',
+  i: 'Italian',
+  j: 'Japanese',
+  p: 'Portuguese',
+  z: 'Mandarin',
 }
 
-/** Exact narration price for a text — chars-based, no estimation involved. */
-export function ttsCostUsd(model: TtsModel, text: string): number {
-  return (text.length / 1000) * model.pricePerKChars
+export function voiceLabel(voiceId: string): string {
+  const match = /^([abefhijpz])([fm])_(.+)$/.exec(voiceId)
+  if (match !== null) {
+    const [, lang = '', gender = '', name = ''] = match
+    const language = VOICE_LANGS[lang]
+    if (language !== undefined) {
+      return `${capitalize(name)} — ${language} ${gender === 'f' ? 'female' : 'male'}`
+    }
+  }
+  return capitalize(voiceId.replace(/[_-]+/g, ' '))
+}
+
+function capitalize(s: string): string {
+  return (s[0] ?? '').toUpperCase() + s.slice(1)
+}
+
+/**
+ * The sentence every voice preview narrates (Slice 15.9). Deliberately
+ * short: previews go through the real TTS endpoint (NanoGPT exposes no
+ * free sample files), so each first listen costs a fraction of a cent —
+ * shown exactly in the voice menu — and is then cached in OPFS forever.
+ */
+export const VOICE_PREVIEW_TEXT =
+  'Hello! This is how your narration will sound.'
+
+/** OPFS cache path for a voice preview (model ids may contain slashes). */
+export function voicePreviewPath(modelId: string, voiceId: string): string {
+  return `voice-previews/${encodeURIComponent(modelId)}/${encodeURIComponent(voiceId)}`
 }

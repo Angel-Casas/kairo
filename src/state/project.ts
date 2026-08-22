@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import type { ImageModel, TextModel, VideoModel } from '../api/nanogpt'
+import type {
+  ImageModel,
+  TextModel,
+  TtsModel,
+  VideoModel,
+} from '../api/nanogpt'
 import {
   buildImagePrompt,
   buildVideoPrompt,
@@ -29,14 +34,23 @@ import {
   SCRIPT_OUTPUT_TOKEN_BUDGET,
   STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
+import { isPlayableAudio, normalizeAudioBlob } from '../lib/audioBlob'
 import { getPerImagePriceUsd } from '../lib/resolution'
-import { ttsCostUsd, type TtsModel } from '../domain/ttsModels'
+import {
+  ttsCostUsd,
+  VOICE_PREVIEW_TEXT,
+  voiceLabel,
+  voicePreviewPath,
+} from '../domain/ttsModels'
 import { withGenerationJob } from './generationJob'
 import { getClient } from './settings'
 import { getRepository } from './repo'
 import { useSettingsStore } from './settings'
 
 const nowIso = () => new Date().toISOString()
+
+export type VoicePreviewResult =
+  { ok: true; blob: Blob } | { ok: false; error: string }
 
 const AUTOSAVE_DELAY_MS = 500
 
@@ -61,7 +75,9 @@ interface ProjectState {
   updateStyleNotes: (text: string) => void
   updateScene: (
     sceneId: string,
-    fields: Partial<Pick<Scene, 'textExcerpt' | 'visualDescription'>>,
+    fields: Partial<
+      Pick<Scene, 'textExcerpt' | 'visualDescription' | 'cameraNotes'>
+    >,
   ) => void
   addScene: () => Promise<void>
   removeScene: (sceneId: string) => Promise<void>
@@ -161,6 +177,16 @@ interface ProjectState {
   ) => Promise<boolean>
   /** Narrate sequentially every scene without narration. */
   generateAllAudio: (model: TtsModel, voice: string) => Promise<void>
+  /**
+   * Play-before-you-pay voice preview (Slice 15.9): narrate the short
+   * fixed preview sentence with the given model+voice ONCE, cache the
+   * audio in OPFS forever, and log the exact spend. Cached previews
+   * replay free; unplayable cache entries are evicted and regenerated.
+   * Failures carry the real reason (15.9.2) — the API's own error, or
+   * "the model returned unplayable data" when the provider billed us
+   * but sent bytes no decoder understands (spend still logged then).
+   */
+  previewVoice: (model: TtsModel, voice: string) => Promise<VoicePreviewResult>
   /** Per-scene video generation status, keyed by scene id. */
   sceneVideoStatus: Record<
     string,
@@ -1074,7 +1100,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (scene === undefined) return false
     const text = (textOverride ?? scene.textExcerpt).trim()
     if (text.length === 0) return false
-    if (text.length > model.maxInputChars) {
+    if (model.maxInputChars !== null && text.length > model.maxInputChars) {
       set({
         sceneAudioStatus: {
           ...get().sceneAudioStatus,
@@ -1097,6 +1123,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const repo = await getRepository()
     // Billed by input characters — this price is exact, not an estimate.
     const priceUsd = ttsCostUsd(model, text)
+    // Queue models charge at submission; a failed run must still be booked.
+    const queuedCharge = { charged: false, costUsd: null as number | null }
 
     const outcome = await withGenerationJob({
       projectId: project.id,
@@ -1105,11 +1133,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       model: model.id,
       estimatedUsd: priceUsd,
       run: async () => {
-        const blob = await getClient(apiKey).generateSpeech({
+        const raw = await getClient(apiKey).generateSpeech({
           model: model.id,
           input: text,
           voice,
+          onQueued: (info) => {
+            queuedCharge.charged = info.charged
+            queuedCharge.costUsd = info.costUsd
+          },
         })
+        // Providers behind the speech endpoint don't all honor
+        // response_format — sniff the real container (or unwrap a JSON
+        // envelope) so playback never silently fails (Slice 15.9.1).
+        const blob = await normalizeAudioBlob(raw)
+        if (blob === null) {
+          throw new Error(
+            'The model returned no playable audio. Try another voice or model.',
+          )
+        }
         const versionId = crypto.randomUUID()
         const blobPath = `${project.id}/${versionId}`
         await repo.blobs.put(blobPath, blob)
@@ -1118,6 +1159,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
 
     if (!outcome.ok) {
+      if (queuedCharge.charged) {
+        const current = get().project
+        if (current !== null) {
+          const booked: Project = {
+            ...current,
+            costLog: [
+              ...current.costLog,
+              {
+                id: crypto.randomUUID(),
+                at: nowIso(),
+                kind: 'audio',
+                model: model.id,
+                estimatedUsd: priceUsd,
+                actualUsd: queuedCharge.costUsd ?? priceUsd,
+                note: 'Scene narration — run failed after being charged at submission',
+              },
+            ],
+            updatedAt: nowIso(),
+          }
+          set({ project: booked })
+          await persistProject(booked)
+        }
+      }
       set({
         sceneAudioStatus: {
           ...get().sceneAudioStatus,
@@ -1135,7 +1199,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       kind: 'audio',
       model: model.id,
       prompt: text,
-      costUsd: priceUsd,
+      // Queue models report the authoritative charge in their envelope.
+      costUsd: queuedCharge.costUsd ?? priceUsd,
       blobPath,
       mimeType: blob.type.length > 0 ? blob.type : 'audio/mpeg',
       createdAt: nowIso(),
@@ -1159,7 +1224,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           kind: 'audio',
           model: model.id,
           estimatedUsd: priceUsd,
-          actualUsd: priceUsd,
+          actualUsd: queuedCharge.costUsd ?? priceUsd,
           note: 'Scene narration',
         },
       ],
@@ -1169,6 +1234,103 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ project: updated, sceneAudioStatus: restAudioStatus })
     await persistProject(updated)
     return true
+  },
+
+  previewVoice: async (model: TtsModel, voice: string) => {
+    const apiKey = useSettingsStore.getState().apiKey
+    if (apiKey === null) {
+      return { ok: false, error: 'Set up your NanoGPT key first.' }
+    }
+    const repo = await getRepository()
+    const path = voicePreviewPath(model.id, voice)
+    const cached = await repo.blobs.get(path)
+    if (cached !== null) {
+      // OPFS strips the MIME type on read; re-sniff so playback works.
+      // (Also heals pre-15.9.1 cache entries stored unnormalized.)
+      const healed = await normalizeAudioBlob(cached)
+      if (healed !== null && (await isPlayableAudio(healed))) {
+        return { ok: true, blob: healed }
+      }
+      // Junk cached before a decoder fix — evict, then regenerate below
+      // (the user pressed ▶, and the menu states the price).
+      await repo.blobs.deletePrefix(path)
+    }
+
+    // Not cached — narrate the preview sentence for real (NanoGPT exposes
+    // no free sample files). Tiny and synchronous, so no generation job:
+    // at worst a fraction of a cent goes unreconciled if the tab dies.
+    const priceUsd = ttsCostUsd(model, VOICE_PREVIEW_TEXT)
+    const logSpend = async (actualUsd: number | null, note: string) => {
+      const { project } = get()
+      if (project === null) return
+      const updated: Project = {
+        ...project,
+        costLog: [
+          ...project.costLog,
+          {
+            id: crypto.randomUUID(),
+            at: nowIso(),
+            kind: 'audio',
+            model: model.id,
+            estimatedUsd: priceUsd,
+            actualUsd,
+            note,
+          },
+        ],
+        updatedAt: nowIso(),
+      }
+      set({ project: updated })
+      await persistProject(updated)
+    }
+
+    // Queue models charge AT SUBMISSION — remember it so a failed run
+    // still lands in the books (15.9.3, Angel's VibeVoice report).
+    const queued = { charged: false, costUsd: null as number | null }
+    let raw: Blob
+    try {
+      raw = await getClient(apiKey).generateSpeech({
+        model: model.id,
+        input: VOICE_PREVIEW_TEXT,
+        voice,
+        onQueued: (info) => {
+          queued.charged = info.charged
+          queued.costUsd = info.costUsd
+        },
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'The preview request failed.'
+      if (queued.charged) {
+        // Billed at submission, then the run failed — honest books.
+        await logSpend(
+          queued.costUsd ?? priceUsd,
+          `Voice preview — ${voiceLabel(voice)} (run failed after being charged at submission)`,
+        )
+        return {
+          ok: false,
+          error: `${message} (NanoGPT charged this run at submission — it is in the spend log.)`,
+        }
+      }
+      return { ok: false, error: message }
+    }
+
+    // The provider HAS billed this call — log the spend no matter what
+    // the bytes turn out to hold (honest books beat pretty books).
+    await logSpend(
+      queued.costUsd ?? priceUsd,
+      `Voice preview — ${voiceLabel(voice)}`,
+    )
+
+    const blob = await normalizeAudioBlob(raw)
+    if (blob === null || !(await isPlayableAudio(blob))) {
+      // Billed but unplayable — don't cache junk, and say what happened.
+      return {
+        ok: false,
+        error: `${model.name} sent back data that is not playable audio. The spend was logged; try another voice or model.`,
+      }
+    }
+    await repo.blobs.put(path, blob)
+    return { ok: true, blob }
   },
 
   generateAllAudio: async (model: TtsModel, voice: string) => {
@@ -1236,7 +1398,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return false
     }
     // An override (Slice 11.1) is sent verbatim — no re-derivation.
-    const prompt = promptOverride ?? buildVideoPrompt(scene.visualDescription)
+    const prompt =
+      promptOverride ??
+      buildVideoPrompt(scene.visualDescription, scene.cameraNotes)
 
     let job: GenerationJob = {
       id: crypto.randomUUID(),

@@ -4,11 +4,13 @@ import {
   createAndOpenProject,
   expectSpendBreakdown,
   mockTts,
+  mockTtsModels,
   mockBalance,
   mockChatCompletion,
   mockImageGeneration,
   mockImageModels,
   mockTextModels,
+  pickModel,
   setUpApiKey,
 } from './helpers'
 
@@ -104,15 +106,11 @@ test.beforeEach(async ({ page }) => {
   await page.getByLabel('Script text').fill('A lighthouse stands on the cliff.')
   await page.getByRole('button', { name: 'Lock script' }).click()
   await page.getByRole('button', { name: 'Scenes', exact: true }).click()
-  await page
-    .getByLabel('Text model', { exact: true })
-    .selectOption('mock/writer-1')
+  await pickModel(page, 'Text model', 'mock/writer-1')
   await page.getByRole('button', { name: 'Generate scenes' }).click()
   await expect(page.getByRole('listitem', { name: 'Scene 1' })).toBeVisible()
   await page.getByRole('button', { name: 'Images', exact: true }).click()
-  await page
-    .getByLabel('Image model', { exact: true })
-    .selectOption('mock/painter-1')
+  await pickModel(page, 'Image model', 'mock/painter-1')
   await page
     .getByLabel('Scene 1 workbench')
     .getByRole('button', { name: 'Generate image' })
@@ -121,25 +119,40 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'Animation', exact: true }).click()
 })
 
-test('the video model picker only offers image-to-video models, with prices', async ({
+test('the model menu only offers image-to-video models, with prices and sorting', async ({
   page,
 }) => {
-  const options = page
-    .getByLabel('Video model', { exact: true })
-    .locator('option')
-  // Price range surfaced right in the picker (Angel's feedback).
-  await expect(options).toContainText([/Mock Animator — ≈\$0\.72–\$1\.80/])
+  await page.getByRole('button', { name: 'Video model', exact: true }).click()
+  const menu = page.getByRole('dialog', { name: 'Video model menu' })
+  await expect(menu).toBeVisible()
+  // Price surfaced right on the row (Angel's feedback), t2v-only excluded.
   await expect(
-    page.getByLabel('Video model', { exact: true }),
-  ).not.toContainText('Text Only Model')
+    menu.getByRole('option', { name: 'mock/animator-1' }),
+  ).toBeVisible()
+  await expect(menu).toContainText('≈$0.72–$1.80')
+  await expect(menu).not.toContainText('Text Only Model')
+  // The Filters & Sort rail: provider filter with counts, sort orders.
+  await expect(menu.getByRole('button', { name: 'Cheapest' })).toBeVisible()
+  await menu.getByRole('button', { name: 'Name', exact: true }).click()
+  await expect(
+    menu.getByRole('button', { name: 'Name', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  // Search narrows the list and the footer says so.
+  await page.getByLabel('Filter video models').fill('nope-no-match')
+  await expect(menu.getByText('No models match.')).toBeVisible()
+  await page.getByLabel('Filter video models').fill('')
+  await menu.getByRole('option', { name: 'mock/animator-1' }).click()
+  await expect(menu).not.toBeVisible()
+  // The trigger now shows the choice.
+  await expect(
+    page.getByRole('button', { name: 'Video model', exact: true }),
+  ).toContainText('Mock Animator')
 })
 
 test('resolution defaults to the cheapest tier and the confirm shows the price', async ({
   page,
 }) => {
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  await pickModel(page, 'Video model', 'mock/animator-1')
   // Model advertises ['1080p', '480p']; Kairo must default to 480p.
   await expect(page.getByLabel('Video resolution')).toHaveValue('480p')
 
@@ -161,11 +174,18 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
   page,
 }) => {
   await mockVideoPipeline(page, { inProgressPolls: 1 })
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  let submitted: { prompt?: string } = {}
+  await page.route(`${API}/generate-video`, async (route) => {
+    submitted = route.request().postDataJSON() as { prompt?: string }
+    return route.fulfill({
+      json: { runId: 'vid_e2e_1', status: 'pending', cost: 0.35 },
+    })
+  })
+  await pickModel(page, 'Video model', 'mock/animator-1')
 
   const scene1 = page.getByLabel('Scene 1 animation workbench')
+  // The optional camera helper steers the motion prompt.
+  await scene1.getByLabel('Camera direction').fill('fixed tripod, slow zoom in')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
   await expect(scene1.getByRole('button', { name: /Generating/ })).toBeVisible()
@@ -175,6 +195,10 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
   await expect(scene1.getByLabel('Scene 1 video')).toBeVisible({
     timeout: 30_000,
   })
+  // The camera direction rode into the submitted prompt, replacing the
+  // gentle-drift default.
+  expect(submitted.prompt).toContain('Camera: fixed tripod, slow zoom in')
+  expect(submitted.prompt).not.toContain('camera drifts gently')
   await expectSpendBreakdown(page, '3 generations')
 
   // The finished clip plays enlarged in the lightbox.
@@ -192,9 +216,7 @@ test('clip history: edit the motion prompt, confirm the price, verbatim submit',
   page,
 }) => {
   await mockVideoPipeline(page, { inProgressPolls: 0 })
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  await pickModel(page, 'Video model', 'mock/animator-1')
 
   const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
@@ -283,9 +305,7 @@ test('a relative video URL is collected from NanoGPT with the key — never the 
     })
   })
 
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  await pickModel(page, 'Video model', 'mock/animator-1')
   const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
@@ -296,11 +316,13 @@ test('a relative video URL is collected from NanoGPT with the key — never the 
 })
 
 test('narration rides the clip player with a mute toggle', async ({ page }) => {
+  await mockTtsModels(page)
   await mockTts(page)
   await mockVideoPipeline(page, { inProgressPolls: 0 })
 
   // Narrate scene 1 on the Audio stage, then come back.
   await page.getByRole('button', { name: 'Audio', exact: true }).click()
+  await pickModel(page, 'Narration model', 'mock/tts-1')
   await page.getByRole('button', { name: 'Narrate scene' }).click()
   await expect(
     page.getByLabel('Scene 1 narration', { exact: true }),
@@ -308,9 +330,7 @@ test('narration rides the clip player with a mute toggle', async ({ page }) => {
   await page.getByRole('button', { name: 'Animation', exact: true }).click()
 
   // Generate the clip so the workbench holds both players.
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  await pickModel(page, 'Video model', 'mock/animator-1')
   const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()
@@ -356,9 +376,7 @@ test('a job interrupted by reload resumes and collects the clip', async ({
   page,
 }) => {
   await mockVideoPipeline(page, { inProgressPolls: 999 })
-  await page
-    .getByLabel('Video model', { exact: true })
-    .selectOption('mock/animator-1')
+  await pickModel(page, 'Video model', 'mock/animator-1')
   const scene1 = page.getByLabel('Scene 1 animation workbench')
   await scene1.getByRole('button', { name: 'Animate scene' }).click()
   await page.getByRole('button', { name: 'Submit and charge' }).click()

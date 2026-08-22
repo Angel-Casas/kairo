@@ -47,6 +47,7 @@ const VIDEO_MODEL: VideoModel = {
   priceRangeUsd: { min: 0.72, max: 1.8 },
   resolutions: ['480p', '1080p'],
   durations: ['5', '8'],
+  releasedAt: null,
 }
 
 beforeEach(() => {

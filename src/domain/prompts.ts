@@ -65,11 +65,19 @@ export function styleFromImageUserText(): string {
  * frozen figure reads as a drifting still), one continuous action only, and
  * no text in frame.
  */
-export function buildVideoPrompt(visualDescription: string): string {
+export function buildVideoPrompt(
+  visualDescription: string,
+  cameraNotes = '',
+): string {
   const description = visualDescription.trim()
+  const camera = cameraNotes.trim()
   return [
     description,
-    'one continuous natural action unfolds during the clip, and the camera drifts gently with that action',
+    // The user's camera direction REPLACES the gentle-drift default — a
+    // "fixed tripod" note must not fight a baked-in drifting camera.
+    camera.length > 0
+      ? `one continuous natural action unfolds during the clip. Camera: ${camera}`
+      : 'one continuous natural action unfolds during the clip, and the camera drifts gently with that action',
     'no frozen figures, no readable text or lettering anywhere in the frame',
     'keep the original style, palette, and composition of the image',
   ]

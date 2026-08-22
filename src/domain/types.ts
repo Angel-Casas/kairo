@@ -36,6 +36,12 @@ export interface Scene {
   textExcerpt: string
   /** Visual description used as the image prompt basis. */
   visualDescription: string
+  /**
+   * Optional camera direction for the Animation stage (position, panning,
+   * zoom — e.g. "fixed tripod", "slow push-in"). Woven into the video
+   * prompt; empty means the default gentle drift.
+   */
+  cameraNotes: string
   /** Ids of project references this scene uses (Slice 10). */
   referenceIds: string[]
   imageVersions: AssetVersion[]
@@ -171,6 +177,7 @@ export function createScene(order: number): Scene {
   return {
     id: crypto.randomUUID(),
     order,
+    cameraNotes: '',
     textExcerpt: '',
     visualDescription: '',
     referenceIds: [],
@@ -240,6 +247,7 @@ export function normalizeProject(project: Project): Project {
     scenes: project.scenes.map((scene) => ({
       ...scene,
       referenceIds: scene.referenceIds ?? [],
+      cameraNotes: scene.cameraNotes ?? '',
       imageVersions: scene.imageVersions.map(healMimeType),
       videoVersions: scene.videoVersions.map(healMimeType),
       audioVersions: (scene.audioVersions ?? []).map(healMimeType),

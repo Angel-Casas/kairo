@@ -7,6 +7,7 @@ import { useProjectStore } from '../state/project'
 import { GenerationHistory } from './GenerationHistory'
 import { Lightbox, type LightboxItem } from './Lightbox'
 import { ReelShell } from './Reel'
+import { SceneDescriptionEditor } from './SceneDescriptionEditor'
 import { ImageModelPicker } from './ModelPicker'
 import { StyleGallery } from './StyleGallery'
 import { useBlobUrl } from './useBlobUrl'
@@ -367,11 +368,7 @@ function Workbench({
       {/* Prompt panel */}
       <div className="card" style={panel}>
         <div style={panelTitle}>Scene {n} — prompt</div>
-        <p style={{ margin: 0, lineHeight: 1.6 }}>
-          {hasDescription
-            ? scene.visualDescription
-            : 'No visual description — add one on the Scenes stage.'}
-        </p>
+        <SceneDescriptionEditor scene={scene} n={n} />
         {scene.textExcerpt.trim().length > 0 && (
           <p
             style={{
