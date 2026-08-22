@@ -34,7 +34,11 @@ import {
   SCRIPT_OUTPUT_TOKEN_BUDGET,
   STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
-import { isPlayableAudio, normalizeAudioBlob } from '../lib/audioBlob'
+import {
+  audioBlobDuration,
+  isPlayableAudio,
+  normalizeAudioBlob,
+} from '../lib/audioBlob'
 import { planFrames } from '../lib/clipDuration'
 import { getPerImagePriceUsd } from '../lib/resolution'
 import {
@@ -213,6 +217,12 @@ interface ProjectState {
     duration: string | null,
     resolution: string | null,
     promptOverride?: string,
+    /**
+     * Lip-sync mode (15.16): also sends the scene's active narration as
+     * the driving audio — the clip length follows the audio, so no
+     * duration is sent. Requires a narration.
+     */
+    lipSync?: boolean,
   ) => Promise<boolean>
   /**
    * Import a video file as a NEW clip take for a scene. The escape hatch
@@ -1378,6 +1388,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     duration: string | null,
     resolution: string | null,
     promptOverride?: string,
+    lipSync = false,
   ) => {
     const { project } = get()
     const apiKey = useSettingsStore.getState().apiKey
@@ -1402,6 +1413,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       })
       return false
     }
+    // Lip-sync (15.16): the scene's active narration drives the clip.
+    let lipSyncAudio: { dataUrl: string; seconds: number | null } | null = null
+    if (lipSync) {
+      const narration = scene.audioVersions.find(
+        (v) => v.id === scene.activeAudioVersionId,
+      )
+      const narrationBlob =
+        narration === undefined
+          ? null
+          : await repo.blobs.get(narration.blobPath)
+      if (narration === undefined || narrationBlob === null) {
+        setSceneVideoStatus(set, get, sceneId, {
+          generating: false,
+          error: 'Lip-sync needs a narration — record one on the Audio stage.',
+        })
+        return false
+      }
+      // OPFS strips the MIME type; restore it so the data URL is typed.
+      const typed =
+        narrationBlob.type.length > 0
+          ? narrationBlob
+          : new Blob([narrationBlob], { type: narration.mimeType })
+      lipSyncAudio = {
+        dataUrl: await blobToDataUrl(typed),
+        seconds: await audioBlobDuration(typed),
+      }
+    }
+
     // An override (Slice 11.1) is sent verbatim — no re-derivation.
     const prompt =
       promptOverride ??
@@ -1429,22 +1468,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Frame-based models (Wan) ignore `duration` — translate the target
       // seconds into the cheapest frame plan that reaches them (15.14).
       const framePlan =
-        model.frameControl !== null
+        model.frameControl !== null && !lipSync
           ? planFrames(model.frameControl, Number(duration ?? '5') || 5)
           : null
       const submission = await getClient(apiKey).generateVideo({
         model: model.id,
         prompt,
         // A model without a duration control gets NO length field at all —
-        // an unadvertised parameter is an ignored parameter (15.15).
-        ...(framePlan !== null
+        // an unadvertised parameter is an ignored parameter (15.15). In
+        // lip-sync mode the AUDIO defines the length — never a duration.
+        ...(lipSyncAudio !== null
           ? {
-              numFrames: framePlan.frames,
-              framesPerSecond: framePlan.fps,
+              audioDataUrl: lipSyncAudio.dataUrl,
+              ...(lipSyncAudio.seconds !== null
+                ? { audioDuration: lipSyncAudio.seconds }
+                : {}),
             }
-          : duration !== null
-            ? { duration }
-            : {}),
+          : framePlan !== null
+            ? {
+                numFrames: framePlan.frames,
+                framesPerSecond: framePlan.fps,
+              }
+            : duration !== null
+              ? { duration }
+              : {}),
         aspectRatio: '9:16',
         ...(resolution !== null ? { resolution } : {}),
         imageDataUrl,

@@ -13,6 +13,7 @@ import {
   vi,
 } from 'vitest'
 import type { VideoModel } from '../api/nanogpt'
+import * as audioBlobModule from '../lib/audioBlob'
 import { createProject, createScene } from '../domain/types'
 import type { AssetVersion, GenerationJob } from '../domain/types'
 import { __resetRepositoryForTests, getRepository } from './repo'
@@ -48,6 +49,7 @@ const VIDEO_MODEL: VideoModel = {
   resolutions: ['480p', '1080p'],
   durations: ['5', '8'],
   frameControl: null,
+  lipSync: null,
   releasedAt: null,
 }
 
@@ -311,6 +313,98 @@ describe('video generation', () => {
     expect(job?.state).toBe('failed')
     expect(job?.error).toMatch(/before submission/)
   })
+  it('lip-sync mode sends the narration as audio, never a duration (15.16)', async () => {
+    const { sceneId } = await seedProjectWithImage()
+    const repo = await getRepository()
+    const S2V: VideoModel = {
+      ...VIDEO_MODEL,
+      id: 'wan-wavespeed-s2v',
+      durations: [],
+      resolutions: ['480p', '720p'],
+      lipSync: { perSecondUsd: { '480p': 0.04, '720p': 0.08 } },
+    }
+    const durationSpy = vi
+      .spyOn(audioBlobModule, 'audioBlobDuration')
+      .mockResolvedValue(6.4)
+    // Give the scene an active narration.
+    const current = useProjectStore.getState().project
+    if (current === null) throw new Error('project missing')
+    const narration: AssetVersion = {
+      id: 'audio-ls',
+      kind: 'audio',
+      model: 'tts/mock',
+      prompt: 'words',
+      costUsd: 0.001,
+      blobPath: `${current.id}/audio-ls`,
+      mimeType: 'audio/mpeg',
+      createdAt: nowIso(),
+    }
+    await repo.blobs.put(narration.blobPath, new Blob(['audio-bytes']))
+    const withNarration = {
+      ...current,
+      scenes: current.scenes.map((sc) =>
+        sc.id === sceneId
+          ? {
+              ...sc,
+              audioVersions: [narration],
+              activeAudioVersionId: narration.id,
+            }
+          : sc,
+      ),
+    }
+    useProjectStore.setState({ project: withNarration })
+    await repo.putProject(withNarration)
+
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/generate-video`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({
+          runId: 'vid_ls_1',
+          status: 'pending',
+          cost: 0.26,
+        })
+      }),
+    )
+    mockStatusSequence(['COMPLETED'])
+    mockVideoDownload()
+
+    await useProjectStore
+      .getState()
+      .generateSceneVideo(sceneId, S2V, null, '480p', undefined, true)
+    expect(String(body.audioDataUrl)).toMatch(/^data:audio\/mpeg;base64,/)
+    expect(body.audioDuration).toBe(6.4)
+    expect(body).not.toHaveProperty('duration')
+    expect(body).not.toHaveProperty('num_frames')
+    durationSpy.mockRestore()
+
+    await vi.waitFor(
+      () => {
+        const scene = useProjectStore
+          .getState()
+          .project?.scenes.find((s) => s.id === sceneId)
+        expect(scene?.videoVersions).toHaveLength(1)
+      },
+      { timeout: 3000 },
+    )
+  })
+
+  it('lip-sync without a narration fails honestly, before any charge (15.16)', async () => {
+    const { sceneId } = await seedProjectWithImage()
+    const S2V: VideoModel = {
+      ...VIDEO_MODEL,
+      id: 'wan-wavespeed-s2v',
+      lipSync: { perSecondUsd: { '480p': 0.04 } },
+    }
+    const ok = await useProjectStore
+      .getState()
+      .generateSceneVideo(sceneId, S2V, null, '480p', undefined, true)
+    expect(ok).toBe(false)
+    expect(
+      useProjectStore.getState().sceneVideoStatus[sceneId]?.error,
+    ).toContain('Lip-sync needs a narration')
+  })
+
   it('fixed-length models get NO duration field at all (15.15)', async () => {
     const { sceneId } = await seedProjectWithImage()
     const FIXED: VideoModel = { ...VIDEO_MODEL, durations: [] }

@@ -19,6 +19,7 @@ const MODEL: VideoModel = {
   resolutions: ['480p', '1080p'],
   durations: ['5', '8'],
   frameControl: null,
+  lipSync: null,
   releasedAt: null,
 }
 
@@ -32,6 +33,7 @@ const ALT: VideoModel = {
   resolutions: ['360p'],
   durations: ['4'],
   frameControl: null,
+  lipSync: null,
   releasedAt: null,
 }
 
@@ -144,6 +146,13 @@ describe('AnimateBatchOverlay (Slice 15.12)', () => {
     expect(
       screen.queryByRole('combobox', { name: 'Scene 1 duration' }),
     ).toBeNull()
+    // Submit stays disabled until measuring finishes — wait it out (a
+    // click on a disabled button silently no-ops and flakes the test).
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Submit 1 job and charge' }),
+      ).toBeEnabled()
+    })
     await user.click(
       screen.getByRole('button', { name: 'Submit 1 job and charge' }),
     )

@@ -40,6 +40,7 @@ function PickerShell<M extends PickerModel>({
   optionLabel,
   priceBadge,
   priceSortUsd,
+  detail,
   onSelect,
   onRetry,
 }: {
@@ -52,6 +53,8 @@ function PickerShell<M extends PickerModel>({
   /** Compact badge for the row's right edge, e.g. "$2/$10". */
   priceBadge: (model: M) => string
   priceSortUsd: (model: M) => number | null
+  /** Optional second line per row (e.g. the model's own description). */
+  detail?: (model: M) => string
   onSelect: (model: M) => void
   onRetry: () => void
 }) {
@@ -384,6 +387,23 @@ function PickerShell<M extends PickerModel>({
                                   </span>
                                 )}
                               </span>
+                              {detail !== undefined &&
+                                detail(e.model).length > 0 && (
+                                  <span
+                                    style={{
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      whiteSpace: 'normal',
+                                      fontSize: 'var(--text-sm)',
+                                      color: 'var(--color-text-muted)',
+                                      opacity: 0.85,
+                                    }}
+                                  >
+                                    {detail(e.model)}
+                                  </span>
+                                )}
                             </span>
                             <span
                               style={{
@@ -629,9 +649,15 @@ export function TextModelPicker({
 export function VideoModelPicker({
   selectedId,
   onSelect,
+  onlyLipSync = false,
+  ariaLabel = 'Video model',
 }: {
   selectedId: string | null
   onSelect: (model: VideoModel) => void
+  /** Show only models that can lip-sync provided audio (Slice 15.16). */
+  onlyLipSync?: boolean
+  /** Override when two pickers share a page (labels must stay unique). */
+  ariaLabel?: string
 }) {
   const models = useModelsStore((s) => s.videoModels)
   const status = useModelsStore((s) => s.videoModelsStatus)
@@ -643,8 +669,11 @@ export function VideoModelPicker({
 
   // Animation is image-to-video; hide models that can't do it.
   const capable = useMemo(
-    () => models.filter((m) => m.supportsImageToVideo),
-    [models],
+    () =>
+      models.filter((m) =>
+        onlyLipSync ? m.lipSync !== null : m.supportsImageToVideo,
+      ),
+    [models, onlyLipSync],
   )
 
   return (
@@ -652,8 +681,20 @@ export function VideoModelPicker({
       models={capable}
       status={status}
       selectedId={selectedId}
-      ariaLabel="Video model"
+      ariaLabel={ariaLabel}
       optionLabel={(m) => {
+        // Lip-sync rates are PER SECOND of narration, not per clip.
+        if (onlyLipSync && m.lipSync !== null) {
+          const rates = Object.values(m.lipSync.perSecondUsd)
+          if (rates.length === 0) {
+            return `${m.name} — price varies (charged at submission)`
+          }
+          const min = Math.min(...rates)
+          const max = Math.max(...rates)
+          return min === max
+            ? `${m.name} — ${formatUsd(min)} per second`
+            : `${m.name} — ${formatUsd(min)}–${formatUsd(max)} per second (by resolution)`
+        }
         if (m.priceRangeUsd === null) {
           return `${m.name} — price varies (charged at submission)`
         }
@@ -663,6 +704,15 @@ export function VideoModelPicker({
           : `${m.name} — ≈${formatUsd(min)}–${formatUsd(max)} per clip (depends on settings)`
       }}
       priceBadge={(m) => {
+        if (onlyLipSync && m.lipSync !== null) {
+          const rates = Object.values(m.lipSync.perSecondUsd)
+          if (rates.length === 0) return 'varies'
+          const min = Math.min(...rates)
+          const max = Math.max(...rates)
+          return min === max
+            ? `${formatUsd(min)}/s`
+            : `${formatUsd(min)}–${formatUsd(max)}/s`
+        }
         if (m.priceRangeUsd === null) return 'varies'
         const { min, max } = m.priceRangeUsd
         return min === max
@@ -670,6 +720,10 @@ export function VideoModelPicker({
           : `≈${formatUsd(min)}–${formatUsd(max)}`
       }}
       priceSortUsd={(m) => m.priceRangeUsd?.min ?? null}
+      // In lip-sync mode the models differ WILDLY in what they do with
+      // the audio (true lip-sync vs music-cut montages) — show each
+      // model's own description so the choice is informed (15.16.1).
+      detail={onlyLipSync ? (m) => m.description : undefined}
       onSelect={onSelect}
       onRetry={() => void load(true)}
     />

@@ -325,6 +325,53 @@ describe('model listings', () => {
     expect(extractNumberRange(undefined)).toBeNull()
   })
 
+  it('detects lip-sync models, excluding URL-audio and non-i2v ones (15.16)', async () => {
+    const { extractLipSync } = await import('./nanogpt')
+    // wan-wavespeed-s2v: i2v + audio_input, per-second-by-resolution.
+    expect(
+      extractLipSync(
+        { image_to_video: true, audio_input: true },
+        { prompt: {}, resolution: {} },
+        {
+          currency: 'USD',
+          per_second_by_resolution: { '480p': 0.04, '720p': 0.08 },
+        },
+      ),
+    ).toEqual({ perSecondUsd: { '480p': 0.04, '720p': 0.08 } })
+    // bytedance omni-human: flat per-second.
+    expect(
+      extractLipSync(
+        { image_to_video: true, audio_input: true },
+        {},
+        { currency: 'USD', per_second: 0.25 },
+      ),
+    ).toEqual({ perSecondUsd: { '': 0.25 } })
+    // longcat multi wants PUBLIC audio URLs — excluded.
+    expect(
+      extractLipSync(
+        { image_to_video: true, audio_input: true },
+        { left_audio: {}, right_audio: {} },
+        { per_second_by_resolution: { '480p': 0.03 } },
+      ),
+    ).toBeNull()
+    // kling-lipsync-a2v resyncs a VIDEO, not an image — excluded.
+    expect(
+      extractLipSync(
+        { image_to_video: false, audio_input: true },
+        {},
+        { per_second: 0.09 },
+      ),
+    ).toBeNull()
+    // Ordinary i2v without audio input — excluded.
+    expect(
+      extractLipSync(
+        { image_to_video: true, audio_input: false },
+        {},
+        { per_second: 0.1 },
+      ),
+    ).toBeNull()
+  })
+
   it('listTtsModels keeps only real TTS models and parses every pricing shape', async () => {
     server.use(
       http.get(`${BASE}/v1/audio-models`, () =>

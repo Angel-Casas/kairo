@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TextModel } from '../api/nanogpt'
 import { useModelsStore } from '../state/models'
-import { TextModelPicker } from './ModelPicker'
+import { TextModelPicker, VideoModelPicker } from './ModelPicker'
 
 function model(
   id: string,
@@ -93,5 +93,61 @@ describe('TextModelPicker (model menu)', () => {
       expect.objectContaining({ id: 'openai/alpha' }),
     )
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('VideoModelPicker in lip-sync mode (15.16.1)', () => {
+  it('shows each model\u2019s own description so the choice is informed', async () => {
+    const user = userEvent.setup()
+    useModelsStore.setState({
+      videoModels: [
+        {
+          id: 'wan-wavespeed-s2v',
+          name: 'Wan 2.2 S2V',
+          description:
+            'Speech-to-video: syncs lips and body to a provided audio track.',
+          supportsTextToVideo: false,
+          supportsImageToVideo: true,
+          priceRangeUsd: { min: 0.04, max: 0.08 },
+          resolutions: ['480p', '720p'],
+          durations: [],
+          frameControl: null,
+          lipSync: { perSecondUsd: { '480p': 0.04, '720p': 0.08 } },
+          releasedAt: null,
+        },
+        {
+          id: 'plain-i2v',
+          name: 'Plain Animator',
+          description: 'Ordinary image-to-video.',
+          supportsTextToVideo: false,
+          supportsImageToVideo: true,
+          priceRangeUsd: { min: 0.5, max: 0.5 },
+          resolutions: ['480p'],
+          durations: ['5'],
+          frameControl: null,
+          lipSync: null,
+          releasedAt: null,
+        },
+      ],
+      videoModelsStatus: 'ready',
+    })
+    render(
+      <VideoModelPicker
+        selectedId={null}
+        onSelect={() => undefined}
+        onlyLipSync
+        ariaLabel="Lip-sync model"
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Lip-sync model' }))
+    const dialog = screen.getByRole('dialog', { name: 'Lip-sync model menu' })
+    // Only lip-sync-capable models, each with its own description line
+    // and per-SECOND pricing.
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(dialog.textContent).toContain(
+      'Speech-to-video: syncs lips and body to a provided audio track.',
+    )
+    expect(dialog.textContent).toContain('$0.04\u2013')
+    expect(dialog.textContent).not.toContain('Plain Animator')
   })
 })

@@ -2,6 +2,51 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.16.1 — Lip-sync picker explains each model (2026-08-22, from Angel's question)
+
+- Angel counted 14 models in the lip-sync menu and asked whether they
+  all really lip-sync. Honest answer: they all DECLARE image+audio
+  input, but the family splits into dedicated avatar/talking-head
+  models (Wan S2V, Omni Human, LongCat, MagiHuman, VEED Fabric) and
+  general models that use audio more loosely (Music Video Generator
+  cuts to the beat; Seedance/LTX treat it as guidance). The listing has
+  no lip_sync flag to tell them apart — but it has each model's own
+  DESCRIPTION, so the lip-sync menu now shows it on every row
+  (two-line clamp): the provider's own words, not our guesses.
+- Tests: 253 unit (lip-sync menu shows only capable models, with
+  descriptions and per-second badges).
+- VERIFIED by Angel against NanoGPT's own model pages (2026-08-22): all
+  14 models the filter admits specialize in lip-sync. The
+  `image_to_video` + `audio_input` capability pair is a reliable
+  lip-sync signal in the listing — no curation set needed.
+
+## Slice 15.16 — Lip-sync narration (2026-08-22, Angel's feature pick)
+
+- The Animation workbench gains a **Lip-sync** section: pick a lip-sync
+  model and Kairo turns the scene's active image into a talking clip
+  driven by the scene's active narration — `imageDataUrl` +
+  `audioDataUrl` + `audioDuration` (the documented avatar/lipsync
+  convention), NO duration field: the narration defines the length,
+  which is the whole point. The requirement is stated where the button
+  lives: works when the image shows a person with a visible face; the
+  clip length follows the narration (shown in seconds); the button
+  stays disabled until the scene has both an image and a narration.
+- Model detection is honest (extractLipSync): `image_to_video` +
+  `audio_input` from the listing — wan-wavespeed-s2v, longcat-avatar
+  1.0/1.5, bytedance omni-human — EXCLUDING models that want public
+  audio URLs (longcat multi: a client-side app has none to give),
+  video-input lipsync (kling a2v), and self-voicing t2v (kling t2v).
+- Cost honesty per second: the lip-sync picker shows per-SECOND rates
+  ("$0.04–$0.08/s by resolution"), and the workbench line computes
+  ≈cost for THIS narration at the cheapest resolution before the
+  confirm dialog charges. Same job pipeline as every clip — polling,
+  crash recovery, history, lightbox, export all just work.
+- Polish: with no model chosen the Duration/Resolution rows show "—"
+  instead of a misleading "fixed by model" (15.15 blind spot).
+- Tests: 252 unit (detection matrix from the live dump; submission
+  carries typed base64 audio + duration and no length fields; honest
+  no-narration failure before any charge).
+
 ## Slice 15.15 — No more controls that lie (2026-08-22, from Angel's catch)
 
 - Some models advertise NO duration parameter (Wan 2.2 Turbo: every clip

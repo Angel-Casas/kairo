@@ -120,6 +120,13 @@ export interface VideoModel {
    */
   frameControl: FrameControl | null
   /**
+   * Set when the model can lip/body-sync a provided audio track to an
+   * image (Slice 15.16: image_to_video + audio_input, excluding models
+   * that want PUBLIC audio URLs — a client-side app has none to give).
+   * perSecondUsd is keyed by resolution; '' holds a flat per-second rate.
+   */
+  lipSync: { perSecondUsd: Record<string, number> } | null
+  /**
    * Release date (ISO) from the listing's `created` timestamp, when the
    * API provides one; null otherwise. Powers newest/oldest sorting and the
    * date chip in the model menu.
@@ -259,6 +266,49 @@ export function extractNumberRange(
     max ??= fallback
   }
   return { min, max, default: fallback }
+}
+
+/**
+ * Lip-sync capability (Slice 15.16). Usable models take an image AND an
+ * audio track (wan-wavespeed-s2v, longcat-avatar, bytedance omni-human —
+ * observed live 2026-08-22). Models wanting public audio URLs
+ * (left_audio/right_audio params) are excluded: Kairo is client-side and
+ * has no public URLs to hand out.
+ */
+export function extractLipSync(
+  capabilities: { image_to_video?: boolean; audio_input?: boolean } | undefined,
+  parameters: Record<string, unknown> | undefined,
+  pricing: unknown,
+): { perSecondUsd: Record<string, number> } | null {
+  if (
+    capabilities?.image_to_video !== true ||
+    capabilities.audio_input !== true
+  ) {
+    return null
+  }
+  if (
+    parameters !== undefined &&
+    ('left_audio' in parameters || 'right_audio' in parameters)
+  ) {
+    return null
+  }
+  const p = (pricing ?? {}) as {
+    per_second_by_resolution?: Record<string, unknown>
+    per_second?: unknown
+  }
+  const perSecondUsd: Record<string, number> = {}
+  if (
+    typeof p.per_second_by_resolution === 'object' &&
+    p.per_second_by_resolution !== null
+  ) {
+    for (const [res, rate] of Object.entries(p.per_second_by_resolution)) {
+      if (typeof rate === 'number' && rate > 0) perSecondUsd[res] = rate
+    }
+  }
+  if (typeof p.per_second === 'number' && p.per_second > 0) {
+    perSecondUsd[''] = p.per_second
+  }
+  return { perSecondUsd }
 }
 
 /** Frame-based duration control, when the model advertises one. */
@@ -415,6 +465,10 @@ export interface VideoGenerationParams {
   /** Frame-based models (Wan): sent INSTEAD of duration. */
   numFrames?: number
   framesPerSecond?: number
+  /** Lip-sync models (15.16): base64 data URL of the driving audio. */
+  audioDataUrl?: string
+  /** Length of that audio in seconds, when known. */
+  audioDuration?: number
 }
 
 export interface VideoJobSubmission {
@@ -571,7 +625,11 @@ export class NanoGptClient {
         name?: string
         description?: string
         pricing?: unknown
-        capabilities?: { text_to_video?: boolean; image_to_video?: boolean }
+        capabilities?: {
+          text_to_video?: boolean
+          image_to_video?: boolean
+          audio_input?: boolean
+        }
         supported_parameters?: {
           resolutions?: string[]
           durations?: (string | number)[]
@@ -605,6 +663,7 @@ export class NanoGptClient {
                 []
               ).map(String),
         frameControl,
+        lipSync: extractLipSync(m.capabilities, sp?.parameters, m.pricing),
         releasedAt: releasedAtFromCreated(m.created),
       }
     })
@@ -907,6 +966,12 @@ export class NanoGptClient {
         : {}),
       ...(params.framesPerSecond !== undefined
         ? { frames_per_second: params.framesPerSecond }
+        : {}),
+      ...(params.audioDataUrl !== undefined
+        ? { audioDataUrl: params.audioDataUrl }
+        : {}),
+      ...(params.audioDuration !== undefined
+        ? { audioDuration: params.audioDuration }
         : {}),
       ...(params.aspectRatio !== undefined
         ? { aspect_ratio: params.aspectRatio }

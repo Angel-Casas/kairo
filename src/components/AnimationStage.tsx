@@ -18,6 +18,25 @@ import { useBlobUrl } from './useBlobUrl'
 
 /** Offered when a model does not advertise its supported resolutions. */
 
+/** Cheapest resolution + ≈cost for a lip-sync run of the given length. */
+export function lipSyncEstimate(
+  model: VideoModel,
+  narrationSeconds: number | null,
+): { resolution: string | null; usd: number | null } {
+  const resolution =
+    model.resolutions.length > 0
+      ? (sortVideoResolutionsCheapestFirst(model.resolutions)[0] ?? null)
+      : null
+  const rates = model.lipSync?.perSecondUsd ?? {}
+  const rate =
+    (resolution !== null ? rates[resolution] : undefined) ?? rates['']
+  const usd =
+    rate !== undefined && narrationSeconds !== null
+      ? rate * narrationSeconds
+      : null
+  return { resolution, usd }
+}
+
 function describeClipPrice(model: VideoModel): string {
   if (model.priceRangeUsd === null) {
     return 'This model does not list a price — NanoGPT charges the exact amount at submission and Kairo records it in the project spend log.'
@@ -32,6 +51,7 @@ function describeClipPrice(model: VideoModel): string {
 type PendingConfirm =
   | { type: 'one'; sceneId: string; label: string }
   | { type: 'tweak'; sceneId: string; label: string; prompt: string }
+  | { type: 'lipsync'; sceneId: string; label: string }
 
 /**
  * The Animation stage as a reel (ADR-011): frames show each scene's source
@@ -45,6 +65,7 @@ export function AnimationStage() {
   const videoModels = useModelsStore((s) => s.videoModels)
 
   const [model, setModel] = useState<VideoModel | null>(null)
+  const [lipSyncModel, setLipSyncModel] = useState<VideoModel | null>(null)
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<PendingConfirm | null>(null)
@@ -199,6 +220,15 @@ export function AnimationStage() {
           onRequestAll={() => {
             setBatchOpen(true)
           }}
+          lipSyncModel={lipSyncModel}
+          onSelectLipSyncModel={setLipSyncModel}
+          onRequestLipSync={() => {
+            setConfirming({
+              type: 'lipsync',
+              sceneId: selectedScene.id,
+              label: `Lip-sync scene ${String(selectedIndex + 1)} to its narration`,
+            })
+          }}
         />
       )}
 
@@ -234,12 +264,30 @@ export function AnimationStage() {
       {confirming !== null && model !== null && (
         <ConfirmDialog
           title={`${confirming.label}?`}
-          message={confirmMessage('This submits one video job')}
+          message={
+            confirming.type === 'lipsync' && lipSyncModel !== null
+              ? (() => {
+                  const est = lipSyncEstimate(lipSyncModel, null)
+                  return `This submits one lip-sync job with ${lipSyncModel.name} at ${est.resolution ?? 'the model\u2019s default resolution'}. The clip follows the scene's narration; billed per second, charged at submission.`
+                })()
+              : confirmMessage('This submits one video job')
+          }
           confirmLabel="Submit and charge"
           onConfirm={() => {
             const pending = confirming
             setConfirming(null)
-            if (pending.type === 'tweak') {
+            if (pending.type === 'lipsync') {
+              if (lipSyncModel !== null) {
+                void generateSceneVideo(
+                  pending.sceneId,
+                  lipSyncModel,
+                  null, // the narration defines the length
+                  lipSyncEstimate(lipSyncModel, null).resolution,
+                  undefined,
+                  true,
+                )
+              }
+            } else if (pending.type === 'tweak') {
               void generateSceneVideo(
                 pending.sceneId,
                 model,
@@ -444,6 +492,9 @@ function AnimationWorkbench({
   onRequestGenerate,
   onRequestTweak,
   onRequestAll,
+  lipSyncModel,
+  onSelectLipSyncModel,
+  onRequestLipSync,
 }: {
   scene: Scene
   index: number
@@ -459,6 +510,9 @@ function AnimationWorkbench({
   onRequestGenerate: () => void
   onRequestTweak: (prompt: string) => void
   onRequestAll: () => void
+  lipSyncModel: VideoModel | null
+  onSelectLipSyncModel: (m: VideoModel) => void
+  onRequestLipSync: () => void
 }) {
   const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
   const importSceneClip = useProjectStore((s) => s.importSceneClip)
@@ -617,7 +671,7 @@ function AnimationWorkbench({
                   fontSize: 'var(--text-sm)',
                 }}
               >
-                fixed by model
+                {model === null ? '—' : 'fixed by model'}
               </span>
             )}
           </label>
@@ -684,7 +738,7 @@ function AnimationWorkbench({
                   fontSize: 'var(--text-sm)',
                 }}
               >
-                fixed by model
+                {model === null ? '—' : 'fixed by model'}
               </span>
             )}
           </label>
@@ -740,6 +794,90 @@ function AnimationWorkbench({
             {status.error}
           </p>
         )}
+        {/* Lip-sync (Slice 15.16): image + narration → talking clip. */}
+        <div
+          style={{
+            borderTop: '1px solid var(--color-border)',
+            paddingTop: 'var(--space-3)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-2)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '11px',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            Lip-sync
+          </div>
+          <VideoModelPicker
+            selectedId={lipSyncModel?.id ?? null}
+            onSelect={onSelectLipSyncModel}
+            onlyLipSync
+            ariaLabel="Lip-sync model"
+          />
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            Turns the scene image into a talking clip synced to the narration.
+            Works when the image shows a person with a visible face — the
+            clip&rsquo;s length follows the narration
+            {narrationSeconds !== null
+              ? ` (${narrationSeconds.toFixed(1)}s)`
+              : ''}
+            .
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              aria-label={`Lip-sync scene ${n} narration`}
+              disabled={
+                lipSyncModel === null ||
+                activeImage === null ||
+                narrationSeconds === null ||
+                generating
+              }
+              onClick={onRequestLipSync}
+            >
+              Lip-sync narration
+            </button>
+            <span
+              style={{
+                color: 'var(--color-text-muted)',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              {narrationSeconds === null
+                ? 'Narrate the scene first (Audio stage).'
+                : lipSyncModel === null
+                  ? 'Pick a lip-sync model to see the price.'
+                  : (() => {
+                      const est = lipSyncEstimate(
+                        lipSyncModel,
+                        narrationSeconds,
+                      )
+                      return est.usd === null
+                        ? `At ${est.resolution ?? 'default resolution'} — price varies, charged at submission.`
+                        : `≈${formatUsd(est.usd)} at ${est.resolution ?? 'default resolution'} (cheapest), charged at submission.`
+                    })()}
+            </span>
+          </div>
+        </div>
         {pendingCount > 0 && (
           <div
             style={{

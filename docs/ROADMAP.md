@@ -208,7 +208,7 @@ succeeded | failed`, retry) with scene status _derived_ from jobs+versions;
       rail transitions, reel frame selection, lightbox zoom, settings-overlay
       fade, bubble drift)._
 
-## Candidate slice: S2V lip-sync animation (from Angel, 2026-08-22)
+## Candidate slice: S2V lip-sync animation (from Angel, 2026-08-22) — SHIPPED as Slice 15.16
 
 Speech-to-video models (e.g. Wan 2.2 S2V) take an image + an audio track
 and produce lip/body-synced video — and Kairo already holds BOTH inputs
