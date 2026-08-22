@@ -2,6 +2,23 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.10 — Narration speed control (2026-08-22, from Angel's feedback)
+
+- Speed-capable models get a **Speed slider** in the Narrate panel with a
+  live ×-readout; everything else shows "Speed fixed by model", exactly
+  like NanoGPT's own UI. The listing carries no speed field, so the
+  capability is a curated table with each PROVIDER's real range
+  (docs-verified): Kokoro 0.5–2×, OpenAI tts-1/tts-1-hd 0.25–4×,
+  ElevenLabs Turbo V2.5 0.7–1.2×. gpt-4o-mini-tts ignores the parameter
+  server-side, so it stays fixed-pace on purpose.
+- The chosen speed flows into single-scene narration, narrate-all, and
+  history regeneration; the 1× default is omitted from requests, and
+  the speed resets to 1× on model switch. Voice previews always play at
+  1× (one cache entry per voice, and a preview is about the voice, not
+  the pace). Price is unaffected — billing stays per character.
+- Tests: 233 unit (range table; speed reaches the request body; 1×
+  omitted).
+
 ## Slice 15.9.4 — VibeVoice hidden from the catalog (2026-08-22, Angel's call)
 
 - `microsoft/vibevoice` is excluded from the TTS listing

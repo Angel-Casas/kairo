@@ -3,6 +3,7 @@ import type { TtsModel } from '../api/nanogpt'
 import {
   ttsCostUsd,
   ttsPriceNote,
+  ttsSpeedRange,
   VOICE_PREVIEW_TEXT,
   voiceLabel,
   voicePreviewPath,
@@ -83,6 +84,24 @@ describe('voiceLabel', () => {
     expect(voiceLabel('Eve')).toBe('Eve')
     expect(voiceLabel('alloy')).toBe('Alloy')
     expect(voiceLabel('deep_narrator-2')).toBe('Deep narrator 2')
+  })
+})
+
+describe('ttsSpeedRange', () => {
+  it('knows the speed-capable models and their provider ranges', () => {
+    expect(ttsSpeedRange('Kokoro-82m')).toEqual({
+      min: 0.5,
+      max: 2,
+      step: 0.05,
+    })
+    expect(ttsSpeedRange('tts-1')?.max).toBe(4)
+    expect(ttsSpeedRange('Elevenlabs-Turbo-V2.5')?.max).toBe(1.2)
+  })
+
+  it('treats everything else as fixed-pace', () => {
+    expect(ttsSpeedRange('gpt-4o-mini-tts')).toBeNull() // ignores speed
+    expect(ttsSpeedRange('xai-tts')).toBeNull()
+    expect(ttsSpeedRange('Minimax-Speech-2.8-HD')).toBeNull()
   })
 })
 

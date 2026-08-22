@@ -174,9 +174,14 @@ interface ProjectState {
     model: TtsModel,
     voice: string,
     textOverride?: string,
+    speed?: number,
   ) => Promise<boolean>
   /** Narrate sequentially every scene without narration. */
-  generateAllAudio: (model: TtsModel, voice: string) => Promise<void>
+  generateAllAudio: (
+    model: TtsModel,
+    voice: string,
+    speed?: number,
+  ) => Promise<void>
   /**
    * Play-before-you-pay voice preview (Slice 15.9): narrate the short
    * fixed preview sentence with the given model+voice ONCE, cache the
@@ -1092,6 +1097,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     model: TtsModel,
     voice: string,
     textOverride?: string,
+    speed?: number,
   ) => {
     const { project } = get()
     const apiKey = useSettingsStore.getState().apiKey
@@ -1137,6 +1143,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           model: model.id,
           input: text,
           voice,
+          // Only speed-capable models get the parameter (curated table);
+          // 1× is the server default, so it is omitted too.
+          ...(speed !== undefined && speed !== 1 ? { speed } : {}),
           onQueued: (info) => {
             queuedCharge.charged = info.charged
             queuedCharge.costUsd = info.costUsd
@@ -1333,7 +1342,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return { ok: true, blob }
   },
 
-  generateAllAudio: async (model: TtsModel, voice: string) => {
+  generateAllAudio: async (model: TtsModel, voice: string, speed?: number) => {
     const { project, generateSceneAudio } = get()
     if (project === null) return
     const pending = [...project.scenes]
@@ -1344,7 +1353,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ allAudioProgress: { done: 0, total: pending.length } })
     let done = 0
     for (const scene of pending) {
-      await generateSceneAudio(scene.id, model, voice)
+      await generateSceneAudio(scene.id, model, voice, undefined, speed)
       done += 1
       set({ allAudioProgress: { done, total: pending.length } })
     }

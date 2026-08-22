@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import type { TtsModel } from '../api/nanogpt'
-import { ttsCostUsd, ttsPriceNote } from '../domain/ttsModels'
+import { ttsCostUsd, ttsPriceNote, ttsSpeedRange } from '../domain/ttsModels'
 import type { Scene } from '../domain/types'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
@@ -27,6 +27,7 @@ export function AudioStage() {
   const [modelId, setModelId] = useState<string | null>(null)
   const model: TtsModel | null = ttsModels.find((m) => m.id === modelId) ?? null
   const [voice, setVoice] = useState<string>('')
+  const [speed, setSpeed] = useState(1)
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
 
   if (project === null) return null
@@ -82,14 +83,17 @@ export function AudioStage() {
           onSelectModel={(m) => {
             setModelId(m.id)
             setVoice(m.voices[0] ?? '')
+            setSpeed(1) // each model's pace starts neutral
           }}
           voice={voice}
           onSelectVoice={setVoice}
+          speed={speed}
+          onSelectSpeed={setSpeed}
           pendingCount={pending.length}
           allExactUsd={allExactUsd}
           allAudioProgress={allAudioProgress}
           onGenerateAll={() => {
-            if (model !== null) void generateAllAudio(model, voice)
+            if (model !== null) void generateAllAudio(model, voice, speed)
           }}
         />
       )}
@@ -188,6 +192,8 @@ function AudioWorkbench({
   onSelectModel,
   voice,
   onSelectVoice,
+  speed,
+  onSelectSpeed,
   pendingCount,
   allExactUsd,
   allAudioProgress,
@@ -199,6 +205,8 @@ function AudioWorkbench({
   onSelectModel: (m: TtsModel) => void
   voice: string
   onSelectVoice: (v: string) => void
+  speed: number
+  onSelectSpeed: (s: number) => void
   pendingCount: number
   allExactUsd: number | null
   allAudioProgress: { done: number; total: number } | null
@@ -279,6 +287,49 @@ function AudioWorkbench({
         {model !== null && model.voices.length > 0 && (
           <VoicePicker model={model} voice={voice} onSelect={onSelectVoice} />
         )}
+        {model !== null &&
+          (() => {
+            const range = ttsSpeedRange(model.id)
+            if (range === null) {
+              return (
+                <span
+                  style={{
+                    color: 'var(--color-text-muted)',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  Speed fixed by model
+                </span>
+              )
+            }
+            return (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  Speed {speed.toFixed(2).replace(/\.?0+$/, '')}×
+                </span>
+                <input
+                  type="range"
+                  aria-label="Narration speed"
+                  min={range.min}
+                  max={range.max}
+                  step={range.step}
+                  value={speed}
+                  onChange={(e) => {
+                    onSelectSpeed(Number(e.target.value))
+                  }}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+              </label>
+            )
+          })()}
         <div
           style={{
             display: 'flex',
@@ -298,7 +349,13 @@ function AudioWorkbench({
             }
             onClick={() => {
               if (model !== null) {
-                void generateSceneAudio(scene.id, model, voice)
+                void generateSceneAudio(
+                  scene.id,
+                  model,
+                  voice,
+                  undefined,
+                  speed,
+                )
               }
             }}
           >
@@ -422,7 +479,13 @@ function AudioWorkbench({
           label={`Scene ${n} narration`}
           onRegenerate={(narrationText) => {
             if (model !== null) {
-              void generateSceneAudio(scene.id, model, voice, narrationText)
+              void generateSceneAudio(
+                scene.id,
+                model,
+                voice,
+                narrationText,
+                speed,
+              )
             }
           }}
           regenerateDisabled={

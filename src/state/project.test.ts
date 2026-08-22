@@ -12,7 +12,7 @@ import {
   it,
 } from 'vitest'
 import type { TextModel, TtsModel } from '../api/nanogpt'
-import { createProject } from '../domain/types'
+import { createProject, createScene } from '../domain/types'
 import { __resetRepositoryForTests, getRepository } from './repo'
 import { useProjectStore } from './project'
 import { useSettingsStore } from './settings'
@@ -967,6 +967,53 @@ describe('project store — style from image (Slice 12)', () => {
     const jobs = await repo.getJobsByProject(project.id)
     expect(jobs.at(-1)?.state).toBe('failed')
     expect((await repo.getProject(project.id))?.costLog).toHaveLength(0)
+  })
+})
+
+describe('project store — narration speed (Slice 15.10)', () => {
+  const TTS_SPEED: TtsModel = {
+    id: 'Kokoro-82m',
+    name: 'Kokoro 82M',
+    description: '',
+    pricing: { kind: 'perKChars', usdPerKChars: 0.0017 },
+    voices: ['af_bella'],
+    maxInputChars: 10_000,
+    releasedAt: null,
+  }
+
+  async function seedWithScene() {
+    const repo = await getRepository()
+    const project = createProject('Speedy', nowIso)
+    const scene = createScene(0)
+    scene.textExcerpt = 'A lighthouse.'
+    scene.visualDescription = 'A lighthouse.'
+    project.scenes.push(scene)
+    await repo.putProject(project)
+    await useProjectStore.getState().loadProject(project.id)
+    return project
+  }
+
+  it('passes the chosen speed to the API, omitting the 1× default', async () => {
+    const project = await seedWithScene()
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.post(`${BASE}/v1/audio/speech`, async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return new HttpResponse('fake-mp3', {
+          headers: { 'content-type': 'audio/mpeg' },
+        })
+      }),
+    )
+    const sceneId = project.scenes[0]?.id ?? ''
+    await useProjectStore
+      .getState()
+      .generateSceneAudio(sceneId, TTS_SPEED, 'af_bella', undefined, 1.5)
+    expect(bodies[0]?.speed).toBe(1.5)
+
+    await useProjectStore
+      .getState()
+      .generateSceneAudio(sceneId, TTS_SPEED, 'af_bella', undefined, 1)
+    expect(bodies[1]).not.toHaveProperty('speed')
   })
 })
 

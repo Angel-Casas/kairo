@@ -90,3 +90,29 @@ export const VOICE_PREVIEW_TEXT =
 export function voicePreviewPath(modelId: string, voiceId: string): string {
   return `voice-previews/${encodeURIComponent(modelId)}/${encodeURIComponent(voiceId)}`
 }
+
+/**
+ * Speaking-rate support (Slice 15.10). The /v1/audio-models listing carries
+ * NO speed field, so — like NanoGPT's own UI (slider for some models,
+ * "Speed fixed by model" for the rest) — this is a curated table, with
+ * ranges from each provider's spec (docs-verified 2026-08-22: Kokoro,
+ * ElevenLabs Turbo and tts-1/hd accept `speed`; gpt-4o-mini-tts ignores
+ * it; unsupported models ignore the parameter server-side).
+ */
+export interface TtsSpeedRange {
+  min: number
+  max: number
+  step: number
+}
+
+const SPEED_CAPABLE: Record<string, TtsSpeedRange> = {
+  'Kokoro-82m': { min: 0.5, max: 2, step: 0.05 },
+  'tts-1': { min: 0.25, max: 4, step: 0.05 },
+  'tts-1-hd': { min: 0.25, max: 4, step: 0.05 },
+  'Elevenlabs-Turbo-V2.5': { min: 0.7, max: 1.2, step: 0.05 },
+}
+
+/** The model's speed range, or null when its pace is fixed. */
+export function ttsSpeedRange(modelId: string): TtsSpeedRange | null {
+  return SPEED_CAPABLE[modelId] ?? null
+}
