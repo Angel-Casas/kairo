@@ -4,11 +4,11 @@ import { AppBackground } from './components/AppBackground'
 import { PalettePicker } from './components/PalettePicker'
 import { ProjectList } from './components/ProjectList'
 import { ProjectView } from './components/ProjectView'
+import { SpendMenu } from './components/SpendMenu'
 import { useOnlineStatus } from './components/useOnlineStatus'
 import { applyTheme, getTheme } from './domain/themes'
 import { formatUsd } from './lib/format'
 import { useAppStore } from './state/store'
-import { useProjectStore } from './state/project'
 import { activeThemeId, useSettingsStore } from './state/settings'
 
 function App() {
@@ -23,7 +23,6 @@ function App() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const darkThemeId = useSettingsStore((s) => s.darkThemeId)
   const lightThemeId = useSettingsStore((s) => s.lightThemeId)
-  const openProject = useProjectStore((s) => s.project)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const online = useOnlineStatus()
@@ -54,13 +53,6 @@ function App() {
   }, [settingsOpen])
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId)
-  const spendUsd =
-    openProject === null
-      ? null
-      : openProject.costLog.reduce(
-          (sum, e) => sum + (e.actualUsd ?? e.estimatedUsd ?? 0),
-          0,
-        )
 
   return (
     <>
@@ -90,22 +82,9 @@ function App() {
             </span>
           )}
           {/* Label deliberately avoids the substring "project spend" so
-              getByLabel never collides with CostSummary's "Project spend". */}
-          {openProject !== null && spendUsd !== null && (
-            <span
-              aria-label="Spent in the open project"
-              style={{
-                color: 'var(--color-text-muted)',
-                fontSize: 'var(--text-sm)',
-              }}
-            >
-              Spent{' '}
-              <strong style={{ color: 'var(--color-text)' }}>
-                {formatUsd(spendUsd)}
-              </strong>{' '}
-              · {openProject.costLog.length}
-            </span>
-          )}
+              getByLabel never collides with the breakdown overlay's
+              "Project spend" dialog. */}
+          <SpendMenu />
         </div>
 
         <div

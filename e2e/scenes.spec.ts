@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   createAndOpenProject,
+  expectSpendBreakdown,
   mockBalance,
   mockChatCompletion,
   mockTextModels,
@@ -80,7 +81,14 @@ test('AI breakdown → edit → reorder → survives reload', async ({ page }) =
   )
 
   // Spend summary counts the breakdown generation.
-  await expect(page.getByLabel('Project spend')).toContainText('1 generation')
+  // Hovering the navbar readout shows the quick summary; clicking opens
+  // the full breakdown (the old spend bar is gone).
+  await page.getByLabel('Spent in the open project').hover()
+  await expect(page.getByLabel('Spend summary')).toBeVisible()
+  await expect(page.getByLabel('Spend summary')).toContainText('Text')
+  await page.mouse.move(0, 0)
+  await expect(page.getByLabel('Spend summary')).not.toBeVisible()
+  await expectSpendBreakdown(page, '1 generation')
 
   // The UI updates before IndexedDB commits — wait until the reorder is
   // actually stored before reloading (LESSONS.md persistence rule).

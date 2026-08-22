@@ -212,3 +212,18 @@ honest instruction — the clip exists, download it from the NanoGPT gallery
 and use "Import clip" (free) — never a generic "download failed". Worth
 reporting to NanoGPT: CORS on the content redirect target would let API
 clients collect clips directly.
+
+### 2026-08-22 — An undefined CSS custom property silently drops the whole declaration
+
+**What happened:** The spend-breakdown overlay shipped with zero padding —
+its content sat on the card's edges. The style said
+`padding: var(--space-4) var(--space-5)`, but the spacing scale has no
+`--space-5` (it goes …4, 6, 8). A `var()` referencing an undefined custom
+property makes the value invalid at computed-value time, and the browser
+throws away the ENTIRE declaration — no error, no fallback, just missing
+padding.
+
+**Rule going forward:** Only use tokens that exist in `src/index.css`
+(spacing: 1, 2, 3, 4, 6, 8). When a spacing/color looks absent at runtime
+but the style is clearly written, suspect a phantom token first — and
+`grep -rn "space-5\|space-7"` style scans confirm the codebase is clean.

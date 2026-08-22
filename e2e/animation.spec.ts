@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   API,
   createAndOpenProject,
+  expectSpendBreakdown,
   mockTts,
   mockBalance,
   mockChatCompletion,
@@ -174,7 +175,7 @@ test('animate a scene: submit, poll, clip appears, cost logged', async ({
   await expect(scene1.getByLabel('Scene 1 video')).toBeVisible({
     timeout: 30_000,
   })
-  await expect(page.getByLabel('Project spend')).toContainText('3 generations')
+  await expectSpendBreakdown(page, '3 generations')
 
   // The finished clip plays enlarged in the lightbox.
   await page.getByRole('button', { name: 'View scene 1 large' }).click()
@@ -348,7 +349,7 @@ test('a clip file imports as a free take', async ({ page }) => {
   })
   await expect(page.getByLabel('Scene 1 video')).toBeVisible()
   // Free: the spend summary still shows only the breakdown + image.
-  await expect(page.getByLabel('Project spend')).toContainText('2 generations')
+  await expectSpendBreakdown(page, '2 generations')
 })
 
 test('a job interrupted by reload resumes and collects the clip', async ({
@@ -364,7 +365,7 @@ test('a job interrupted by reload resumes and collects the clip', async ({
   await expect(scene1.getByRole('button', { name: /Generating/ })).toBeVisible()
   // Wait for submission to be persisted (its cost log entry appears) so the
   // reload interrupts POLLING, not the submission itself.
-  await expect(page.getByLabel('Project spend')).toContainText('3 generations')
+  await expectSpendBreakdown(page, '3 generations')
 
   // "Close" the tab mid-generation: reload, then let the next poll complete.
   await mockVideoPipeline(page, { inProgressPolls: 0 })

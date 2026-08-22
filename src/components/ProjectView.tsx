@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useProjectStore } from '../state/project'
 import { AnimationStage } from './AnimationStage'
 import { AudioStage } from './AudioStage'
-import { CostSummary } from './CostSummary'
 import { ExportStage } from './ExportStage'
 import { ImagesStage } from './ImagesStage'
 import { ScenesStage } from './ScenesStage'
@@ -109,7 +108,6 @@ export function ProjectView({
         onSelect={setStage}
         progressNote={stageProgressNote(project, stage)}
       />
-      <CostSummary />
       {stage === 'script' && <ScriptStage />}
       {stage === 'scenes' && <ScenesStage />}
       {stage === 'audio' && <AudioStage />}

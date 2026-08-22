@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   createAndOpenProject,
+  expectSpendBreakdown,
   mockBalance,
   mockChatCompletion,
   mockImageGeneration,
@@ -108,7 +109,7 @@ test('generate → version appears → regenerate → switch active → reload',
   await expect(page.getByAltText('Scene 2 active image')).toBeVisible()
 
   // Cost log recorded all three image generations + the breakdown.
-  await expect(page.getByLabel('Project spend')).toContainText('4 generations')
+  await expectSpendBreakdown(page, '4 generations')
 
   // Everything survives a reload (images restored from OPFS).
   await page.reload()

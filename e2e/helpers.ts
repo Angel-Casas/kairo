@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 /**
  * Shared e2e fixtures. Every NanoGPT endpoint is mocked here — e2e tests
@@ -146,4 +146,20 @@ export async function mockTts(page: Page): Promise<void> {
       body: Buffer.from('fake-mp3-bytes'),
     }),
   )
+}
+
+/**
+ * Open the navbar spend dropdown, assert the full-breakdown overlay's text,
+ * and close it again (the old always-visible spend bar is gone — the
+ * breakdown lives behind the navbar "Spent" readout now).
+ */
+export async function expectSpendBreakdown(
+  page: Page,
+  text: string | RegExp,
+): Promise<void> {
+  await page.getByLabel('Spent in the open project').click()
+  const dialog = page.getByRole('dialog', { name: 'Project spend' })
+  await expect(dialog).toContainText(text)
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
 }

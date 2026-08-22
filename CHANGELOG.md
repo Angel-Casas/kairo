@@ -2,6 +2,26 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.5 — Spend moved into a navbar dropdown (2026-08-22, from Angel's feedback)
+
+- The always-mounted spend bar above the stages is gone — one full strip
+  of screen back. The navbar "Spent $X · N" readout (unchanged look, plus
+  a small caret) is the door now: **hovering** shows a compact summary —
+  total plus per-kind lines (Text / Images / Clips / Narration) with
+  exact amounts and counts — and **clicking** opens the full breakdown as
+  a frosted overlay (every entry with date, note, model, estimated vs
+  actual; Close button, Escape, or an outside click dismisses it).
+- The overlay renders through a portal: the navbar centers itself with a
+  CSS transform, and a transformed ancestor traps position:fixed inside
+  it — the first screenshot pass caught the clipped result.
+- E2e specs assert spend through the new dropdown (`expectSpendBreakdown`
+  helper); `CostSummary` is deleted. 195 unit + 37 e2e.
+- Follow-up (Angel's catch): the overlay card shipped with its content on
+  the edges — the padding used `var(--space-5)`, a token that does not
+  exist in the scale (…4, 6, 8), and one undefined var() silently drops
+  the whole declaration. Real tokens now, and the codebase scans clean of
+  phantom spacing tokens.
+
 ## Slice 15.4 — Narration in the fullscreen viewer (2026-08-22, from Angel's feedback)
 
 - Expanding a clip into the lightbox now plays the scene's narration in

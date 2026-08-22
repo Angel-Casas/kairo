@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   createAndOpenProject,
+  expectSpendBreakdown,
   mockBalance,
   mockImageModels,
   mockTextModels,
@@ -102,7 +103,7 @@ test('style-from-image: vision-filtered picker, multimodal request, apply to not
   await expect(page.getByLabel('Visual style notes')).toHaveValue(STYLE_NOTES)
 
   // Spend log recorded the vision call.
-  await expect(page.getByLabel('Project spend')).toContainText('1 generation')
+  await expectSpendBreakdown(page, '1 generation')
 })
 
 test('replacing existing style notes asks for confirmation first', async ({

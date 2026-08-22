@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import {
   createAndOpenProject,
+  expectSpendBreakdown,
   mockBalance,
   mockChatCompletion,
   mockTextModels,
@@ -83,7 +84,7 @@ test('narrate a scene: exact price, player appears, takes, cost logged, reload',
   await expect(page.getByText('2 · ♪ narrated (1)')).toBeVisible()
 
   // The spend log holds exact actuals: breakdown + 3 narrations.
-  await expect(page.getByLabel('Project spend')).toContainText('4 generations')
+  await expectSpendBreakdown(page, '4 generations')
 
   // Persisted (poll the stored value before reloading — LESSONS rule).
   await expect
