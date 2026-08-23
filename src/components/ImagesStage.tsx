@@ -86,9 +86,8 @@ export function ImagesStage() {
 
   return (
     <section>
-      <StyleGallery />
-
-      {/* The reel */}
+      {/* The reel leads (15.17.3, Angel's request): Images and Animation
+          both open on their reel, so the two stages line up. */}
       <ReelShell hint="select a frame to work on it below">
         {scenes.map((scene, index) => (
           <SceneFrame
@@ -106,6 +105,8 @@ export function ImagesStage() {
           />
         ))}
       </ReelShell>
+
+      <StyleGallery />
 
       {/* The workbench for the selected frame */}
       {selectedScene !== null && (

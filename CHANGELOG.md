@@ -2,6 +2,13 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.17.3 — Images stage opens on its reel (2026-08-23, Angel's request)
+
+- The Artistic style box moved below "The reel" on the Images stage, so
+  Images and Animation both open on their reel at exactly the same
+  height — switching between the two stages no longer jumps the layout.
+  Verified: both reels start at the same Y coordinate.
+
 ## Slice 15.17.2 — Motion you can actually see; the transport deck glides (2026-08-23, Angel's feedback)
 
 - The transport deck now travels instead of teleporting: the playhead
