@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kairo — a film studio that fits in a browser tab</title>
+    <meta
+      name="description"
+      content="Kairo turns a script into a narrated, animated vertical Short — scene by scene, in your browser, on your own NanoGPT key. Free and open source."
+    />
+    <meta
+      property="og:title"
+      content="Kairo — script to Short, in your browser"
+    />
+    <meta
+      property="og:description"
+      content="Write the script. Kairo breaks it into scenes, narrates, paints and animates them, and hands you a finished vertical Short. Free, open source, your own NanoGPT key."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+    />
+    <style>
+      /* Pastel River — Kairo's landing page (Slice 16).
+         The motion vocabulary is the app's own (ADR-013): the river flows
+         with the seamless two-tile gradient slide, entrances develop/rise
+         on the film easing, the CTA wears the rotating pastel ring. */
+      :root {
+        --ink: #2a2732;
+        --paper: #faf7f2;
+        --panel: #ffffff;
+        --line: #e7e1d6;
+        --muted: #6d6879;
+        --faint: #a09aa8;
+        --rose: #9a2f4e;
+        --ease-film: cubic-bezier(0.22, 0.9, 0.24, 1);
+        --river: linear-gradient(
+          100deg,
+          #f5b8c4,
+          #f8d3a7,
+          #f6ecb8,
+          #c3e7cd,
+          #b1d7f2,
+          #d4c0f0,
+          #f5b8c4
+        );
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        /* clip, not hidden: the hero ribbon bleeds past both edges by
+           design, and clip forbids sideways scroll without creating a
+           scroll container. */
+        overflow-x: clip;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        line-height: 1.5;
+        overflow-x: clip;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .serif {
+        font-family: 'Instrument Serif', serif;
+        font-style: italic;
+        font-weight: 400;
+      }
+      .wrap {
+        max-width: 76rem;
+        margin: 0 auto;
+        padding: 0 clamp(1.25rem, 4vw, 4.5rem);
+      }
+
+      /* -- The river ------------------------------------------------------- */
+      @keyframes river-flow {
+        from {
+          background-position-x: 0%;
+        }
+        to {
+          background-position-x: 200%;
+        }
+      }
+      .river {
+        background-image: var(--river);
+        background-size: 200% 100%;
+        animation: river-flow 14s linear infinite;
+      }
+      .hero-ribbon {
+        position: absolute;
+        top: clamp(16rem, 30vw, 22rem);
+        left: -10vw;
+        right: -10vw;
+        height: clamp(11rem, 24vw, 22rem);
+        opacity: 0.5;
+        filter: blur(2px);
+        transform: rotate(-6deg);
+        border-radius: 999px;
+        animation-duration: 26s;
+        pointer-events: none;
+        will-change: transform;
+      }
+
+      /* -- Entrances ------------------------------------------------------- */
+      @keyframes rise-in {
+        from {
+          opacity: 0;
+          transform: translateY(26px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .rise {
+        animation: rise-in 700ms var(--ease-film) both;
+      }
+      .d1 {
+        animation-delay: 80ms;
+      }
+      .d2 {
+        animation-delay: 200ms;
+      }
+      .d3 {
+        animation-delay: 320ms;
+      }
+      .d4 {
+        animation-delay: 460ms;
+      }
+      .d5 {
+        animation-delay: 620ms;
+      }
+
+      /* Scroll-triggered: .reveal waits, .on develops in (blur → focus,
+         the app's take entrance). Stagger with --dv. */
+      .reveal {
+        opacity: 0;
+      }
+      @keyframes develop {
+        from {
+          opacity: 0;
+          filter: blur(8px) saturate(0.6);
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          filter: blur(0) saturate(1);
+          transform: translateY(0);
+        }
+      }
+      .reveal.on {
+        animation: develop 800ms var(--ease-film) both;
+        animation-delay: var(--dv, 0ms);
+      }
+
+      @keyframes sweep-in {
+        from {
+          transform: scaleX(0);
+        }
+        to {
+          transform: scaleX(1);
+        }
+      }
+      .sweep {
+        position: relative;
+        white-space: nowrap;
+      }
+      .sweep::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0.08em;
+        height: 0.12em;
+        z-index: -1;
+        background-image: linear-gradient(
+          100deg,
+          #f5b8c4,
+          #f8d3a7,
+          #c3e7cd,
+          #b1d7f2
+        );
+        border-radius: 999px;
+        transform-origin: left;
+        animation: sweep-in 900ms 700ms var(--ease-film) both;
+      }
+
+      @keyframes bob {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-7px);
+        }
+      }
+
+      /* -- Controls -------------------------------------------------------- */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        border-radius: 999px;
+        padding: 1rem 2.1rem;
+        font-weight: 700;
+        font-size: 1.06rem;
+        cursor: pointer;
+        transition: transform 160ms var(--ease-film);
+      }
+      .btn-primary {
+        background: var(--ink);
+        color: var(--paper);
+        position: relative;
+      }
+      .btn-ghost {
+        border: 1.5px solid var(--ink);
+        font-weight: 600;
+      }
+      @property --ring-a {
+        syntax: '<angle>';
+        inherits: false;
+        initial-value: 0deg;
+      }
+      @keyframes ring-spin {
+        to {
+          --ring-a: 360deg;
+        }
+      }
+      .btn-primary::before {
+        content: '';
+        position: absolute;
+        inset: -5px;
+        border-radius: 999px;
+        padding: 2.5px;
+        background: conic-gradient(
+          from var(--ring-a),
+          #d76487,
+          #d98a3e,
+          #b99b25,
+          #3f9e68,
+          #4187cf,
+          #9469cf,
+          #d76487
+        );
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 160ms var(--ease-film),
+          visibility 0s 160ms;
+        pointer-events: none;
+      }
+      .btn-primary:hover::before {
+        opacity: 1;
+        visibility: visible;
+        transition:
+          opacity 160ms var(--ease-film),
+          visibility 0s;
+        animation: ring-spin 2.4s linear infinite;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      /* -- Sections -------------------------------------------------------- */
+      header.site {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 1.8rem;
+        gap: 1rem;
+      }
+      .logo {
+        font-size: 1.35rem;
+        font-weight: 700;
+      }
+      nav.links {
+        display: flex;
+        gap: 1.8rem;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      nav.links a:hover {
+        color: var(--ink);
+      }
+      .gh-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1.5px solid var(--ink);
+        border-radius: 999px;
+        padding: 0.5rem 1.1rem;
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .hero {
+        position: relative;
+        text-align: center;
+        padding-top: clamp(4rem, 9vw, 7rem);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.6rem;
+      }
+      .kicker {
+        font-size: 0.8rem;
+        letter-spacing: 0.24em;
+        color: var(--rose);
+        font-weight: 700;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2.6rem, 6.4vw, 4.8rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.03;
+        max-width: 22ch;
+      }
+      .sub {
+        font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 42rem;
+        margin: 0;
+      }
+      .cta-row {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .fine {
+        font-size: 0.9rem;
+        color: var(--faint);
+      }
+
+      .cards {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.5rem;
+        margin-top: clamp(5rem, 10vw, 7.5rem);
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        box-shadow: 0 14px 38px rgba(42, 39, 50, 0.07);
+        transition:
+          transform 200ms var(--ease-film),
+          box-shadow 200ms var(--ease-film);
+      }
+      .card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 26px 54px rgba(42, 39, 50, 0.13);
+      }
+      .card.on {
+        animation:
+          develop 800ms var(--ease-film) both,
+          bob 5.5s ease-in-out var(--bob-delay, 1s) infinite;
+        animation-delay: var(--dv, 0ms), calc(var(--dv, 0ms) + 900ms);
+      }
+      .chip {
+        width: 46px;
+        height: 46px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ink);
+      }
+      .card h3 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.58;
+      }
+
+      .pipeline {
+        margin-top: clamp(5.5rem, 11vw, 8rem);
+        background: var(--panel);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: clamp(3rem, 6vw, 4.5rem) 0;
+      }
+      .pipeline-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 2.4rem;
+      }
+      .pipeline-head h2 {
+        margin: 0;
+        font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+        letter-spacing: -0.02em;
+      }
+      /* Direct child only — the h2's serif accent must keep the h2 size. */
+      .pipeline-head > span {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .divider {
+        height: 8px;
+        border-radius: 4px;
+        margin-bottom: 2.6rem;
+      }
+      .stages {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 2.4rem 3rem;
+      }
+      @keyframes stage-glow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(42, 39, 50, 0);
+          border-color: #d9d2c4;
+        }
+        8%,
+        18% {
+          box-shadow: 0 0 0 7px var(--glow);
+          border-color: var(--ink);
+        }
+      }
+      .stage-dot {
+        width: 54px;
+        height: 54px;
+        border-radius: 999px;
+        background: var(--panel);
+        border: 1.5px solid #d9d2c4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .stages.on .stage-dot {
+        animation: stage-glow 7.2s var(--ease-film) var(--gd, 0ms) infinite;
+      }
+      .stage h3 {
+        margin: 0.75rem 0 0.4rem;
+        font-size: 1.05rem;
+      }
+      .stage p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+
+      .pricing {
+        display: flex;
+        gap: clamp(2rem, 5vw, 4.5rem);
+        align-items: center;
+        padding: clamp(4rem, 8vw, 5.5rem) 0 clamp(4rem, 8vw, 5rem);
+      }
+      .pricing-copy {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+      }
+      .pricing-copy h2 {
+        margin: 0;
+        font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      .pricing-copy p {
+        margin: 0;
+        font-size: 1.05rem;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 33rem;
+      }
+      .badges {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 999px;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      .receipt {
+        width: min(26rem, 100%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 1.9rem;
+        box-shadow: 0 22px 52px rgba(42, 39, 50, 0.1);
+      }
+      .receipt-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 0.9rem;
+      }
+      .receipt-head strong {
+        font-size: 1rem;
+      }
+      .receipt-head span {
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        color: var(--faint);
+      }
+      .receipt-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.92rem;
+        padding: 0.55rem 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .receipt-row span:first-child {
+        color: var(--muted);
+      }
+      .receipt-row span:last-child {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .receipt-total {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 0.9rem;
+        font-weight: 700;
+        font-size: 1rem;
+      }
+      .receipt-note {
+        margin-top: 0.6rem;
+        font-size: 0.78rem;
+        color: var(--faint);
+        line-height: 1.5;
+      }
+
+      footer.site {
+        background: var(--panel);
+      }
+      .footer-inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding: 1.9rem 0 2.1rem;
+      }
+      .footer-links {
+        display: flex;
+        gap: 1.6rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+        flex-wrap: wrap;
+      }
+      .footer-links a:hover {
+        color: var(--ink);
+      }
+
+      @media (max-width: 860px) {
+        nav.links .hide-sm {
+          display: none;
+        }
+        .cards,
+        .stages {
+          grid-template-columns: 1fr;
+        }
+        .cards {
+          gap: 1rem;
+        }
+        .pricing {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-delay: 0ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+        .reveal {
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero-ribbon river" id="ribbon" aria-hidden="true"></div>
+
+    <div class="wrap">
+      <header class="site rise">
+        <div class="logo">Kairo</div>
+        <nav class="links">
+          <a class="hide-sm" href="#pipeline">How it works</a>
+          <a class="hide-sm" href="#pricing">Priced in the open</a>
+          <!-- TODO(angel): point at the real repository URL -->
+          <a class="gh-pill" href="#" aria-label="Kairo on GitHub">
+            <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 4 L14.3 9.1 L19.8 9.7 L15.7 13.4 L16.9 18.9 L12 16 L7.1 18.9 L8.3 13.4 L4.2 9.7 L9.7 9.1 Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+            Star on GitHub
+          </a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <div class="kicker rise d1">
+          FREE - OPEN SOURCE - FOREVER
+        </div>
+        <h1 class="rise d2">
+          A film studio that fits in a
+          <span class="serif sweep">browser tab</span>.
+        </h1>
+        <p class="sub rise d3">
+          Write the script. Kairo breaks it into scenes, narrates them, paints
+          them, animates them, and hands you a finished vertical Short — on your
+          own NanoGPT key, at prices you approve line by line.
+        </p>
+        <div class="cta-row rise d4">
+          <a class="btn btn-primary" href="/">Start creating — free</a>
+          <a class="btn btn-ghost" href="#">Read the code</a>
+        </div>
+        <div class="fine rise d5">
+          No account. No upload. Your key never leaves this device.
+        </div>
+      </section>
+
+      <section class="cards">
+        <div class="card reveal" style="--dv: 0ms; --bob-delay: 0s">
+          <div class="chip" style="background: #f5b8c4">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <rect
+                x="5.5"
+                y="10.5"
+                width="13"
+                height="9"
+                rx="2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></rect>
+              <path
+                d="M8.5 10.5 V8 A3.5 3.5 0 0 1 15.5 8 V10.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></path>
+            </svg>
+          </div>
+          <h3>Your key, your device</h3>
+          <p>
+            The NanoGPT key lives in your browser and is sent nowhere but
+            NanoGPT itself. The code is open — verify it.
+          </p>
+        </div>
+        <div class="card reveal" style="--dv: 140ms; --bob-delay: 1.4s">
+          <div class="chip" style="background: #c3e7cd">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M4 12 V13 M8 8 V17 M12 5 V20 M16 9 V16 M20 11.5 V13.5"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              ></path>
+            </svg>
+          </div>
+          <h3>Every voice, auditioned</h3>
+          <p>
+            Preview any voice for a fraction of a cent before narrating a whole
+            script with it. Cached previews replay free.
+          </p>
+        </div>
+        <div class="card reveal" style="--dv: 280ms; --bob-delay: 2.8s">
+          <div class="chip" style="background: #b1d7f2">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 15 V4 M8.4 7.6 L12 4 L15.6 7.6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M5 13 V18.4 A1.6 1.6 0 0 0 6.6 20 H17.4 A1.6 1.6 0 0 0 19 18.4 V13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              ></path>
+            </svg>
+          </div>
+          <h3>Leave with the files</h3>
+          <p>
+            Numbered clips for your editor, or one stitched draft MP4. Takes,
+            stills and narration included. No watermark.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <section class="pipeline" id="pipeline">
+      <div class="wrap">
+        <div class="pipeline-head reveal">
+          <h2>Six stages. <span class="serif">One river.</span></h2>
+          <span
+            >Each stop keeps every take — switch the active one any time.</span
+          >
+        </div>
+        <div class="divider river reveal" style="--dv: 150ms"></div>
+        <div class="stages reveal" id="stages">
+          <div class="stage">
+            <div
+              class="stage-dot"
+              style="--glow: rgba(245, 184, 196, 0.55); --gd: 0ms"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 3 H15 L19 7 V21 H6 Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                ></path>
+                <path
+                  d="M9 10 H16 M9 13.5 H16 M9 17 H13"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                ></path>
+              </svg>
+            </div>
+            <h3>1 · Script</h3>
+            <p>
+              Write it, or draft it with a text model you pick — then lock it as
+              the source of truth.
+            </p>
+          </div>
+          <div class="stage">
+            <div
+              class="stage-dot"
+              style="--glow: rgba(248, 211, 167, 0.55); --gd: 1200ms"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <rect
+                  x="4"
+                  y="5"
+                  width="7"
+                  height="6.4"
+                  rx="1.2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></rect>
+                <rect
+                  x="13"
+                  y="5"
+                  width="7"
+                  height="6.4"
+                  rx="1.2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></rect>
+                <rect
+                  x="4"
+                  y="13.6"
+                  width="7"
+                  height="6.4"
+                  rx="1.2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></rect>
+                <rect
+                  x="13"
+                  y="13.6"
+                  width="7"
+                  height="6.4"
+                  rx="1.2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></rect>
+              </svg>
+            </div>
+            <h3>2 · Scenes</h3>
+            <p>
+              One click proposes the breakdown: excerpt plus visual description,
+              editable per scene.
+            </p>
+          </div>
+          <div class="stage">
+            <div
+              class="stage-dot"
+              style="--glow: rgba(246, 236, 184, 0.6); --gd: 2400ms"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 12 V13 M8 8 V17 M12 5 V20 M16 9 V16 M20 11.5 V13.5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                ></path>
+              </svg>
+            </div>
+            <h3>3 · Audio</h3>
+            <p>
+              Audition voices for a fraction of a cent; narration is priced to
+              the cent before you commit.
+            </p>
+          </div>
+          <div class="stage">
+            <div
+              class="stage-dot"
+              style="--glow: rgba(195, 231, 205, 0.55); --gd: 3600ms"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <rect
+                  x="4"
+                  y="5"
+                  width="16"
+                  height="14"
+                  rx="2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></rect>
+                <circle cx="9.4" cy="10" r="1.6" fill="currentColor"></circle>
+                <path
+                  d="M5 17 L10.5 12.4 L14 15.4 L16.6 13.4 L19 15.4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                ></path>
+              </svg>
+            </div>
+            <h3>4 · Images</h3>
+            <p>
+              Every scene painted portrait-first; takes are kept, styles apply
+              across the reel.
+            </p>
+          </div>
+          <div class="stage">
+            <div
+              class="stage-dot"
+              style="--glow: rgba(177, 215, 242, 0.55); --gd: 4800ms"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 10 H20 V19 A1.6 1.6 0 0 1 18.4 20.6 H5.6 A1.6 1.6 0 0 1 4 19 Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                ></path>
+                <path
+                  d="M4.4 9.6 L3.6 6.8 L18.9 3.4 L19.8 6.4 Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                ></path>
+                <path
+                  d="M8 9.4 L10 5.6 M12.5 8.4 L14.5 4.6"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                ></path>
+              </svg>
+            </div>
+            <h3>5 · Animation</h3>
+            <p>
+              Stills become motion — even lip-synced talking scenes from a
+              single image.
+            </p>
+          </div>
+          <div class="stage">
+            <div
+              class="stage-dot"
+              style="--glow: rgba(212, 192, 240, 0.55); --gd: 6000ms"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 15 V4 M8.4 7.6 L12 4 L15.6 7.6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                ></path>
+                <path
+                  d="M5 13 V18.4 A1.6 1.6 0 0 0 6.6 20 H17.4 A1.6 1.6 0 0 0 19 18.4 V13"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                ></path>
+              </svg>
+            </div>
+            <h3>6 · Export</h3>
+            <p>
+              Numbered clips for your editor, or one stitched draft MP4. No
+              watermark.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <section class="pricing" id="pricing">
+        <div class="pricing-copy reveal">
+          <h2>Priced in the open,<br />charged only on your say-so.</h2>
+          <p>
+            Kairo adds nothing on top of NanoGPT&rsquo;s own per-generation
+            prices. Narration is exact to the cent before you commit; images and
+            clips state their cost before submission; every charge lands in a
+            spend log you can audit. Close the tab mid-render — Kairo resumes
+            the job and collects your clip when you return.
+          </p>
+          <div class="badges">
+            <span class="badge">no subscription</span>
+            <span class="badge">no markup</span>
+            <span class="badge">no minimum</span>
+            <span class="badge">spend log built in</span>
+          </div>
+        </div>
+        <div class="receipt reveal" style="--dv: 250ms">
+          <div class="receipt-head">
+            <strong>One 60-second Short</strong>
+            <span>SAMPLE RUN</span>
+          </div>
+          <div class="receipt-row">
+            <span>Scene breakdown — 11 scenes</span><span>$0.0002</span>
+          </div>
+          <div class="receipt-row">
+            <span>Narration, 11 scenes — exact</span><span>$0.0132</span>
+          </div>
+          <div class="receipt-row">
+            <span>Voice preview × 3</span><span>$0.0004</span>
+          </div>
+          <div class="receipt-row">
+            <span>Images, 11 × 768×1344</span><span>$0.13</span>
+          </div>
+          <div class="receipt-row">
+            <span>Clips, 11 × 5s @ 480p</span><span>$3.96</span>
+          </div>
+          <div class="receipt-total">
+            <span>Total, on your key</span><span>$4.10</span>
+          </div>
+          <div class="receipt-note">
+            Prices vary by the models you choose — this is one real-shaped
+            example, not a quote.
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="site">
+      <div
+        class="divider river"
+        style="height: 10px; border-radius: 0; margin: 0"
+      ></div>
+      <div class="wrap">
+        <div class="footer-inner">
+          <div class="logo" style="font-size: 1.1rem">Kairo</div>
+          <nav class="footer-links">
+            <!-- TODO(angel): point at the real repository URL -->
+            <a href="#">GitHub</a>
+            <a href="#">MIT license</a>
+            <span>Built for 9:16</span>
+          </nav>
+          <a
+            class="btn btn-primary"
+            style="padding: 0.8rem 1.6rem; font-size: 0.95rem"
+            href="/"
+            >Start creating — free</a
+          >
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // Scroll-triggered develop-ins: each .reveal plays once when it
+      // enters the viewport. Under reduced motion the CSS already forces
+      // everything visible and instant.
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('on')
+              observer.unobserve(entry.target)
+            }
+          }
+        },
+        { threshold: 0.18 },
+      )
+      document.querySelectorAll('.reveal').forEach((el) => observer.observe(el))
+
+      // Gentle parallax on the hero ribbon: it drifts upward at a fraction
+      // of scroll speed. rAF-throttled; disabled under reduced motion.
+      const ribbon = document.getElementById('ribbon')
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+      let ticking = false
+      window.addEventListener(
+        'scroll',
+        () => {
+          if (reduced.matches || ticking) return
+          ticking = true
+          requestAnimationFrame(() => {
+            ribbon.style.transform =
+              'rotate(-6deg) translateY(' + window.scrollY * -0.18 + 'px)'
+            ticking = false
+          })
+        },
+        { passive: true },
+      )
+    </script>
+  </body>
+</html>

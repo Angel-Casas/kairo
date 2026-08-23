@@ -56,6 +56,16 @@
   --t-med: 300ms;
   --t-slow: 550ms;
 
+  /* Hover-ring gradient stops (15.18.1): soft pastels on dark palettes;
+     the light-mode block below swaps in deeper jewel tones — the pale
+     set all but vanished on light surfaces. */
+  --ring-1: #f5b8c4;
+  --ring-2: #f8d3a7;
+  --ring-3: #f6ecb8;
+  --ring-4: #c3e7cd;
+  --ring-5: #b1d7f2;
+  --ring-6: #d4c0f0;
+
   font-family:
     'Instrument Sans',
     system-ui,
@@ -68,6 +78,12 @@
 
 :root[data-mode='light'] {
   color-scheme: light;
+  --ring-1: #d76487;
+  --ring-2: #d98a3e;
+  --ring-3: #b99b25;
+  --ring-4: #3f9e68;
+  --ring-5: #4187cf;
+  --ring-6: #9469cf;
 }
 :root:not([data-mode='light']) {
   color-scheme: dark;
@@ -284,13 +300,13 @@ button::before {
   padding: 2px;
   background: conic-gradient(
     from var(--ring-angle),
-    #f5b8c4,
-    #f8d3a7,
-    #f6ecb8,
-    #c3e7cd,
-    #b1d7f2,
-    #d4c0f0,
-    #f5b8c4
+    var(--ring-1),
+    var(--ring-2),
+    var(--ring-3),
+    var(--ring-4),
+    var(--ring-5),
+    var(--ring-6),
+    var(--ring-1)
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -394,13 +410,13 @@ select:not(:disabled):hover {
     linear-gradient(var(--color-bg), var(--color-bg)),
     conic-gradient(
       from var(--ring-angle),
-      #f5b8c4,
-      #f8d3a7,
-      #f6ecb8,
-      #c3e7cd,
-      #b1d7f2,
-      #d4c0f0,
-      #f5b8c4
+      var(--ring-1),
+      var(--ring-2),
+      var(--ring-3),
+      var(--ring-4),
+      var(--ring-5),
+      var(--ring-6),
+      var(--ring-1)
     );
   background-origin: border-box;
   background-clip: padding-box, padding-box, padding-box, border-box;
@@ -702,13 +718,13 @@ button.rail-segment:not(:disabled):active .rail-label {
 .film-progress {
   --pastel-flow: linear-gradient(
     90deg,
-    #f5b8c4,
-    #f8d3a7,
-    #f6ecb8,
-    #c3e7cd,
-    #b1d7f2,
-    #d4c0f0,
-    #f5b8c4
+    var(--ring-1),
+    var(--ring-2),
+    var(--ring-3),
+    var(--ring-4),
+    var(--ring-5),
+    var(--ring-6),
+    var(--ring-1)
   );
   position: relative;
   height: 10px;

@@ -4,6 +4,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      // Two entries: the app (/) and the marketing page (/landing.html,
+      // Slice 16 — the Pastel River landing).
+      input: {
+        main: 'index.html',
+        landing: 'landing.html',
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

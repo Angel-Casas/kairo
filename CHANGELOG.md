@@ -2,6 +2,39 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 16 — The Pastel River landing page (2026-08-23, Angel's pick from 10 directions)
+
+- Kairo has a marketing page: `/landing.html`, a second Vite entry
+  beside the app. The chosen "Pastel River" direction from the design
+  canvas, built for real: flowing pastel ribbon hero (the app's
+  seamless two-tile gradient slide), staggered hero reveal with a
+  pastel underline sweep, three promise cards that develop in and
+  float, the six-stage pipeline with sequentially glowing pastel
+  halos, the priced-in-the-open section with a labeled sample receipt,
+  and the app's rotating jewel-tone ring on the primary CTA.
+- Real behavior on the real page: scroll-triggered reveals via
+  IntersectionObserver (play once per section), gentle rAF parallax on
+  the hero ribbon, full reduced-motion collapse, responsive to phone
+  width with no sideways scroll (`overflow-x: clip` — the ribbon
+  bleeds past both edges by design), SEO/OG meta, self-contained CSS
+  and JS.
+- All copy is product truth: free, open source, BYOK NanoGPT, exact
+  prices, resume-after-close, export without watermark. The two GitHub
+  links are `href="#"` with TODO comments until the repository URL is
+  filled in; the receipt is explicitly labeled a sample.
+- Verified by desktop + mobile screenshots (hero, pipeline mid-glow,
+  receipt), sideways-scroll pinned at 0, smoke e2e green (the app
+  entry and PWA shell are untouched). 260 unit tests green.
+
+## Slice 15.18.1 — The hover ring earns its light-mode wardrobe (2026-08-23, Angel's request)
+
+- The ring's soft pastels all but vanished on light palettes. Its six
+  gradient stops are now theme tokens (`--ring-1..6`): dark palettes
+  keep the original pastels, light palettes swap in deeper jewel tones
+  (rose, amber, gold, green, blue, violet) via the existing
+  `data-mode='light'` hook. Buttons and selects both read from the same
+  tokens, so the two ring implementations can never drift apart.
+
 ## Slice 15.18 — Kairo fits in one hand (2026-08-23, Angel's request)
 
 - Responsive pass down to phone width (375px), one main breakpoint at
