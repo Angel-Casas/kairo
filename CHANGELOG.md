@@ -2,6 +2,65 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.17.11 — One chevron to rule every dropdown (2026-08-23, Angel's catch)
+
+- Native selects drew the browser's own arrow crammed against the
+  border, visibly different from the model-picker buttons' chevron.
+  Selects now suppress the UA arrow (`appearance: none`) and draw the
+  exact same 9x6 chevron at the exact same var(--space-4) inset, as a
+  themed data-URI background layer (light glyph on dark palettes, dark
+  on light — data URIs can't use currentColor). The hover ring's
+  background layers gained the chevron on top so it survives hover.
+
+## Slice 15.17.10 — Selects join the button family (2026-08-23, Angel's catch)
+
+- Dropdown selects (resolution, duration, speed, batch rows, motion
+  preference — all of them) still wore the squarer field radius and
+  missed the ring pass. They now dress like the buttons they behave
+  like: pill radius, and the rotating pastel ring on hover. A <select>
+  is a replaced element (no ::before), so the ring is painted through
+  its own border — surface tint over an opaque page-color backing over
+  the conic gradient, clipped padding-box/padding-box/border-box (the
+  backing matters: the surface tint is translucent, and without it the
+  gradient bled through the middle).
+- Text inputs and textareas stay soft rectangles on purpose: they hold
+  content; selects trigger it.
+
+## Slice 15.17.9 — The pastel ring becomes THE hover language (2026-08-23, Angel's request)
+
+- Every standalone button now lights the rotating pastel ring on hover
+  instead of lifting — one generalized rule (`button::before` ring +
+  hover activation) replaces the per-navbar-icon version. The ring
+  inherits each button's radius, so pills, circles (the ? help button)
+  and rounded buttons all wear it correctly.
+- The primary-button light-sweep sheen retired (the ring is the hover
+  flair now), which also freed primary buttons of the overflow:hidden
+  that would have clipped the ring. Press physics stay.
+- Exclusions stay quiet on purpose: menu option rows, the stage-rail
+  segments (label-grow + tint from 15.17.7) and reel frames (their
+  lift is part of the film identity).
+
+## Slice 15.17.8 — Navbar icons: pastel ring hover, a better gear that spins into an X (2026-08-23, Angel's request)
+
+- The two round navbar buttons (palette, settings) dropped the lift +
+  press-squash hover for a thin rotating pastel ring — the same pastel
+  river as the progress strips, drawn as a conic gradient masked to a
+  2px band circling just outside the button while hovered.
+- The gear icon was redrawn (eight rounded teeth around a ring with a
+  hub — the old spiky polygon read as a splat), and toggling settings
+  now spins the icon a half turn while it cross-fades into the X; the
+  close click spins it back into the gear.
+
+## Slice 15.17.7 — Rail segments hover in place (2026-08-23, Angel's request)
+
+- Stage-rail segments dropped the global button hover (the 1px lift
+  read as a segment jumping out of the continuous pill). Hovering now
+  grows the label + icon a touch (scale 1.07 on an inner wrapper, so
+  the segment box never moves) and tints the cell with a subtle
+  text-color wash that adapts to the theme; pressing dips the label.
+  The inline background switched from the `background` shorthand to
+  `backgroundColor` so the CSS tint overlay can layer on top.
+
 ## Slice 15.17.6 — Progress strips become a pastel river (2026-08-23, Angel's request)
 
 - The progress bars traded their dark marching perforations for a slow

@@ -92,6 +92,7 @@ export function PalettePicker() {
       <button
         ref={triggerRef}
         type="button"
+        className="nav-icon"
         aria-label="Color palette"
         aria-haspopup="listbox"
         aria-expanded={open}

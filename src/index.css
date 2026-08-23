@@ -242,10 +242,56 @@ button {
     color var(--t-fast) var(--ease-film),
     opacity var(--t-fast) var(--ease-film);
 }
-/* Hover lift for standalone buttons; menu rows (role=option) stay planted —
-   a list that bounces under the cursor reads as jitter, not delight. */
-button:not(:disabled):not([role='option']):hover {
-  transform: translateY(-1px);
+/* Hover (15.17.9, Angel's request): standalone buttons light the pastel
+   ring — a thin rotating conic-gradient band circling just outside the
+   edge — instead of lifting. Menu rows (role=option) stay quiet, and
+   rail segments / reel frames keep their own treatments. */
+@property --ring-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes ring-spin {
+  to {
+    --ring-angle: 360deg;
+  }
+}
+button {
+  position: relative;
+}
+button::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--ring-angle),
+    #f5b8c4,
+    #f8d3a7,
+    #f6ecb8,
+    #c3e7cd,
+    #b1d7f2,
+    #d4c0f0,
+    #f5b8c4
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-film);
+  pointer-events: none;
+}
+button:not(:disabled):not([role='option']):not(.rail-segment):not(
+    .reel-frame
+  ):hover::before {
+  opacity: 1;
+  animation: ring-spin 2.4s linear infinite;
 }
 /* The press: the button gives like a mechanical shutter release. */
 button:not(:disabled):active {
@@ -260,27 +306,9 @@ button.primary {
   background: var(--color-cta-bg);
   color: var(--color-cta-text);
   border-color: transparent;
-  position: relative;
-  overflow: hidden;
-}
-/* A band of projector light sweeps across primary buttons on hover — once,
-   following the cursor's arrival, never looping. */
-button.primary::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 38%,
-    rgba(255, 255, 255, 0.55) 50%,
-    transparent 62%
-  );
-  transform: translateX(-120%);
-  pointer-events: none;
-}
-button.primary:not(:disabled):hover::after {
-  transform: translateX(120%);
-  transition: transform 600ms var(--ease-film);
+  /* No overflow:hidden here — it would clip the hover ring, which sits
+     just outside the edge. (The old light-sweep sheen retired in favor
+     of the ring, 15.17.9.) */
 }
 
 select,
@@ -295,6 +323,65 @@ textarea {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
+}
+/* Selects are dropdown TRIGGERS — they act like buttons, so they dress
+   like buttons (15.17.10, Angel's catch): pill radius, and the pastel
+   ring on hover. A <select> is a replaced element (no ::before), so the
+   ring is painted through its own border: surface fill clipped to the
+   padding box over the rotating conic gradient clipped to the border
+   box. Text fields stay soft rectangles — they hold content, they don't
+   trigger it. */
+select {
+  /* The native UA arrow hugs the edge; the model-picker buttons draw
+     their chevron a comfortable var(--space-4) in. Replace the UA arrow
+     with the SAME 9x6 chevron at the SAME offset (15.17.11) so every
+     dropdown control points down identically. The glyph is a data URI
+     (no currentColor there), themed via --chevron below. */
+  appearance: none;
+  -webkit-appearance: none;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1.2 L4.5 4.8 L8 1.2' fill='none' stroke='%23f1f3f7' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' opacity='0.8'/%3E%3C/svg%3E");
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) calc(var(--space-4) + 9px + var(--space-2))
+    var(--space-2) var(--space-4);
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right var(--space-4) center;
+  transition:
+    border-color var(--t-fast) var(--ease-film),
+    background-color var(--t-fast) var(--ease-film);
+}
+:root[data-mode='light'] select {
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1.2 L4.5 4.8 L8 1.2' fill='none' stroke='%23232a3c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' opacity='0.8'/%3E%3C/svg%3E");
+}
+select:not(:disabled):hover {
+  border-color: transparent;
+  /* Layers: the chevron on top, the translucent surface tint, an
+     OPAQUE page-color backing (surface-2 alone would let the gradient
+     bleed through the middle), then the ring gradient reaching the
+     border box. */
+  background-image:
+    var(--chevron),
+    linear-gradient(var(--color-surface-2), var(--color-surface-2)),
+    linear-gradient(var(--color-bg), var(--color-bg)),
+    conic-gradient(
+      from var(--ring-angle),
+      #f5b8c4,
+      #f8d3a7,
+      #f6ecb8,
+      #c3e7cd,
+      #b1d7f2,
+      #d4c0f0,
+      #f5b8c4
+    );
+  background-origin: border-box;
+  background-clip: padding-box, padding-box, padding-box, border-box;
+  background-repeat: no-repeat;
+  background-position:
+    right var(--space-4) center,
+    0 0,
+    0 0,
+    0 0;
+  animation: ring-spin 2.4s linear infinite;
 }
 option {
   color: initial;
@@ -444,6 +531,33 @@ a {
 }
 .reel-frame:not(:disabled):hover {
   transform: translateY(-2px);
+}
+
+/* Stage-rail segments (15.17.7, Angel's request): hovering a segment
+   grows its label a touch and tints the cell — no lift, no press-scale
+   on the box itself (the rail is one continuous strip; a segment that
+   jumps out of it reads as a broken pill). */
+button.rail-segment:not(:disabled):hover,
+button.rail-segment:not(:disabled):active {
+  transform: none;
+}
+button.rail-segment:not(:disabled):hover {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--color-text) 10%, transparent) 0 0
+  );
+}
+.rail-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: transform var(--t-fast) var(--ease-film);
+}
+button.rail-segment:not(:disabled):hover .rail-label {
+  transform: scale(1.07);
+}
+button.rail-segment:not(:disabled):active .rail-label {
+  transform: scale(0.97);
+  transition-duration: 60ms;
 }
 
 /* Changed numbers (spend, balance) tick into place like a counter wheel. */

@@ -342,6 +342,7 @@ export function StagesNav({
             <button
               key={stage.id}
               type="button"
+              className="rail-segment"
               disabled={!stage.available}
               aria-current={isActive ? 'step' : undefined}
               title={stage.hint ?? undefined}
@@ -365,7 +366,10 @@ export function StagesNav({
                 margin: 0,
                 cursor: stage.available ? 'pointer' : 'not-allowed',
                 fontWeight: isActive ? 700 : 500,
-                background: isActive
+                // backgroundColor (not the `background` shorthand): the
+                // shorthand would reset background-image inline and defeat
+                // the CSS hover tint overlay (15.17.7).
+                backgroundColor: isActive
                   ? 'var(--color-cta-bg)'
                   : isDone
                     ? 'var(--color-accent-soft)'
@@ -382,22 +386,26 @@ export function StagesNav({
                   'background-color var(--t-slow) var(--ease-film), color var(--t-slow) var(--ease-film), box-shadow var(--t-slow) var(--ease-film), opacity var(--t-med) var(--ease-film)',
               }}
             >
-              {isDone ? (
-                <DoneIcon />
-              ) : isActive ? (
-                <NowIcon />
-              ) : stage.available ? null : (
-                <LockIcon />
-              )}
-              {stage.label}
-              {isActive && progressNote != null && (
-                <span
-                  aria-hidden="true"
-                  style={{ fontSize: '11px', fontWeight: 700, opacity: 0.7 }}
-                >
-                  {progressNote}
-                </span>
-              )}
+              {/* Inner wrapper so the hover growth scales the text+icon
+                  only, never the segment box (which would tear the rail). */}
+              <span className="rail-label">
+                {isDone ? (
+                  <DoneIcon />
+                ) : isActive ? (
+                  <NowIcon />
+                ) : stage.available ? null : (
+                  <LockIcon />
+                )}
+                {stage.label}
+                {isActive && progressNote != null && (
+                  <span
+                    aria-hidden="true"
+                    style={{ fontSize: '11px', fontWeight: 700, opacity: 0.7 }}
+                  >
+                    {progressNote}
+                  </span>
+                )}
+              </span>
             </button>
           )
         })}

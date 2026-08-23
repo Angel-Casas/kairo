@@ -126,6 +126,7 @@ function App() {
           <PalettePicker />
           <button
             type="button"
+            className="nav-icon"
             aria-label={settingsOpen ? 'Close settings' : 'Settings'}
             onClick={() => {
               setSettingsOpen(!settingsOpen)
@@ -139,45 +140,82 @@ function App() {
               padding: 0,
             }}
           >
-            {settingsOpen ? (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+            {/* The gear spins a half turn and cross-fades into an X when
+                settings open, and spins back on close (15.17.8). Both
+                glyphs share one grid cell; the wrapper does the turning. */}
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'grid',
+                width: '18px',
+                height: '18px',
+                transform: settingsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform var(--t-slow) var(--ease-film)',
+              }}
+            >
+              <span
+                style={{
+                  gridArea: '1 / 1',
+                  display: 'inline-flex',
+                  opacity: settingsOpen ? 0 : 1,
+                  transition: 'opacity var(--t-med) var(--ease-film)',
+                }}
               >
-                <path
-                  d="M6 6 L18 18 M18 6 L6 18"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                ></path>
-              </svg>
-            ) : (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+                {/* A cleaner cog: eight rounded teeth around a ring. */}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <g fill="currentColor">
+                    {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+                      <rect
+                        key={deg}
+                        x="10.7"
+                        y="2"
+                        width="2.6"
+                        height="5"
+                        rx="1.3"
+                        transform={`rotate(${String(deg)} 12 12)`}
+                      />
+                    ))}
+                  </g>
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                  />
+                  <circle cx="12" cy="12" r="1.7" fill="currentColor" />
+                </svg>
+              </span>
+              <span
+                style={{
+                  gridArea: '1 / 1',
+                  display: 'inline-flex',
+                  opacity: settingsOpen ? 1 : 0,
+                  transition: 'opacity var(--t-med) var(--ease-film)',
+                }}
               >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="3.2"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                ></circle>
-                <path
-                  d="M12 2.8 L13.2 5.6 L16.2 4.9 L16.6 7.9 L19.6 8.6 L18.2 11.3 L20.2 13.6 L17.7 15.3 L18.2 18.3 L15.2 18.4 L14 21.2 L11.5 19.5 L9 21.2 L7.8 18.4 L4.8 18.3 L5.3 15.3 L2.8 13.6 L4.8 11.3 L3.4 8.6 L6.4 7.9 L6.8 4.9 L9.8 5.6 Z"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinejoin="round"
-                  opacity="0.9"
-                ></path>
-              </svg>
-            )}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M6 6 L18 18 M18 6 L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </span>
           </button>
         </div>
       </header>
