@@ -389,3 +389,20 @@ Always on / Off). Also: e2e now runs on the reduced-motion path via
 Playwright's `contextOptions.reducedMotion` — animations add ~300ms of
 actionability waiting per click and belong to visual review, not to
 logic tests.
+
+### 2026-08-23 — Opacity 0 is not gone: composited layers can ghost
+
+**What happened:** The pastel hover ring (a masked, @property-animated
+pseudo-element) faded out with an opacity transition — and on real-GPU
+Chrome, fragments of the ring sometimes stayed painted after unhover.
+Opacity 0 keeps the compositor layer alive; a layer whose animated mask
+stops mid-cycle can leave its last frame on screen. Headless (software)
+rendering never reproduced it — the screenshots were pixel-clean while
+Angel's browser showed ghosts.
+
+**Rule going forward:** Anything decorative that animates masks,
+filters, or custom properties must not merely fade out — pair the
+opacity transition with `visibility: hidden` (delayed to the fade's
+end) so the layer is torn down. And treat "headless can't reproduce a
+rendering artifact" as expected, not as proof it's fixed: verify the
+layer is actually destroyed (computed visibility), not just invisible.

@@ -244,15 +244,7 @@ function AudioWorkbench({
   }
 
   return (
-    <div
-      aria-label={`Scene ${n} audio workbench`}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr 1fr',
-        gap: 'var(--space-4)',
-        alignItems: 'start',
-      }}
-    >
+    <div aria-label={`Scene ${n} audio workbench`} className="workbench-grid">
       {/* Narration text panel */}
       <div className="card" style={panel}>
         <div style={panelTitle}>Scene {n} — narration text</div>

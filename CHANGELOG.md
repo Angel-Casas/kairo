@@ -2,6 +2,40 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.18 — Kairo fits in one hand (2026-08-23, Angel's request)
+
+- Responsive pass down to phone width (375px), one main breakpoint at
+  720px plus a 1100px mid-stop for the workbenches. Kairo MAKES phone
+  videos; now it can be driven from one. Zero horizontal overflow at
+  375 and 768 across all six stages (was 58px of page-wide sideways
+  scroll on Animation).
+- The three-panel workbenches (Audio, Images, Animation) moved their
+  grid from inline styles to a shared `.workbench-grid` class: three
+  columns on desktop, two on mid widths, a single column on phones —
+  with `min-width: 0` on panels so long selects can't force the page
+  wider.
+- The stage rail scrolls sideways on phones (labels stay readable at
+  full size) instead of crushing six segments into 375px; `main` and
+  `header` padding moved to the stylesheet so media queries can tighten
+  them.
+- The model-picker dialog stacks its filters sidebar under the list on
+  phones (the stacked rows are kept at natural size and the grid
+  scrolls — compressed rows painted the list footer over the sidebar).
+- Scenes and Export grids use `minmax(min(Nrem, 100%), 1fr)` so their
+  card minimums can never exceed the viewport; batch-overlay rows wrap.
+- Verified by full-stage screenshot audits at 375px and 768px; 260 unit
+  tests and smoke + images + animation e2e green at desktop width.
+
+## Slice 15.17.12 — The lingering ghost ring exorcised (2026-08-23, Angel's report)
+
+- Moving the cursor off a button could leave a stale fragment of the
+  pastel ring painted next to it. The ring only faded to opacity 0, so
+  its composited mask layer (animated via @property) stayed alive — and
+  real-GPU Chrome could keep its last frame on screen. The ring is now
+  also visibility-gated: hidden the instant the fade completes, which
+  tears the layer down so nothing can go stale. Verified: hover shows
+  the ring, unhover returns the page pixel-identical to idle.
+
 ## Slice 15.17.11 — One chevron to rule every dropdown (2026-08-23, Angel's catch)
 
 - Native selects drew the browser's own arrow crammed against the

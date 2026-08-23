@@ -230,13 +230,9 @@ function PickerShell<M extends PickerModel>({
                 cursor: 'default',
               }}
             >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 15rem',
-                  minHeight: 0,
-                }}
-              >
+              {/* Columns live in the stylesheet (15.18): the filters
+                  sidebar collapses under the list on small screens. */}
+              <div className="picker-grid" style={{ minHeight: 0 }}>
                 {/* Left: search + list */}
                 <div
                   style={{
@@ -454,8 +450,8 @@ function PickerShell<M extends PickerModel>({
 
                 {/* Right: Filters & Sort */}
                 <div
+                  className="picker-side"
                   style={{
-                    borderLeft: '1px solid var(--color-border)',
                     padding: 'var(--space-4)',
                     overflowY: 'auto',
                     minHeight: 0,

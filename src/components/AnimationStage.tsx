@@ -596,12 +596,7 @@ function AnimationWorkbench({
   return (
     <div
       aria-label={`Scene ${n} animation workbench`}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr 1fr',
-        gap: 'var(--space-4)',
-        alignItems: 'start',
-      }}
+      className="workbench-grid"
     >
       {/* Motion panel */}
       <div className="card" style={panel}>

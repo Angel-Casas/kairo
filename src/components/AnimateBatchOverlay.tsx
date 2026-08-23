@@ -354,6 +354,7 @@ function BatchRow({
       aria-label={`Scene ${n} batch row`}
       style={{
         display: 'flex',
+        flexWrap: 'wrap',
         gap: 'var(--space-3)',
         alignItems: 'center',
         border: '1px solid var(--color-border)',

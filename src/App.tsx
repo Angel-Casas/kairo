@@ -69,9 +69,10 @@ function App() {
   return (
     <>
       <AppBackground />
+      {/* Padding lives in the stylesheet (15.18): media queries tighten
+          it on small screens, and inline padding would override them. */}
       <header
         style={{
-          padding: 'var(--space-3) var(--space-6)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -219,14 +220,7 @@ function App() {
           </button>
         </div>
       </header>
-      <main
-        style={{
-          padding: 'var(--space-6) var(--space-8) var(--space-8)',
-          maxWidth: '96rem',
-          width: '100%',
-          margin: '0 auto',
-        }}
-      >
+      <main>
         {!loaded ? (
           <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
         ) : selectedProject !== undefined ? (

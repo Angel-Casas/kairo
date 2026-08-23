@@ -188,10 +188,27 @@ body {
 main {
   position: relative;
   z-index: 1;
+  padding: var(--space-6) var(--space-8) var(--space-8);
+  max-width: 96rem;
+  width: 100%;
+  margin: 0 auto;
 }
 header {
   position: relative;
   z-index: 3;
+  padding: var(--space-3) var(--space-6);
+}
+
+/* -- Small screens (15.18) -------------------------------------------------
+   Kairo makes PHONE videos — it should be usable from one. One breakpoint
+   for phones/small tablets; the workbench grid gets a mid stop too. */
+@media (max-width: 720px) {
+  main {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+  header {
+    padding: var(--space-3) var(--space-4);
+  }
 }
 
 /* Fullscreen settings layer: the page stays mounted (and faintly visible)
@@ -284,13 +301,25 @@ button::before {
     linear-gradient(#000 0 0);
   mask-composite: exclude;
   opacity: 0;
-  transition: opacity var(--t-fast) var(--ease-film);
+  /* visibility gates the layer's EXISTENCE: fading only to opacity 0
+     left the composited mask layer alive, and real-GPU Chrome could
+     leave its last frame painted as a ghost ring after unhover
+     (15.17.12, Angel's report). Hidden after the fade → layer torn
+     down → nothing to go stale. */
+  visibility: hidden;
+  transition:
+    opacity var(--t-fast) var(--ease-film),
+    visibility 0s var(--t-fast);
   pointer-events: none;
 }
 button:not(:disabled):not([role='option']):not(.rail-segment):not(
     .reel-frame
   ):hover::before {
   opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--t-fast) var(--ease-film),
+    visibility 0s;
   animation: ring-spin 2.4s linear infinite;
 }
 /* The press: the button gives like a mechanical shutter release. */
@@ -413,6 +442,86 @@ a {
 @media (max-width: 860px) {
   .nav-middle {
     display: none;
+  }
+}
+
+/* -- Workbench grids (Images / Audio / Animation, 15.18) ------------------- */
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+/* Grid items may hold long selects/labels; without this their min-content
+   width can force the whole page wider than the phone. */
+.workbench-grid > * {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .workbench-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .workbench-grid {
+    grid-template-columns: 1fr;
+  }
+}
+select {
+  max-width: 100%;
+}
+
+/* -- Stage rail (15.18) ----------------------------------------------------- */
+
+/* Desktop: equal segments filling the pill. Small screens: the rail keeps
+   its labels readable and scrolls sideways instead of crushing them.
+   overflow-x:auto still radius-clips the corner segments, like the old
+   overflow:hidden did. */
+.stage-rail {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.stage-rail::-webkit-scrollbar {
+  display: none;
+}
+.stage-rail .rail-segment {
+  flex: 1;
+}
+@media (max-width: 720px) {
+  .stage-rail .rail-segment {
+    flex: 0 0 auto;
+    padding: 0 var(--space-4);
+  }
+}
+
+/* -- Model picker dialog (15.18) -------------------------------------------- */
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15rem;
+}
+.picker-side {
+  border-left: 1px solid var(--color-border);
+}
+@media (max-width: 720px) {
+  .picker-grid {
+    grid-template-columns: minmax(0, 1fr);
+    /* Stacked rows exceed the dialog's max height; scrolling the grid
+       keeps each row at its natural size (otherwise the compressed
+       list column spills its footer into the sidebar below). */
+    overflow-y: auto;
+  }
+  /* The columns carry inline min-height:0 for the two-column layout's
+     internal scrolling; stacked rows must NOT shrink below content or
+     the list's footer paints over the sidebar. */
+  .picker-grid > * {
+    min-height: auto !important;
+  }
+  .picker-side {
+    border-left: none;
+    border-top: 1px solid var(--color-border);
   }
 }
 

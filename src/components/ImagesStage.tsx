@@ -368,15 +368,7 @@ function Workbench({
   }
 
   return (
-    <div
-      aria-label={`Scene ${n} workbench`}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr 1fr',
-        gap: 'var(--space-4)',
-        alignItems: 'start',
-      }}
-    >
+    <div aria-label={`Scene ${n} workbench`} className="workbench-grid">
       {/* Prompt panel */}
       <div className="card" style={panel}>
         <div style={panelTitle}>Scene {n} — prompt</div>

@@ -107,7 +107,8 @@ export function ExportStage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(min(20rem, 100%), 1fr))',
           gap: 'var(--space-4)',
           alignItems: 'start',
         }}

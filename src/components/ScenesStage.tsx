@@ -62,7 +62,8 @@ export function ScenesStage() {
             listStyle: 'none',
             padding: 0,
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(26rem, 1fr))',
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(26rem, 100%), 1fr))',
             gap: 'var(--space-3)',
             alignItems: 'start',
           }}

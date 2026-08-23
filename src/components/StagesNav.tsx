@@ -317,8 +317,11 @@ export function StagesNav({
         </button>
       </div>
 
-      {/* Segmented rail: one control, five named segments. */}
+      {/* Segmented rail: one control, five named segments. The class
+          carries the responsive behavior (15.18): on small screens the
+          rail scrolls horizontally instead of crushing its labels. */}
       <div
+        className="stage-rail"
         style={{
           display: 'flex',
           alignItems: 'stretch',
@@ -326,7 +329,6 @@ export function StagesNav({
           borderRadius: 'var(--radius-pill)',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
-          overflow: 'hidden',
           boxShadow: 'var(--shadow-card)',
         }}
       >
@@ -350,7 +352,8 @@ export function StagesNav({
                 onSelect(stage.id)
               }}
               style={{
-                flex: 1,
+                // flex sizing lives in the stylesheet (.rail-segment) so
+                // the small-screen media query can relax it.
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
