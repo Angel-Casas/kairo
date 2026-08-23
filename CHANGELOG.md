@@ -2,6 +2,40 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.16.3 — Lip-sync clips don't double the narration (2026-08-22, from Angel's catch)
+
+- A lip-sync clip carries the narration IN ITS OWN AUDIO TRACK — Angel's
+  first live S2V take proved it — so every narration-pairing feature
+  must stand down for such takes. New `embedsNarration` flag rides the
+  generation job (surviving reloads and resumed polls) onto the
+  collected AssetVersion, and then: the clips panel swaps the side
+  player + Mute for a one-line "embedded in this lip-sync clip" note
+  (the audio element stays mounted, hidden and muted — it is also how
+  narration length is measured); the video sync handlers stand down;
+  the lightbox plays the clip alone; and the export zip skips that
+  scene's separate narration file (the voice ships inside scene-NN
+  itself — a duplicate file invites doubled audio in the edit).
+- Per-take, not per-scene: switching back to a regular take of the same
+  scene brings the side player straight back.
+- Tests: 254 unit (flag rides job → version; export skips exactly the
+  embedded scene's narration file, keeps clip-less scenes' voice);
+  lip-sync e2e extended (note shown, no Mute button offered).
+
+## Slice 15.16.2 — Lip-sync button fixed: it no longer needs a main model (2026-08-22, Angel's report)
+
+- "Lip-sync narration" did nothing when clicked: the confirm dialog was
+  rendered behind a `model !== null` gate — the MAIN Animate model —
+  but the lip-sync flow has its own model and needs no main one. The
+  gate now checks the model the flow actually uses. New e2e regression
+  test drives the exact reported path: no main model chosen, lip-sync
+  model picked, dialog appears, submission carries `data:audio` and no
+  duration.
+- Enabler: the e2e TTS mock now returns a REAL tiny WAV instead of fake
+  bytes — the app measures narration length from the audio itself
+  (duration hints, lip-sync gating), so undecodable mock audio left
+  those features dormant and untestable. audio+animation suites re-run
+  green (12 e2e).
+
 ## Slice 15.16.1 — Lip-sync picker explains each model (2026-08-22, from Angel's question)
 
 - Angel counted 14 models in the lip-sync menu and asked whether they

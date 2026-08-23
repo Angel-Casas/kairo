@@ -104,6 +104,25 @@ describe('buildClipsZip', () => {
     )
   })
 
+  it('skips the narration file when the active clip embeds it (15.16.3)', async () => {
+    const { project, blobs } = await seed()
+    // Scene 1's active clip becomes a lip-sync take: narration baked in.
+    const sceneA = project.scenes.find((sc) => sc.order === 0)
+    if (sceneA?.videoVersions[0] === undefined) throw new Error('seed broke')
+    sceneA.videoVersions[0].embedsNarration = true
+
+    const { zip } = await buildClipsZip(project, blobs)
+    const entries = unzipSync(new Uint8Array(await zip.arrayBuffer()))
+    // narration-01 is gone (its voice is inside scene-01.mp4);
+    // narration-03 still ships — that scene's clip is missing entirely.
+    expect(Object.keys(entries).sort()).toEqual([
+      'narration-03.mp3',
+      'scene-01.mp4',
+      'scene-02.webm',
+      'script.txt',
+    ])
+  })
+
   it('exports script-only for a project with no clips at all', async () => {
     const blobs = new MemoryBlobStore()
     const project = createProject('Empty', nowIso)

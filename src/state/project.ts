@@ -1458,6 +1458,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       estimatedUsd: null,
       prompt,
       submittedCostUsd: null,
+      // Lip-sync clips embed the narration in their own audio track —
+      // the flag rides the job so the collected take remembers (15.16.3).
+      ...(lipSync ? { embedsNarration: true } : {}),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     }
@@ -1772,6 +1775,7 @@ async function pollVideoJobTick(
           model: job.model,
           prompt: job.prompt ?? '',
           costUsd: job.submittedCostUsd ?? status.costUsd,
+          ...(job.embedsNarration === true ? { embedsNarration: true } : {}),
           blobPath,
           // Keep the CDN's real video type (some models don't ship plain
           // mp4); anything non-video (e.g. octet-stream) is called mp4.

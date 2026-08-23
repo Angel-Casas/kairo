@@ -178,12 +178,37 @@ export async function mockTtsModels(page: Page): Promise<void> {
   )
 }
 
-/** Mock the TTS endpoint with tiny fake audio bytes (never spends money). */
+/**
+ * Mock the TTS endpoint with a REAL (tiny, silent) WAV — never spends
+ * money, but DECODES: the app measures narration length from the audio
+ * itself (duration hints, lip-sync gating), so fake bytes would leave
+ * those features dormant in tests (15.16.2).
+ */
+export function tinyWavBuffer(seconds = 1.6): Buffer {
+  const sampleRate = 8000
+  const samples = Math.round(sampleRate * seconds)
+  const buf = Buffer.alloc(44 + samples * 2)
+  buf.write('RIFF', 0)
+  buf.writeUInt32LE(36 + samples * 2, 4)
+  buf.write('WAVE', 8)
+  buf.write('fmt ', 12)
+  buf.writeUInt32LE(16, 16)
+  buf.writeUInt16LE(1, 20) // PCM
+  buf.writeUInt16LE(1, 22) // mono
+  buf.writeUInt32LE(sampleRate, 24)
+  buf.writeUInt32LE(sampleRate * 2, 28)
+  buf.writeUInt16LE(2, 32)
+  buf.writeUInt16LE(16, 34)
+  buf.write('data', 36)
+  buf.writeUInt32LE(samples * 2, 40)
+  return buf
+}
+
 export async function mockTts(page: Page): Promise<void> {
   await page.route(`${API}/v1/audio/speech`, (route) =>
     route.fulfill({
-      contentType: 'audio/mpeg',
-      body: Buffer.from('fake-mp3-bytes'),
+      contentType: 'audio/wav',
+      body: tinyWavBuffer(),
     }),
   )
 }

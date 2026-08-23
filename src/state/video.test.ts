@@ -384,6 +384,9 @@ describe('video generation', () => {
           .getState()
           .project?.scenes.find((s) => s.id === sceneId)
         expect(scene?.videoVersions).toHaveLength(1)
+        // The collected take remembers its narration is baked in, so
+        // narration-pairing features won't double the voice (15.16.3).
+        expect(scene?.videoVersions[0]?.embedsNarration).toBe(true)
       },
       { timeout: 3000 },
     )

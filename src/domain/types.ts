@@ -22,6 +22,12 @@ export interface AssetVersion {
   prompt: string
   /** Actual cost in USD, when known. */
   costUsd: number | null
+  /**
+   * Set on lip-sync clips (15.16.3): the narration is baked into the
+   * clip's own audio track, so narration-pairing features (side player,
+   * lightbox sync, export narration files) must NOT double it.
+   */
+  embedsNarration?: boolean
   /** Path of the binary in the BlobStore (OPFS), e.g. `<projectId>/<versionId>`. */
   blobPath: string
   mimeType: string
@@ -142,6 +148,8 @@ export interface GenerationJob {
   prompt: string | null
   /** Actual cost charged at submission, when the provider reports it. */
   submittedCostUsd: number | null
+  /** Lip-sync jobs: the finished clip embeds the narration (15.16.3). */
+  embedsNarration?: boolean
   createdAt: string
   updatedAt: string
 }

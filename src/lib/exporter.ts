@@ -51,9 +51,11 @@ function audioExtensionForMime(mimeType: string): string {
 
 /**
  * Build the clips zip: numbered clips + matching numbered narration files
- * (Slice 15) + script.txt. Narration is exported for EVERY scene that has
+ * (Slice 15) + script.txt. Narration is exported for every scene that has
  * one — including scenes whose clip is still missing — so the editor gets
- * all the voice that exists.
+ * all the voice that exists. Exception: scenes whose active clip EMBEDS
+ * the narration (lip-sync takes) skip the separate file — the voice is
+ * already inside the clip, and a duplicate invites doubled audio.
  */
 export async function buildClipsZip(
   project: Project,
@@ -78,6 +80,13 @@ export async function buildClipsZip(
       (v) => v.id === scene.activeAudioVersionId,
     )
     if (narration === undefined) continue
+    // A lip-sync clip already CARRIES the narration in its audio track —
+    // a separate narration file would invite doubled voice in the edit
+    // (15.16.3). The voice still ships, inside scene-NN itself.
+    const activeClip = scene.videoVersions.find(
+      (v) => v.id === scene.activeVideoVersionId,
+    )
+    if (activeClip?.embedsNarration === true) continue
     const blob = await blobs.get(narration.blobPath)
     if (blob === null) continue
     const number = String(index + 1).padStart(2, '0')

@@ -148,8 +148,12 @@ export function AnimationStage() {
         title: `Scene ${String(i + 1)}`,
         prompt: scene.visualDescription.trim(),
         excerpt: scene.textExcerpt.trim(),
-        narrationBlobPath: narration?.blobPath,
-        narrationMimeType: narration?.mimeType,
+        // A lip-sync clip already plays its own narration — syncing the
+        // separate track on top would double the voice (15.16.3).
+        narrationBlobPath:
+          clip?.embedsNarration === true ? undefined : narration?.blobPath,
+        narrationMimeType:
+          clip?.embedsNarration === true ? undefined : narration?.mimeType,
       })
     }
   }
@@ -261,54 +265,64 @@ export function AnimationStage() {
         />
       )}
 
-      {confirming !== null && model !== null && (
-        <ConfirmDialog
-          title={`${confirming.label}?`}
-          message={
-            confirming.type === 'lipsync' && lipSyncModel !== null
-              ? (() => {
-                  const est = lipSyncEstimate(lipSyncModel, null)
-                  return `This submits one lip-sync job with ${lipSyncModel.name} at ${est.resolution ?? 'the model\u2019s default resolution'}. The clip follows the scene's narration; billed per second, charged at submission.`
-                })()
-              : confirmMessage('This submits one video job')
-          }
-          confirmLabel="Submit and charge"
-          onConfirm={() => {
-            const pending = confirming
-            setConfirming(null)
-            if (pending.type === 'lipsync') {
-              if (lipSyncModel !== null) {
-                void generateSceneVideo(
-                  pending.sceneId,
-                  lipSyncModel,
-                  null, // the narration defines the length
-                  lipSyncEstimate(lipSyncModel, null).resolution,
-                  undefined,
-                  true,
-                )
-              }
-            } else if (pending.type === 'tweak') {
-              void generateSceneVideo(
-                pending.sceneId,
-                model,
-                effectiveDuration,
-                effectiveResolution,
-                pending.prompt,
-              )
-            } else {
-              void generateSceneVideo(
-                pending.sceneId,
-                model,
-                effectiveDuration,
-                effectiveResolution,
-              )
+      {/* The lip-sync flow has its OWN model — it must not be gated on
+          the main Animate model being chosen (15.16.2, Angel's report:
+          the button "did nothing" without a main model selected). */}
+      {confirming !== null &&
+        (confirming.type === 'lipsync'
+          ? lipSyncModel !== null
+          : model !== null) && (
+          <ConfirmDialog
+            title={`${confirming.label}?`}
+            message={
+              confirming.type === 'lipsync' && lipSyncModel !== null
+                ? (() => {
+                    const est = lipSyncEstimate(lipSyncModel, null)
+                    return `This submits one lip-sync job with ${lipSyncModel.name} at ${est.resolution ?? 'the model\u2019s default resolution'}. The clip follows the scene's narration; billed per second, charged at submission.`
+                  })()
+                : confirmMessage('This submits one video job')
             }
-          }}
-          onCancel={() => {
-            setConfirming(null)
-          }}
-        />
-      )}
+            confirmLabel="Submit and charge"
+            onConfirm={() => {
+              const pending = confirming
+              setConfirming(null)
+              if (pending.type === 'lipsync') {
+                if (lipSyncModel !== null) {
+                  void generateSceneVideo(
+                    pending.sceneId,
+                    lipSyncModel,
+                    null, // the narration defines the length
+                    lipSyncEstimate(lipSyncModel, null).resolution,
+                    undefined,
+                    true,
+                  )
+                }
+              } else if (pending.type === 'tweak') {
+                if (model !== null) {
+                  void generateSceneVideo(
+                    pending.sceneId,
+                    model,
+                    effectiveDuration,
+                    effectiveResolution,
+                    pending.prompt,
+                  )
+                }
+              } else {
+                if (model !== null) {
+                  void generateSceneVideo(
+                    pending.sceneId,
+                    model,
+                    effectiveDuration,
+                    effectiveResolution,
+                  )
+                }
+              }
+            }}
+            onCancel={() => {
+              setConfirming(null)
+            }}
+          />
+        )}
 
       {lightboxStart !== null && lightboxItems.length > 0 && (
         <Lightbox
@@ -540,6 +554,10 @@ function AnimationWorkbench({
   const [narrationMuted, setNarrationMuted] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const narrationRef = useRef<HTMLAudioElement | null>(null)
+  // Lip-sync takes carry the narration INSIDE the clip's audio track —
+  // the side player must not double it (15.16.3). The audio element stays
+  // mounted (hidden, muted): it is also how narrationSeconds is measured.
+  const narrationEmbedded = activeVideo?.embedsNarration === true
   const clipFileRef = useRef<HTMLInputElement | null>(null)
 
   // Playing the clip drives the narration along with it: same start, same
@@ -911,6 +929,7 @@ function AnimationWorkbench({
                 setClipSeconds(Number.isFinite(seconds) ? seconds : null)
               }}
               onPlay={(e) => {
+                if (narrationEmbedded) return // the clip sings for itself
                 syncNarrationTo(e.currentTarget)
                 void narrationRef.current?.play().catch(() => undefined)
               }}
@@ -918,6 +937,7 @@ function AnimationWorkbench({
                 narrationRef.current?.pause()
               }}
               onSeeked={(e) => {
+                if (narrationEmbedded) return
                 syncNarrationTo(e.currentTarget)
               }}
               onEnded={() => {
@@ -945,7 +965,8 @@ function AnimationWorkbench({
                 }}
               >
                 clip runs {clipSeconds.toFixed(1)}s
-                {narrationSeconds !== null &&
+                {!narrationEmbedded &&
+                  narrationSeconds !== null &&
                   Math.abs(clipSeconds - narrationSeconds) > 0.75 &&
                   ` — the narration runs ${narrationSeconds.toFixed(1)}s, so it will be ${
                     clipSeconds < narrationSeconds
@@ -1010,7 +1031,7 @@ function AnimationWorkbench({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: 'var(--space-2)',
-                marginBottom: 'var(--space-2)',
+                marginBottom: narrationEmbedded ? 0 : 'var(--space-2)',
               }}
             >
               <p style={{ margin: 0 }}>
@@ -1023,40 +1044,46 @@ function AnimationWorkbench({
                     fontSize: 'var(--text-sm)',
                   }}
                 >
-                  — plays along with the clip
+                  {narrationEmbedded
+                    ? '— embedded in this lip-sync clip'
+                    : '— plays along with the clip'}
                 </span>
               </p>
-              <button
-                type="button"
-                aria-label="Mute narration"
-                aria-pressed={narrationMuted}
-                onClick={() => {
-                  const next = !narrationMuted
-                  setNarrationMuted(next)
-                  if (narrationRef.current !== null) {
-                    narrationRef.current.muted = next
-                  }
-                }}
-                style={{
-                  fontSize: 'var(--text-sm)',
-                  padding: 'var(--space-1) var(--space-3)',
-                }}
-              >
-                {narrationMuted ? 'Unmute' : 'Mute'}
-              </button>
+              {!narrationEmbedded && (
+                <button
+                  type="button"
+                  aria-label="Mute narration"
+                  aria-pressed={narrationMuted}
+                  onClick={() => {
+                    const next = !narrationMuted
+                    setNarrationMuted(next)
+                    if (narrationRef.current !== null) {
+                      narrationRef.current.muted = next
+                    }
+                  }}
+                  style={{
+                    fontSize: 'var(--text-sm)',
+                    padding: 'var(--space-1) var(--space-3)',
+                  }}
+                >
+                  {narrationMuted ? 'Unmute' : 'Mute'}
+                </button>
+              )}
             </div>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption -- generated narration of the scene's script excerpt, shown as text on the Audio stage */}
             <audio
               ref={narrationRef}
               src={audioUrl}
-              controls
-              muted={narrationMuted}
+              controls={!narrationEmbedded}
+              muted={narrationEmbedded || narrationMuted}
               aria-label={`Scene ${n} narration`}
               onLoadedMetadata={(e) => {
                 const seconds = e.currentTarget.duration
                 if (Number.isFinite(seconds)) setNarrationSeconds(seconds)
               }}
-              style={{ width: '100%' }}
+              style={
+                narrationEmbedded ? { display: 'none' } : { width: '100%' }
+              }
             />
           </div>
         )}

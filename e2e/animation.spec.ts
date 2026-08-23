@@ -48,6 +48,24 @@ async function mockVideoModels(page: Page): Promise<void> {
             name: 'Text Only Model',
             capabilities: { text_to_video: true, image_to_video: false },
           },
+          {
+            id: 'mock/s2v-1',
+            name: 'Mock LipSyncer',
+            capabilities: { image_to_video: true, audio_input: true },
+            pricing: {
+              currency: 'USD',
+              per_second_by_resolution: { '480p': 0.04 },
+            },
+            supported_parameters: {
+              parameters: {
+                resolution: {
+                  type: 'select',
+                  options: [{ value: '480p' }],
+                  default: '480p',
+                },
+              },
+            },
+          },
         ],
         meta: { count: 2, generated_at: '2026-08-16T00:00:00Z' },
       },
@@ -315,6 +333,52 @@ test('a relative video URL is collected from NanoGPT with the key — never the 
     timeout: 15000,
   })
   expect(contentAuth).toBe('e2e-key')
+})
+
+test('lip-sync works without a main Animate model chosen (15.16.2)', async ({
+  page,
+}) => {
+  await mockTtsModels(page)
+  await mockTts(page)
+  await mockVideoPipeline(page, { inProgressPolls: 0 })
+
+  // Narrate scene 1, then return to Animation.
+  await page.getByRole('button', { name: 'Audio', exact: true }).click()
+  await pickModel(page, 'Narration model', 'mock/tts-1')
+  await page.getByRole('button', { name: 'Narrate scene' }).click()
+  await expect(
+    page.getByLabel('Scene 1 narration', { exact: true }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Animation', exact: true }).click()
+
+  // Deliberately pick NO main Video model — only the lip-sync model
+  // (the bug: the confirm dialog was gated on the main model existing).
+  let body: Record<string, unknown> = {}
+  await page.route('https://nano-gpt.com/api/generate-video', async (route) => {
+    body = route.request().postDataJSON() as Record<string, unknown>
+    return route.fulfill({
+      json: { runId: 'vid_lipsync_e2e', status: 'pending', cost: 0.26 },
+    })
+  })
+  await pickModel(page, 'Lip-sync model', 'mock/s2v-1')
+  await page.getByRole('button', { name: 'Lip-sync scene 1 narration' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('lip-sync job')
+  await page.getByRole('button', { name: 'Submit and charge' }).click()
+
+  await expect(page.getByLabel('Scene 1 video')).toBeVisible({
+    timeout: 15000,
+  })
+  // The narration rode along as audio; no duration was fabricated.
+  expect(String(body.audioDataUrl)).toMatch(/^data:audio/)
+  expect(body).not.toHaveProperty('duration')
+
+  // The clip carries its own voice — the side player yields to a note
+  // and no separate narration audio is offered (15.16.3).
+  await expect(page.getByText('embedded in this lip-sync clip')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Mute narration' }),
+  ).toBeHidden()
 })
 
 test('narration rides the clip player with a mute toggle', async ({ page }) => {
