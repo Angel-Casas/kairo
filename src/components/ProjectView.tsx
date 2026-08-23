@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../state/project'
 import { AnimationStage } from './AnimationStage'
 import { AudioStage } from './AudioStage'
@@ -9,6 +9,19 @@ import { ScriptStage } from './ScriptStage'
 import { buildStages, type Stage } from '../domain/stages'
 import type { Project } from '../domain/types'
 import { StagesNav } from './StagesNav'
+
+/**
+ * Stage order for the direction-aware transition (ADR-013): moving to a
+ * later stage advances the film left←right; moving back rewinds it.
+ */
+const STAGE_ORDER: Stage[] = [
+  'script',
+  'scenes',
+  'audio',
+  'images',
+  'animation',
+  'export',
+]
 
 /** Short "where am I" note for the rail's active segment, e.g. "4/6". */
 function stageProgressNote(project: Project, stage: Stage): string | null {
@@ -48,6 +61,15 @@ export function ProjectView({
   const closeProject = useProjectStore((s) => s.closeProject)
   const flushProject = useProjectStore((s) => s.flushProject)
   const [stage, setStage] = useState<Stage>('script')
+  // Remember where we came from so the incoming stage knows which way the
+  // film is travelling (forward advance vs. rewind).
+  const prevStageRef = useRef<Stage>('script')
+  const cameFrom = prevStageRef.current
+  useEffect(() => {
+    prevStageRef.current = stage
+  }, [stage])
+  const goingForward =
+    STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf(cameFrom)
 
   useEffect(() => {
     void loadProject(projectId)
@@ -108,12 +130,17 @@ export function ProjectView({
         onSelect={setStage}
         progressNote={stageProgressNote(project, stage)}
       />
-      {stage === 'script' && <ScriptStage />}
-      {stage === 'scenes' && <ScenesStage />}
-      {stage === 'audio' && <AudioStage />}
-      {stage === 'images' && <ImagesStage />}
-      {stage === 'animation' && <AnimationStage />}
-      {stage === 'export' && <ExportStage />}
+      <div
+        key={stage}
+        className={goingForward ? 'stage-in-fwd' : 'stage-in-back'}
+      >
+        {stage === 'script' && <ScriptStage />}
+        {stage === 'scenes' && <ScenesStage />}
+        {stage === 'audio' && <AudioStage />}
+        {stage === 'images' && <ImagesStage />}
+        {stage === 'animation' && <AnimationStage />}
+        {stage === 'export' && <ExportStage />}
+      </div>
     </section>
   )
 }

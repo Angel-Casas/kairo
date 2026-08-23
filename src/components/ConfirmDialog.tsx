@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ConfirmDialogProps {
   title: string
@@ -30,14 +31,19 @@ export function ConfirmDialog({
     }
   }, [onCancel])
 
-  return (
+  // Portaled to <body>: this dialog renders inside stages whose entrance
+  // animation applies a transform, and a transformed ancestor would trap
+  // its position:fixed veil inside the stage instead of the screen.
+  return createPortal(
     <div
+      className="motion-veil"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       style={{
         position: 'fixed',
         inset: 0,
+        zIndex: 12,
         background: 'rgba(0, 0, 0, 0.6)',
         display: 'flex',
         alignItems: 'center',
@@ -45,7 +51,7 @@ export function ConfirmDialog({
       }}
     >
       <div
-        className="card"
+        className="card motion-dialog"
         style={{
           /* Solid ground: the glass surface is too sheer over the scrim. */
           background: 'var(--color-bg)',
@@ -78,6 +84,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

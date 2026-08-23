@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { TtsModel } from '../api/nanogpt'
 import { ttsCostUsd, VOICE_PREVIEW_TEXT, voiceLabel } from '../domain/ttsModels'
 import { formatUsd } from '../lib/format'
+import { FilmProgress } from './FilmProgress'
 import { useProjectStore } from '../state/project'
 import { getRepository } from '../state/repo'
 
@@ -213,6 +214,7 @@ export function VoicePicker({
       {open &&
         createPortal(
           <div
+            className="motion-veil"
             onClick={() => {
               setOpen(false)
             }}
@@ -231,6 +233,7 @@ export function VoicePicker({
             }}
           >
             <div
+              className="motion-dialog"
               role="dialog"
               aria-modal="true"
               aria-label="Voice menu"
@@ -384,13 +387,26 @@ export function VoicePicker({
                   gap: 'var(--space-3)',
                 }}
               >
-                <span role={error === null ? undefined : 'alert'}>
+                <span
+                  role={error === null ? undefined : 'alert'}
+                  style={{ flex: 1, minWidth: 0 }}
+                >
                   {error ??
                     (loadingAll !== null
                       ? `Loading previews… ${String(loadingAll.done)}/${String(loadingAll.total)}`
                       : previewUsd === null
                         ? '▶ narrates a short sample through the model.'
                         : `▶ narrates a short sample once (${formatUsd(previewUsd)}), then replays free from cache.`)}
+                  {loadingAll !== null && (
+                    <FilmProgress
+                      value={
+                        loadingAll.total > 0
+                          ? loadingAll.done / loadingAll.total
+                          : null
+                      }
+                      label="Voice previews loading"
+                    />
+                  )}
                 </span>
                 <span
                   style={{

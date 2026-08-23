@@ -191,6 +191,7 @@ function PickerShell<M extends PickerModel>({
       {open &&
         createPortal(
           <div
+            className="motion-veil"
             onClick={() => {
               setOpen(false)
             }}
@@ -209,6 +210,7 @@ function PickerShell<M extends PickerModel>({
             }}
           >
             <div
+              className="motion-dialog"
               role="dialog"
               aria-modal="true"
               aria-label={`${ariaLabel} menu`}

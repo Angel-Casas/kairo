@@ -4,6 +4,7 @@ import type { VideoModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
 import { audioBlobDuration } from '../lib/audioBlob'
 import { pickClipDuration } from '../lib/clipDuration'
+import { FilmProgress } from './FilmProgress'
 import { formatUsd } from '../lib/format'
 import { sortVideoResolutionsCheapestFirst } from '../lib/resolution'
 import { getRepository } from '../state/repo'
@@ -159,6 +160,7 @@ export function AnimateBatchOverlay({
 
   return createPortal(
     <div
+      className="motion-veil"
       onClick={onCancel}
       style={{
         position: 'fixed',
@@ -175,6 +177,7 @@ export function AnimateBatchOverlay({
       }}
     >
       <div
+        className="motion-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Animate remaining scenes"
@@ -279,6 +282,11 @@ export function AnimateBatchOverlay({
             flexWrap: 'wrap',
           }}
         >
+          {!measured && (
+            <div style={{ flexBasis: '100%' }}>
+              <FilmProgress label="Measuring narrations" />
+            </div>
+          )}
           <span
             style={{
               color: 'var(--color-text-muted)',

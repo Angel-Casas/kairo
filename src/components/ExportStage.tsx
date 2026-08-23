@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FilmProgress } from './FilmProgress'
 import {
   buildClipsZip,
   downloadBlob,
@@ -135,6 +136,11 @@ export function ExportStage() {
           >
             {busy === 'zip' ? 'Building zip…' : `Download clips (.zip)`}
           </button>
+          {busy === 'zip' && (
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <FilmProgress label="Clips zip building" />
+            </div>
+          )}
         </div>
 
         <div
@@ -166,6 +172,11 @@ export function ExportStage() {
                 ? 'Stitching…'
                 : 'Create stitched draft (.mp4)'}
           </button>
+          {(busy === 'stitch-loading' || busy === 'stitch-running') && (
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <FilmProgress label="Stitched draft building" />
+            </div>
+          )}
         </div>
 
         <div
@@ -196,6 +207,11 @@ export function ExportStage() {
               ? 'Building backup…'
               : 'Download project backup (.kairo)'}
           </button>
+          {busy === 'backup' && (
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <FilmProgress label="Project backup building" />
+            </div>
+          )}
         </div>
       </div>
 

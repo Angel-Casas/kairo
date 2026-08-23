@@ -1713,13 +1713,19 @@ async function pollVideoJobTick(
   // Project closed or switched: stop quietly; resumeVideoJobs picks it up
   // again next time the project is opened.
   if (
-    apiKey === null ||
     state.project === null ||
     state.project.id !== job.projectId ||
     job.remoteJobId === null
   ) {
     videoPollers.delete(job.id)
     videoPollErrors.delete(job.id)
+    return
+  }
+  // The key can still be loading from IndexedDB right after a reload (resume
+  // schedules its first poll 1s into project load). That is transient — try
+  // again shortly instead of silently abandoning a paid job forever.
+  if (apiKey === null) {
+    scheduleVideoPoll(job, get, set, VIDEO_POLL_INITIAL_MS)
     return
   }
   const repo = await getRepository()

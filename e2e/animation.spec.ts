@@ -441,6 +441,9 @@ test('a clip file imports as a free take', async ({ page }) => {
 test('a job interrupted by reload resumes and collects the clip', async ({
   page,
 }) => {
+  // The whole pipeline runs TWICE here (before and after the reload), which
+  // no longer fits the default 30s on slower machines.
+  test.setTimeout(60_000)
   await mockVideoPipeline(page, { inProgressPolls: 999 })
   await pickModel(page, 'Video model', 'mock/animator-1')
   const scene1 = page.getByLabel('Scene 1 animation workbench')

@@ -9,6 +9,7 @@ import { useModelsStore } from '../state/models'
 import { AnimateBatchOverlay, type BatchItem } from './AnimateBatchOverlay'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
+import { FilmProgress } from './FilmProgress'
 import { GenerationHistory } from './GenerationHistory'
 import { Lightbox, type LightboxItem } from './Lightbox'
 import { VideoModelPicker } from './ModelPicker'
@@ -370,10 +371,12 @@ function AnimationFrame({
         position: 'relative',
         flexShrink: 0,
         width: selected ? '11.5rem' : '10rem',
+        transition: 'width var(--t-med) var(--ease-film)',
       }}
     >
       <button
         type="button"
+        className="reel-frame"
         aria-label={`Scene ${n} frame`}
         aria-pressed={selected}
         onClick={onSelect}
@@ -807,6 +810,9 @@ function AnimationWorkbench({
             </span>
           )}
         </div>
+        {generating && (
+          <FilmProgress label={`Scene ${n} animation generating`} />
+        )}
         {status?.error != null && (
           <p role="alert" style={{ margin: 0, color: 'var(--color-danger)' }}>
             {status.error}
@@ -920,6 +926,10 @@ function AnimationWorkbench({
         {videoUrl !== null ? (
           <>
             <video
+              // Keyed by take: a fresh clip develops into focus instead of
+              // hard-swapping (ADR-013).
+              key={activeVideo?.id}
+              className="develop-in"
               ref={videoRef}
               src={videoUrl}
               controls
@@ -1192,6 +1202,7 @@ function CameraHelp() {
       {open &&
         createPortal(
           <div
+            className="motion-veil"
             onClick={() => {
               setOpen(false)
             }}
@@ -1210,6 +1221,7 @@ function CameraHelp() {
             }}
           >
             <div
+              className="motion-dialog"
               role="dialog"
               aria-modal="true"
               aria-label="Camera direction guide"

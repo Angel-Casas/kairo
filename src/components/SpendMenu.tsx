@@ -107,7 +107,10 @@ export function SpendMenu() {
         <span>
           Spent{' '}
           <strong style={{ color: 'var(--color-text)' }}>
-            {formatUsd(totalUsd)}
+            {/* Keyed by value: each change re-runs the counter-wheel tick. */}
+            <span key={totalUsd} className="tick-in">
+              {formatUsd(totalUsd)}
+            </span>
           </strong>{' '}
           · {entries.length}
         </span>
@@ -190,6 +193,7 @@ export function SpendMenu() {
       {open &&
         createPortal(
           <div
+            className="motion-veil"
             onClick={() => {
               setOpen(false)
             }}
@@ -209,6 +213,7 @@ export function SpendMenu() {
             }}
           >
             <div
+              className="motion-dialog"
               role="dialog"
               aria-modal="true"
               aria-label="Project spend"

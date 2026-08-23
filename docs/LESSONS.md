@@ -321,3 +321,71 @@ offer UI choices the API can't honor. For frame-based models, keep the
 product language in seconds and translate at the API boundary,
 preferring the cheapest plan that reaches the ask (fewest frames — the
 frame count drives the surcharge), and say what was actually submitted.
+
+### 2026-08-23 — `pkill -f` can match its own shell: the exit-144 mystery solved
+
+**What happened:** Cleanup lines like `pkill -f "vite preview"` kept
+killing the very shell that ran them: the wrapper's own command line
+contains the literal string being matched, so `pkill -f` found and
+signalled it. This is what the "random" exit code 144 failures were —
+self-inflicted, not flakiness.
+
+**Rule going forward:** Break the self-match with a character class —
+`pkill -f "vite [p]review"` — so the pattern no longer matches the
+line that carries it. Applies to every `pkill -f`/`pgrep -f` whose
+pattern appears verbatim in the invoking command.
+
+### 2026-08-23 — A transient absence is not a terminal state — and don't invent races
+
+**What happened:** The interrupted-job e2e test started failing after the
+motion pass. First diagnosis: "the API key is still loading from
+IndexedDB when the resumed job's first poll fires, and
+`pollVideoJobTick` treats a null key as 'project closed' — job silently
+abandoned." A retry-on-null-key guard was added... and the test still
+failed, because the key actually loads SYNCHRONOUSLY from localStorage —
+the real culprit was the test's 30s budget: the flow runs the whole
+pipeline twice and animations added stability-waits. A 60s budget fixed
+it.
+
+**Rule going forward:** Two lessons. (1) The retry guard stays — a
+transient absence (settings not ready) must never share the terminal
+"stop polling forever" path with a permanent one (project closed),
+especially where user money rides on the poller. (2) When a fix is
+applied and the symptom persists, the diagnosis was wrong — retract it
+rather than stacking a second fix on top, and re-verify what the
+failing assertion was actually waiting on.
+
+### 2026-08-23 — A transformed ancestor quietly owns every fixed descendant
+
+**What happened:** The stage-entrance animation kept `transform:
+translateX(0)` pinned on the stage wrapper (`animation-fill-mode:
+both`). Any transformed element becomes the containing block for
+`position: fixed` descendants — and Lightbox + ConfirmDialog were the
+only overlays rendered inline rather than portaled. Their "fullscreen"
+veils silently became stage-sized: no dimmed navbar, no outside-click
+target. Worse, with reduced motion on, the 0.01ms animation still
+pinned its end-state transform, so the bug appeared even with no
+visible animation.
+
+**Rule going forward:** Every fullscreen overlay portals to `<body>`,
+no exceptions — inline "happens to work" only until an ancestor gains
+a transform, filter, or backdrop-filter. And never let an entrance
+animation persist a transform (`fill-mode: both` on a keyframe ending
+in `translateX(0)`/`scale(1)` still counts as transformed); let it
+revert to the natural, untransformed state.
+
+### 2026-08-23 — Honoring reduced-motion silently reads as "your animations are broken"
+
+**What happened:** The motion pass dutifully collapsed all animation
+under `prefers-reduced-motion` — and Angel, whose OS had Reduce Motion
+on, reported "not a single animation works." The a11y behavior was
+correct; the SILENCE was the bug. Nothing anywhere said motion was
+being suppressed or why.
+
+**Rule going forward:** When the app deliberately disables something
+because of an OS/accessibility signal, say so where the user would
+look for it and offer an override (Settings → Motion: Follow system /
+Always on / Off). Also: e2e now runs on the reduced-motion path via
+Playwright's `contextOptions.reducedMotion` — animations add ~300ms of
+actionability waiting per click and belong to visual review, not to
+logic tests.

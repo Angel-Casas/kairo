@@ -8,6 +8,7 @@ import {
 import { formatUsd } from '../lib/format'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
+import { FilmProgress } from './FilmProgress'
 import { TextModelPicker } from './ModelPicker'
 
 export function ScriptStage() {
@@ -177,6 +178,9 @@ export function ScriptStage() {
                     : `Estimated cost: up to ~${formatUsd(estimatedUsd)}`}
               </span>
             </div>
+            {genStatus === 'generating' && (
+              <FilmProgress label="Script generating" />
+            )}
             {genStatus === 'error' && genError !== null && (
               <p role="alert" style={{ color: 'var(--color-danger)' }}>
                 {genError}

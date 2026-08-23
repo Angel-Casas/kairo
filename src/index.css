@@ -48,6 +48,14 @@
   --radius-lg: 22px;
   --radius-pill: 999px;
 
+  /* Motion (ADR-013 — "the projectionist's cut"). ONE signature easing:
+     a quick pull with a gliding settle, like a well-oiled film advance.
+     Every duration is one of three stops — no ad-hoc timings. */
+  --ease-film: cubic-bezier(0.22, 0.9, 0.24, 1);
+  --t-fast: 140ms;
+  --t-med: 300ms;
+  --t-slow: 550ms;
+
   font-family:
     'Instrument Sans',
     system-ui,
@@ -198,6 +206,10 @@ header {
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   outline: none;
+  animation: veil-in var(--t-med) var(--ease-film) both;
+}
+.settings-overlay > div {
+  animation: projector-on var(--t-med) var(--ease-film) both;
 }
 
 /* -- Glass panels ---------------------------------------------------------- */
@@ -220,6 +232,25 @@ button {
   padding: var(--space-2) var(--space-4);
   font-weight: 600;
   cursor: pointer;
+  /* Press physics (ADR-013): transform/shadow/color glide; width is NOT
+     transitioned globally (text changes would turn labels elastic). */
+  transition:
+    transform var(--t-fast) var(--ease-film),
+    box-shadow var(--t-fast) var(--ease-film),
+    background-color var(--t-fast) var(--ease-film),
+    border-color var(--t-fast) var(--ease-film),
+    color var(--t-fast) var(--ease-film),
+    opacity var(--t-fast) var(--ease-film);
+}
+/* Hover lift for standalone buttons; menu rows (role=option) stay planted —
+   a list that bounces under the cursor reads as jitter, not delight. */
+button:not(:disabled):not([role='option']):hover {
+  transform: translateY(-1px);
+}
+/* The press: the button gives like a mechanical shutter release. */
+button:not(:disabled):active {
+  transform: translateY(0) scale(0.965);
+  transition-duration: 60ms;
 }
 button:disabled {
   opacity: 0.55;
@@ -229,6 +260,27 @@ button.primary {
   background: var(--color-cta-bg);
   color: var(--color-cta-text);
   border-color: transparent;
+  position: relative;
+  overflow: hidden;
+}
+/* A band of projector light sweeps across primary buttons on hover — once,
+   following the cursor's arrival, never looping. */
+button.primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 62%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+button.primary:not(:disabled):hover::after {
+  transform: translateX(120%);
+  transition: transform 600ms var(--ease-film);
 }
 
 select,
@@ -279,13 +331,203 @@ a {
 
 /* -- Reel frames ------------------------------------------------------------ */
 
-/* The expand control appears only while the frame is hovered (or the button
-   itself is focused via keyboard). Instant for now — motion comes with the
-   animation pass. */
+/* The expand control fades in while the frame is hovered (or the button
+   itself is keyboard-focused) — the promised motion-pass polish. */
 .frame-wrap .expand-btn {
   opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-film);
 }
 .frame-wrap:hover .expand-btn,
 .frame-wrap .expand-btn:focus-visible {
   opacity: 1;
+}
+
+/* -- Motion (ADR-013 — "the projectionist's cut") --------------------------- */
+
+/* Stage change = a FILM ADVANCE: the incoming stage travels one small step
+   laterally (direction-aware — forward pulls left, back reels right) with a
+   brief exposure dip, like the next frame settling into the gate. */
+@keyframes stage-advance-fwd {
+  from {
+    opacity: 0;
+    transform: translateX(52px);
+    filter: brightness(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: brightness(1);
+  }
+}
+@keyframes stage-advance-back {
+  from {
+    opacity: 0;
+    transform: translateX(-52px);
+    filter: brightness(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: brightness(1);
+  }
+}
+/* Deliberately NO fill-mode here: a persisted transform (even
+   translateX(0)) makes this wrapper a containing block, which would trap
+   any position:fixed descendant inside the stage. After the run the
+   element reverts to its natural, untransformed state. */
+.stage-in-fwd {
+  animation: stage-advance-fwd var(--t-slow) var(--ease-film);
+}
+.stage-in-back {
+  animation: stage-advance-back var(--t-slow) var(--ease-film);
+}
+
+/* Overlays = a PROJECTOR warming up: the veil's light rises, the dialog
+   settles from slightly bright and near-scale — one smooth breath, no
+   flicker (a strobe would be theatrical the first time and hostile the
+   fiftieth). */
+@keyframes veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes projector-on {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(14px);
+    filter: brightness(1.14);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: brightness(1);
+  }
+}
+.motion-veil {
+  animation: veil-in var(--t-med) var(--ease-film) both;
+}
+.motion-dialog {
+  animation: projector-on var(--t-med) var(--ease-film) both;
+}
+
+/* A finished take DEVELOPS like a print: it lands soft, washed and a
+   touch overexposed, then settles into focus and full color. */
+@keyframes develop {
+  from {
+    opacity: 0.4;
+    filter: blur(16px) saturate(0.5) brightness(1.22);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    filter: blur(0) saturate(1) brightness(1);
+  }
+}
+.develop-in {
+  animation: develop var(--t-slow) var(--ease-film) both;
+}
+
+/* Reel frames glide between their selected/idle sizes and lift slightly
+   under the cursor — film you can pick up, not icons that blink. */
+.reel-frame {
+  transition:
+    width var(--t-med) var(--ease-film),
+    border-color var(--t-med) var(--ease-film),
+    box-shadow var(--t-med) var(--ease-film),
+    background-color var(--t-fast) var(--ease-film),
+    transform var(--t-fast) var(--ease-film);
+}
+.reel-frame:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+
+/* Changed numbers (spend, balance) tick into place like a counter wheel. */
+@keyframes tick-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.8em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tick-in {
+  display: inline-block;
+  animation: tick-in var(--t-med) var(--ease-film) both;
+}
+
+/* The sprocket progress strip (see FilmProgress.tsx): perforations march
+   while work runs; the exposed (filled) length is the accent. */
+@keyframes sprocket-march {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: -26px;
+  }
+}
+.film-progress {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+}
+.film-progress .sprockets {
+  position: absolute;
+  inset: 1px;
+  border-radius: 4px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--color-border) 0 8px,
+    transparent 8px 26px
+  );
+  opacity: 0.5;
+}
+.film-progress.marching .sprockets {
+  animation: sprocket-march 900ms linear infinite;
+}
+.film-progress .exposed {
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  border-radius: 4px;
+  background-color: var(--color-accent);
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.28) 0 8px,
+    transparent 8px 26px
+  );
+  transition: width var(--t-med) var(--ease-film);
+}
+.film-progress.marching .exposed {
+  animation: sprocket-march 900ms linear infinite;
+}
+
+/* Reduced motion: the whole language collapses to near-instant states.
+   Not optional polish — vestibular a11y. The in-app Motion setting can
+   override in both directions: data-motion='on' shows the animations even
+   when the OS asks for reduced motion; data-motion='off' collapses them
+   regardless of the OS. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='on']) *,
+  :root:not([data-motion='on']) *::before,
+  :root:not([data-motion='on']) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }

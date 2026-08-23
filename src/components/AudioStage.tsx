@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import type { TtsModel } from '../api/nanogpt'
 import { ttsCostUsd, ttsPriceNote, ttsSpeedRange } from '../domain/ttsModels'
 import type { Scene } from '../domain/types'
+import { FilmProgress } from './FilmProgress'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
@@ -121,6 +122,7 @@ function AudioFrame({
   return (
     <button
       type="button"
+      className="reel-frame"
       aria-label={`Scene ${n} frame`}
       aria-pressed={selected}
       onClick={onSelect}
@@ -378,6 +380,9 @@ function AudioWorkbench({
                 : `Exact cost: ${formatUsd(exactUsd)}`}
           </span>
         </div>
+        {generating && (
+          <FilmProgress label={`Scene ${n} narration generating`} />
+        )}
         {status?.error != null && (
           <p role="alert" style={{ margin: 0, color: 'var(--color-danger)' }}>
             {status.error}
@@ -416,6 +421,18 @@ function AudioWorkbench({
                   ? 'Prices vary — charged at submission.'
                   : `Exact total: ${formatUsd(allExactUsd)}`}
             </span>
+            {allAudioProgress !== null && (
+              <div style={{ flexBasis: '100%' }}>
+                <FilmProgress
+                  value={
+                    allAudioProgress.total > 0
+                      ? allAudioProgress.done / allAudioProgress.total
+                      : null
+                  }
+                  label="All narrations progress"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

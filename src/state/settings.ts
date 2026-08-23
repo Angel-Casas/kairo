@@ -17,6 +17,19 @@ const STORAGE_KEY = 'kairo.nanogpt.apiKey'
 const MODE_STORAGE_KEY = 'kairo.ui.mode'
 const DARK_THEME_STORAGE_KEY = 'kairo.ui.theme.dark'
 const LIGHT_THEME_STORAGE_KEY = 'kairo.ui.theme.light'
+const MOTION_STORAGE_KEY = 'kairo.ui.motion'
+
+/**
+ * Motion preference (ADR-013 follow-up): 'system' honors the OS
+ * prefers-reduced-motion setting, 'on' shows Kairo's animations regardless
+ * of it, 'off' collapses them regardless of it.
+ */
+export type MotionMode = 'system' | 'on' | 'off'
+
+function initialMotion(): MotionMode {
+  const stored = readStored(MOTION_STORAGE_KEY)
+  return stored === 'on' || stored === 'off' ? stored : 'system'
+}
 
 function readStoredKey(): string | null {
   try {
@@ -73,6 +86,9 @@ interface SettingsState {
   themeMode: ThemeMode
   darkThemeId: string
   lightThemeId: string
+  /** Motion preference: follow the OS, always animate, or never. */
+  motionMode: MotionMode
+  setMotionMode: (mode: MotionMode) => void
   setThemeMode: (mode: ThemeMode) => void
   /** Select a palette; it becomes the choice for that palette's mode. */
   selectTheme: (themeId: string) => void
@@ -110,6 +126,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   themeMode: initialMode(),
   darkThemeId: initialThemeId('dark'),
   lightThemeId: initialThemeId('light'),
+  motionMode: initialMotion(),
+
+  setMotionMode: (mode: MotionMode) => {
+    writeStored(MOTION_STORAGE_KEY, mode)
+    set({ motionMode: mode })
+  },
 
   setThemeMode: (mode: ThemeMode) => {
     writeStored(MODE_STORAGE_KEY, mode)

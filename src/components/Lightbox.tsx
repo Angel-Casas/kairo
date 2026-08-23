@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { useBlobUrl } from './useBlobUrl'
 
 export interface LightboxItem {
@@ -121,8 +122,12 @@ export function Lightbox({
     cursor: 'pointer',
   }
 
-  return (
+  // Portaled to <body>: the lightbox renders inside a stage whose entrance
+  // animation applies a transform, and a transformed ancestor traps
+  // position:fixed — the veil would cover the stage, not the screen.
+  return createPortal(
     <div
+      className="motion-veil"
       role="dialog"
       aria-modal="true"
       aria-label={item.alt}
@@ -142,6 +147,10 @@ export function Lightbox({
     >
       {url !== null && (
         <div
+          // Keyed by the asset: paging to another scene re-develops the
+          // print rather than hard-swapping pixels (ADR-013).
+          key={item.blobPath}
+          className="develop-in"
           onClick={(e) => {
             e.stopPropagation()
           }}
@@ -300,6 +309,7 @@ export function Lightbox({
           </button>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

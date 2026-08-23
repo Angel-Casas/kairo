@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiKeySettings } from './components/ApiKeySettings'
 import { AppBackground } from './components/AppBackground'
+import { MotionSettings } from './components/MotionSettings'
 import { PalettePicker } from './components/PalettePicker'
 import { ProjectList } from './components/ProjectList'
 import { ProjectView } from './components/ProjectView'
@@ -23,6 +24,7 @@ function App() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const darkThemeId = useSettingsStore((s) => s.darkThemeId)
   const lightThemeId = useSettingsStore((s) => s.lightThemeId)
+  const motionMode = useSettingsStore((s) => s.motionMode)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const online = useOnlineStatus()
@@ -37,6 +39,16 @@ function App() {
     const theme = getTheme(themeId)
     if (theme !== null) applyTheme(theme)
   }, [themeId])
+
+  // The motion preference rides a root data attribute the CSS guards on:
+  // 'on' overrides the OS reduced-motion request, 'off' forces stillness.
+  useEffect(() => {
+    if (motionMode === 'system') {
+      delete document.documentElement.dataset.motion
+    } else {
+      document.documentElement.dataset.motion = motionMode
+    }
+  }, [motionMode])
 
   // The settings overlay: Escape closes, and focus moves into it on open so
   // keyboard users land where the click took them.
@@ -77,7 +89,10 @@ function App() {
             >
               Balance:{' '}
               <strong style={{ color: 'var(--color-text)' }}>
-                {formatUsd(balanceUsd)}
+                {/* Keyed: a refreshed balance ticks in like a counter. */}
+                <span key={balanceUsd} className="tick-in">
+                  {formatUsd(balanceUsd)}
+                </span>
               </strong>
             </span>
           )}
@@ -229,6 +244,7 @@ function App() {
             }}
           >
             <ApiKeySettings />
+            <MotionSettings />
           </div>
         </div>
       )}

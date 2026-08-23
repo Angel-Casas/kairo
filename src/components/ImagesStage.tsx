@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import type { ImageModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
+import { FilmProgress } from './FilmProgress'
 import { formatUsd } from '../lib/format'
 import { getPerImagePriceUsd, pickPortraitResolution } from '../lib/resolution'
 import { useProjectStore } from '../state/project'
@@ -177,10 +178,12 @@ function SceneFrame({
         position: 'relative',
         flexShrink: 0,
         width: selected ? '11.5rem' : '10rem',
+        transition: 'width var(--t-med) var(--ease-film)',
       }}
     >
       <button
         type="button"
+        className="reel-frame"
         aria-label={`Scene ${n} frame`}
         aria-pressed={selected}
         onClick={onSelect}
@@ -208,6 +211,9 @@ function SceneFrame({
       >
         {activeUrl !== null ? (
           <img
+            // Keyed by take: a newly chosen print develops into focus.
+            key={activeVersion?.id}
+            className="develop-in"
             src={activeUrl}
             alt={`Scene ${n} active image`}
             style={{
@@ -522,6 +528,7 @@ function Workbench({
                 : `Cost: ${formatUsd(perImageUsd)}`}
           </span>
         </div>
+        {generating && <FilmProgress label={`Scene ${n} image generating`} />}
         {status?.error != null && (
           <p role="alert" style={{ margin: 0, color: 'var(--color-danger)' }}>
             {status.error}
@@ -560,6 +567,18 @@ function Workbench({
                   ? 'Cost unknown for this model.'
                   : `Total cost: ${formatUsd(allEstimate)}`}
             </span>
+            {allImagesProgress !== null && (
+              <div style={{ flexBasis: '100%' }}>
+                <FilmProgress
+                  value={
+                    allImagesProgress.total > 0
+                      ? allImagesProgress.done / allImagesProgress.total
+                      : null
+                  }
+                  label="All images progress"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -8,6 +8,11 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
+    // Run the suite on the reduced-motion path (15.17): entrance
+    // animations otherwise add ~300ms of "element is not stable" waiting
+    // to every click, tipping long tests over their budgets. The motion
+    // language itself is reviewed visually, not asserted here.
+    contextOptions: { reducedMotion: 'reduce' },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // E2E runs against the production build (vite preview) so PWA behavior

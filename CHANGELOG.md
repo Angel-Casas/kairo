@@ -2,6 +2,85 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.17.2 — Motion you can actually see; the transport deck glides (2026-08-23, Angel's feedback)
+
+- The transport deck now travels instead of teleporting: the playhead
+  needle and its pennant glide along the tape between stages, the gold
+  fill spools behind them on the same clock, the stop dots light up as
+  the needle passes, and the rail's lit segment cross-fades to the next
+  one instead of blinking. All on the one `--ease-film` curve at
+  `--t-slow`, so needle, tape, dots and rail arrive together.
+- The animations were tuned to be legible, not subliminal: stage
+  advances travel 52px (was 18px) over 550ms (was 260ms), dialogs
+  settle from scale 0.94 / 14px below (was 0.965 / 6px), developing
+  takes start at 16px blur, number ticks rise from 0.8em, and the
+  shared `--t-med`/`--t-slow` stops moved to 300ms/550ms.
+- Verified frame-by-frame from a recorded walkthrough: mid-transition
+  frames show the needle between stops with the fill trailing and the
+  rail segment cross-fading. 260 unit tests, smoke + theme e2e green
+  (the suite runs reduced-motion, so timing tweaks cost it nothing).
+
+## Slice 15.17.1 — Motion visible, overlays whole again (2026-08-23, Angel's report)
+
+- Angel saw NO animations at all, and the lightbox veil stopped covering
+  the screen (outside-click close dead, only Escape worked). One root
+  cause, two symptoms: macOS "Reduce motion" was on, so every animation
+  collapsed to 0.01ms per the a11y block — silently, with nothing in the
+  UI saying why — while the stage-entrance animation's `fill-mode: both`
+  kept a `transform` pinned on the stage wrapper forever. A transformed
+  ancestor traps `position: fixed`, and Lightbox + ConfirmDialog were
+  the only overlays NOT portaled to `<body>` — their "fullscreen" veils
+  became stage-sized.
+- Fixes: Lightbox and ConfirmDialog now portal to `<body>` like every
+  other overlay (ConfirmDialog also gained the missing `zIndex`); the
+  stage entrance runs with NO fill-mode so no transform outlives it; and
+  a new **Motion** setting (Settings → Motion) offers Follow system /
+  Always on / Off — with a note, when the OS asks for reduced motion,
+  explaining that Kairo is honoring it. The choice rides a root
+  `data-motion` attribute the CSS guards on.
+- e2e now runs on the reduced-motion path (`contextOptions` in the
+  Playwright config): entrance animations were adding ~300ms of
+  "element is not stable" waiting to every click and tipping long tests
+  over their budgets — the suite tests logic; the motion is reviewed
+  visually.
+- Tests: 260 unit (MotionSettings hint + persistence), images + script +
+  scenes + audio + animation e2e green; a Playwright probe verified the
+  veil at exactly viewport size, outside-click closing, and real
+  animation durations under OS reduce-motion with the override on.
+
+## Slice 15.17 — The projectionist's cut: motion everywhere (2026-08-23, Angel's request)
+
+- One motion identity (ADR-013) built from the app's own film metaphor,
+  as tokens + utility classes in `index.css`: an `--ease-film` curve and
+  three duration tokens drive every animation in the app.
+- Stage changes are direction-aware film advances: moving forward in the
+  pipeline slides the incoming stage in from the right with a brief
+  exposure lift; going back rewinds from the left.
+- New `FilmProgress` sprocket strip at EVERY long operation: marching
+  perforations while work runs, an accent "exposed" fill that grows for
+  determinate work. Wired into script/scenes generation, single + batch
+  narration, voice preview preloading, single + batch image generation,
+  per-scene animation, batch measuring, and all three export builds.
+- Overlays warm up like a projector lamp (veil fade + dialog focus
+  scale): all pickers, spend breakdown, confirm dialogs, lightbox,
+  camera help, batch overlay, settings.
+- Fresh takes develop like prints — blurred, washed and overbright for
+  half a second, then snapping into focus (workbench images, clips,
+  lightbox paging).
+- Buttons gained press physics (hover lift, 60ms compress on press) and
+  primary buttons a light-sweep sheen; reel frames glide between sizes
+  and lift under the cursor; balance and spend totals tick in like
+  counter wheels.
+- `prefers-reduced-motion` collapses the whole language to near-instant
+  state changes.
+- Hardening: `pollVideoJobTick` no longer shares the terminal "stop
+  polling forever" path between a transient missing API key and a
+  closed project — a paid job's poller now retries through the
+  transient case.
+- Tests: 257 unit (FilmProgress semantics added), audio + animation e2e
+  green; the interrupted-job test got a 60s budget (it runs the whole
+  pipeline twice and no longer fit 30s).
+
 ## Slice 15.16.3 — Lip-sync clips don't double the narration (2026-08-22, from Angel's catch)
 
 - A lip-sync clip carries the narration IN ITS OWN AUDIO TRACK — Angel's

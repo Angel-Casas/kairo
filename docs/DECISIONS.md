@@ -403,3 +403,59 @@ Images" now expect Audio. `GenerationKind`/`AssetKind` accept `'audio'`
 everywhere (job resume included). Voice previews would cost real money, so
 voices are picked by label only — a future slice could cache one sample
 per voice.
+
+## ADR-013 — "The projectionist's cut": one motion identity for the whole app (2026-08-23)
+
+**Context.** The UI switched states instantly: stages flashed into place,
+dialogs popped, finished takes hard-swapped pixels, and the only signal
+that a paid generation was running was a text label ("Generating…"). Angel
+asked for animation everywhere — transitions between steps, progress bars,
+button feedback — explicitly custom and coherent, not stock fade-ins.
+
+**Decision.** Every animation derives from one metaphor the app already
+lives in: **a film print moving through a projector**. One easing curve
+(`--ease-film`, a fast-start/soft-landing cubic-bezier) and three duration
+tokens (`--t-fast` 140ms, `--t-med` 260ms, `--t-slow` 480ms) drive it all:
+
+- **Stage changes are film advances.** The incoming stage travels laterally
+  (±18px) with a brief exposure lift, direction-aware: moving forward in
+  the pipeline advances the film left, going back rewinds it right
+  (`.stage-in-fwd` / `.stage-in-back`, keyed wrapper in `ProjectView`).
+- **Long operations are footage being exposed.** `FilmProgress` renders a
+  sprocket strip — marching perforations while work runs, an accent
+  "exposed" region growing for determinate work (narrate-all, generate-all,
+  voice preloads) and perforations alone for indeterminate work (single
+  generations, zip/stitch/backup builds). Every generation site shows one.
+- **Overlays are the projector lamp warming up.** The veil fades in
+  (`.motion-veil`), the dialog scales/brightens into focus
+  (`.motion-dialog`) — pickers, spend, confirm, lightbox, camera help,
+  batch overlay, settings.
+- **Finished takes develop like prints.** New/changed active media starts
+  blurred, desaturated and overbright, then snaps into focus
+  (`.develop-in`, keyed by version id) — images, clips, lightbox paging.
+- **Buttons have mechanical press physics.** Hover lifts 1px, press
+  compresses (scale .965 at 60ms); primary buttons carry a light-sweep
+  sheen on hover. Reel frames glide between sizes and lift under the
+  cursor (`.reel-frame`).
+- **Money ticks like a counter wheel.** Balance and spend totals re-enter
+  with a small upward tick (`.tick-in`, keyed by value).
+- **`prefers-reduced-motion` collapses everything** to near-instant state
+  changes — vestibular accessibility is not optional polish.
+
+**Consequences.** All motion lives in `src/index.css` as tokens + utility
+classes; components only attach class names and keys, so future surfaces
+join the language by reusing the classes rather than inventing new motion.
+**Addendum (15.17.1).** Honoring `prefers-reduced-motion` silently made
+the whole language invisible to users with the OS setting on — reported
+as "no animations work." A **Motion** setting (Follow system / Always
+on / Off) now rides a root `data-motion` attribute the CSS guards on,
+with an explanatory note shown when the OS is the reason nothing moves.
+Fullscreen overlays must all portal to `<body>`: the stage entrance
+transform made the stage a containing block and trapped the two inline
+overlays' fixed veils (see LESSONS). e2e runs on the reduced-motion
+path.
+
+Hardening that landed with the pass: `pollVideoJobTick` no longer shares
+the terminal "stop polling" path between a transient missing key and a
+closed project, and the interrupted-job e2e got a 60s budget since it
+runs the pipeline twice.

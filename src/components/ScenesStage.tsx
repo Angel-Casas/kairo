@@ -12,6 +12,7 @@ import {
 import { formatUsd } from '../lib/format'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
+import { FilmProgress } from './FilmProgress'
 import { TextModelPicker } from './ModelPicker'
 import { ReferencesPanel } from './ReferencesPanel'
 import { referenceDisplayName } from './referenceDisplay'
@@ -128,6 +129,9 @@ export function ScenesStage() {
                   : `Estimated cost: up to ~${formatUsd(estimatedUsd)}`}
             </span>
           </div>
+          {genStatus === 'generating' && (
+            <FilmProgress label="Scene breakdown generating" />
+          )}
           {genStatus === 'error' && genError !== null && (
             <p role="alert" style={{ color: 'var(--color-danger)' }}>
               {genError}

@@ -202,6 +202,8 @@ export function StagesNav({
                 width: `${String(fillPct)}%`,
                 background:
                   'linear-gradient(90deg, var(--color-accent-soft), var(--color-accent))',
+                // The tape spools to the new stage instead of teleporting.
+                transition: 'width var(--t-slow) var(--ease-film)',
               }}
             />
             {/* Sprocket texture, like the reel's perforations. */}
@@ -229,10 +231,15 @@ export function StagesNav({
                   i <= activeIndex
                     ? 'var(--color-cta-bg)'
                     : 'var(--color-border)',
+                // Dots light up as the playhead passes them, on the same
+                // clock as its travel.
+                transition: 'background-color var(--t-slow) var(--ease-film)',
               }}
             />
           ))}
-          {/* Playhead */}
+          {/* Playhead — glides along the tape between stages (15.17.2),
+              on the same clock as the fill so needle and tape arrive
+              together. */}
           <div
             style={{
               position: 'absolute',
@@ -244,6 +251,7 @@ export function StagesNav({
               background: 'var(--color-cta-bg)',
               borderRadius: '2px',
               boxShadow: '0 0 14px var(--color-accent-soft)',
+              transition: 'left var(--t-slow) var(--ease-film)',
             }}
           />
           <div
@@ -256,6 +264,7 @@ export function StagesNav({
               height: '11px',
               background: 'var(--color-cta-bg)',
               clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
+              transition: 'left var(--t-slow) var(--ease-film)',
             }}
           />
         </div>
@@ -368,6 +377,9 @@ export function StagesNav({
                     : 'var(--color-text-muted)',
                 boxShadow: isActive ? '0 6px 18px rgba(0, 0, 0, 0.3)' : 'none',
                 opacity: stage.available || isDone ? 1 : 0.6,
+                // The lit segment hands off smoothly instead of blinking.
+                transition:
+                  'background-color var(--t-slow) var(--ease-film), color var(--t-slow) var(--ease-film), box-shadow var(--t-slow) var(--ease-film), opacity var(--t-med) var(--ease-film)',
               }}
             >
               {isDone ? (
