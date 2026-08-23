@@ -24,9 +24,17 @@ export function Perforation() {
 
 export function ReelShell({
   hint,
+  frameHeight,
   children,
 }: {
   hint: string
+  /**
+   * Height of a SELECTED frame (15.17.4): the strip reserves this much
+   * vertically from the start, so selecting a frame grows it into already
+   * reserved space instead of resizing the whole panel — nothing outside
+   * the reel bops up and down.
+   */
+  frameHeight?: string
   children: ReactNode
 }) {
   return (
@@ -72,6 +80,7 @@ export function ReelShell({
           overflowX: 'auto',
           padding: 'var(--space-2) var(--space-1)',
           alignItems: 'flex-end',
+          ...(frameHeight !== undefined ? { minHeight: frameHeight } : {}),
         }}
       >
         {children}

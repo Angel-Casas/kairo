@@ -172,7 +172,12 @@ export function AnimationStage() {
 
   return (
     <section>
-      <ReelShell hint="select a frame to animate it below">
+      <ReelShell
+        hint="select a frame to animate it below"
+        // Selected frame: 11.5rem wide at 9:16, plus the strip's own
+        // vertical padding (border-box).
+        frameHeight="calc(11.5rem * 16 / 9 + 2 * var(--space-2))"
+      >
         {scenes.map((scene, index) => (
           <AnimationFrame
             key={scene.id}
@@ -959,6 +964,9 @@ function AnimationWorkbench({
                 borderRadius: 'var(--radius)',
                 background: 'var(--color-surface)',
                 display: 'block',
+                // Centered in the panel (15.17.5): a left-hugging clip
+                // left a lopsided blank right half.
+                margin: '0 auto',
               }}
             />
             {clipSeconds !== null && (

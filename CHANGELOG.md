@@ -2,6 +2,35 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 15.17.6 — Progress strips become a pastel river (2026-08-23, Angel's request)
+
+- The progress bars traded their dark marching perforations for a slow
+  river of pastel color (rose → peach → butter → mint → sky → lilac)
+  flowing through the strip while work runs. Indeterminate work floods
+  the whole strip; determinate work grows the pastel "developed" length
+  left-to-right over a faint perforation texture on the unexposed
+  remainder. The gradient tiles seamlessly (same hue at both ends,
+  image exactly 2x the strip) so the flow never visibly loops.
+- Verified by screenshot in both modes on the dark theme; reduced
+  motion still freezes the flow.
+
+## Slice 15.17.5 — The clip player sits centered in its panel (2026-08-23, Angel's request)
+
+- The Clips panel's video hugged the left edge, leaving a lopsided
+  blank right half; it now centers horizontally (verified pixel-equal
+  side gaps). Takes thumbnails and the narration player keep their
+  full-width rows.
+
+## Slice 15.17.4 — The reel stops bopping the page (2026-08-23, Angel's report)
+
+- Selecting a frame in "The reel" grew the panel itself (the selected
+  frame is wider, and at 9:16 wider means taller), shoving everything
+  around it up and down on every click. The strip now reserves the
+  selected-frame height from the start (`frameHeight` on `ReelShell`,
+  passed by Images and Animation), so frames grow into already-reserved
+  space and the panel never changes size. Verified: panel height and the
+  position of neighboring boxes are pixel-identical across selections.
+
 ## Slice 15.17.3 — Images stage opens on its reel (2026-08-23, Angel's request)
 
 - The Artistic style box moved below "The reel" on the Images stage, so

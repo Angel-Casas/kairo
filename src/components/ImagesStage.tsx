@@ -88,7 +88,12 @@ export function ImagesStage() {
     <section>
       {/* The reel leads (15.17.3, Angel's request): Images and Animation
           both open on their reel, so the two stages line up. */}
-      <ReelShell hint="select a frame to work on it below">
+      <ReelShell
+        hint="select a frame to work on it below"
+        // Selected frame: 11.5rem wide at 9:16, plus the strip's own
+        // vertical padding (border-box).
+        frameHeight="calc(11.5rem * 16 / 9 + 2 * var(--space-2))"
+      >
         {scenes.map((scene, index) => (
           <SceneFrame
             key={scene.id}

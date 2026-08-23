@@ -462,17 +462,31 @@ a {
   animation: tick-in var(--t-med) var(--ease-film) both;
 }
 
-/* The sprocket progress strip (see FilmProgress.tsx): perforations march
-   while work runs; the exposed (filled) length is the accent. */
-@keyframes sprocket-march {
+/* The progress strip (see FilmProgress.tsx), 15.17.6 restyle: work in
+   flight is FOOTAGE BEING DEVELOPED — a slow river of pastel color
+   flowing through the strip. Unexposed film (the unfilled part of a
+   determinate bar) keeps the faint perforation texture; everything
+   generated glows. The gradient starts and ends on the same hue and the
+   image is exactly 2x the strip, so a 0% → 200% slide loops seamlessly. */
+@keyframes pastel-flow {
   from {
-    background-position-x: 0;
+    background-position-x: 0%;
   }
   to {
-    background-position-x: -26px;
+    background-position-x: 200%;
   }
 }
 .film-progress {
+  --pastel-flow: linear-gradient(
+    90deg,
+    #f5b8c4,
+    #f8d3a7,
+    #f6ecb8,
+    #c3e7cd,
+    #b1d7f2,
+    #d4c0f0,
+    #f5b8c4
+  );
   position: relative;
   height: 10px;
   border-radius: 5px;
@@ -489,25 +503,29 @@ a {
     var(--color-border) 0 8px,
     transparent 8px 26px
   );
-  opacity: 0.5;
+  opacity: 0.35;
 }
-.film-progress.marching .sprockets {
-  animation: sprocket-march 900ms linear infinite;
+/* Indeterminate: the whole strip is the flowing pastel river. */
+.film-progress.indeterminate .sprockets {
+  background-image: var(--pastel-flow);
+  background-size: 200% 100%;
+  opacity: 1;
 }
+.film-progress.indeterminate.marching .sprockets {
+  animation: pastel-flow 2.8s linear infinite;
+}
+/* Determinate: the exposed length is developed footage — same river,
+   growing from the left over the perforated unexposed remainder. */
 .film-progress .exposed {
   position: absolute;
   inset: 1px auto 1px 1px;
   border-radius: 4px;
-  background-color: var(--color-accent);
-  background-image: repeating-linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.28) 0 8px,
-    transparent 8px 26px
-  );
+  background-image: var(--pastel-flow);
+  background-size: 200% 100%;
   transition: width var(--t-med) var(--ease-film);
 }
 .film-progress.marching .exposed {
-  animation: sprocket-march 900ms linear infinite;
+  animation: pastel-flow 2.8s linear infinite;
 }
 
 /* Reduced motion: the whole language collapses to near-instant states.
