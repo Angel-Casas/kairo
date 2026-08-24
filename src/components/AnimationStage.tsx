@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { VideoModel } from '../api/nanogpt'
+import { clipCarriesOwnAudio } from '../domain/types'
 import type { Scene } from '../domain/types'
 import { planFrames } from '../lib/clipDuration'
 import { formatUsd } from '../lib/format'
@@ -153,10 +154,12 @@ export function AnimationStage() {
         excerpt: scene.textExcerpt.trim(),
         // A lip-sync clip already plays its own narration — syncing the
         // separate track on top would double the voice (15.16.3).
-        narrationBlobPath:
-          clip?.embedsNarration === true ? undefined : narration?.blobPath,
-        narrationMimeType:
-          clip?.embedsNarration === true ? undefined : narration?.mimeType,
+        narrationBlobPath: clipCarriesOwnAudio(clip)
+          ? undefined
+          : narration?.blobPath,
+        narrationMimeType: clipCarriesOwnAudio(clip)
+          ? undefined
+          : narration?.mimeType,
       })
     }
   }
@@ -563,13 +566,19 @@ function AnimationWorkbench({
   )
   const [narrationSeconds, setNarrationSeconds] = useState<number | null>(null)
   const [clipSeconds, setClipSeconds] = useState<number | null>(null)
-  const [narrationMuted, setNarrationMuted] = useState(false)
+  const setClipNarrationSilenced = useProjectStore(
+    (s) => s.setClipNarrationSilenced,
+  )
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const narrationRef = useRef<HTMLAudioElement | null>(null)
   // Lip-sync takes carry the narration INSIDE the clip's audio track —
   // the side player must not double it (15.16.3). The audio element stays
   // mounted (hidden, muted): it is also how narrationSeconds is measured.
   const narrationEmbedded = activeVideo?.embedsNarration === true
+  // The user's own silencing (20.2) persists on the take — the premiere
+  // and the export files follow the same flag.
+  const narrationSilenced = activeVideo?.narrationSilenced === true
+  const narrationQuiet = narrationEmbedded || narrationSilenced
   const clipFileRef = useRef<HTMLInputElement | null>(null)
 
   // Playing the clip drives the narration along with it: same start, same
@@ -943,7 +952,7 @@ function AnimationWorkbench({
                 setClipSeconds(Number.isFinite(seconds) ? seconds : null)
               }}
               onPlay={(e) => {
-                if (narrationEmbedded) return // the clip sings for itself
+                if (narrationQuiet) return // the clip sings for itself
                 syncNarrationTo(e.currentTarget)
                 void narrationRef.current?.play().catch(() => undefined)
               }}
@@ -951,7 +960,7 @@ function AnimationWorkbench({
                 narrationRef.current?.pause()
               }}
               onSeeked={(e) => {
-                if (narrationEmbedded) return
+                if (narrationQuiet) return
                 syncNarrationTo(e.currentTarget)
               }}
               onEnded={() => {
@@ -1048,7 +1057,7 @@ function AnimationWorkbench({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: 'var(--space-2)',
-                marginBottom: narrationEmbedded ? 0 : 'var(--space-2)',
+                marginBottom: narrationQuiet ? 0 : 'var(--space-2)',
               }}
             >
               <p style={{ margin: 0 }}>
@@ -1063,19 +1072,30 @@ function AnimationWorkbench({
                 >
                   {narrationEmbedded
                     ? '— embedded in this lip-sync clip'
-                    : '— plays along with the clip'}
+                    : narrationSilenced
+                      ? '— silenced for this take, here and in the export'
+                      : '— plays along with the clip'}
                 </span>
               </p>
               {!narrationEmbedded && (
                 <button
                   type="button"
                   aria-label="Mute narration"
-                  aria-pressed={narrationMuted}
+                  aria-pressed={narrationSilenced}
                   onClick={() => {
-                    const next = !narrationMuted
-                    setNarrationMuted(next)
+                    // Persisted on the take (20.2): a muted narration stays
+                    // muted in the premiere and the export files too —
+                    // Angel's lip-sync clip double-played before this.
+                    if (activeVideo !== null) {
+                      void setClipNarrationSilenced(
+                        scene.id,
+                        activeVideo.id,
+                        !narrationSilenced,
+                      )
+                    }
                     if (narrationRef.current !== null) {
-                      narrationRef.current.muted = next
+                      narrationRef.current.muted = !narrationSilenced
+                      if (!narrationSilenced) narrationRef.current.pause()
                     }
                   }}
                   style={{
@@ -1083,7 +1103,7 @@ function AnimationWorkbench({
                     padding: 'var(--space-1) var(--space-3)',
                   }}
                 >
-                  {narrationMuted ? 'Unmute' : 'Mute'}
+                  {narrationSilenced ? 'Unmute' : 'Mute'}
                 </button>
               )}
             </div>
@@ -1091,16 +1111,14 @@ function AnimationWorkbench({
             <audio
               ref={narrationRef}
               src={audioUrl}
-              controls={!narrationEmbedded}
-              muted={narrationEmbedded || narrationMuted}
+              controls={!narrationQuiet}
+              muted={narrationQuiet}
               aria-label={`Scene ${n} narration`}
               onLoadedMetadata={(e) => {
                 const seconds = e.currentTarget.duration
                 if (Number.isFinite(seconds)) setNarrationSeconds(seconds)
               }}
-              style={
-                narrationEmbedded ? { display: 'none' } : { width: '100%' }
-              }
+              style={narrationQuiet ? { display: 'none' } : { width: '100%' }}
             />
           </div>
         )}

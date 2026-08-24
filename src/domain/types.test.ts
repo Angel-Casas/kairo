@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clipCarriesOwnAudio,
   createProject,
   createReference,
   createScene,
@@ -115,5 +116,22 @@ describe('normalizeProject — Slice 10 backfill', () => {
       references: [reference],
     })
     expect(normalized.references[0]).toEqual(reference)
+  })
+})
+
+describe('clipCarriesOwnAudio (20.2)', () => {
+  it('is true for lip-sync takes, user-silenced takes, and both', () => {
+    expect(clipCarriesOwnAudio({ embedsNarration: true })).toBe(true)
+    expect(clipCarriesOwnAudio({ narrationSilenced: true })).toBe(true)
+    expect(
+      clipCarriesOwnAudio({ embedsNarration: true, narrationSilenced: true }),
+    ).toBe(true)
+  })
+
+  it('is false for plain takes and missing versions', () => {
+    expect(clipCarriesOwnAudio({})).toBe(false)
+    expect(clipCarriesOwnAudio(undefined)).toBe(false)
+    expect(clipCarriesOwnAudio(null)).toBe(false)
+    expect(clipCarriesOwnAudio({ narrationSilenced: false })).toBe(false)
   })
 })

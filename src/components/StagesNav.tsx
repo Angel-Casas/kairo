@@ -363,9 +363,16 @@ export function StagesNav({
                 borderRight: showSeparator
                   ? '1px solid var(--color-border)'
                   : 'none',
-                // Fill the whole cell — the rail's own rounded corners clip
-                // the first and last segment, so no per-segment radius.
-                borderRadius: 0,
+                // The end segments carry the rail's pill curve themselves
+                // (18.2): relying on the scroll container's rounded-corner
+                // clipping left a dark crescent where a square active fill
+                // poked into the curve. Middle segments stay square.
+                borderRadius:
+                  i === 0
+                    ? 'var(--radius-pill) 0 0 var(--radius-pill)'
+                    : i === stages.length - 1
+                      ? '0 var(--radius-pill) var(--radius-pill) 0'
+                      : 0,
                 margin: 0,
                 cursor: stage.available ? 'pointer' : 'not-allowed',
                 fontWeight: isActive ? 700 : 500,

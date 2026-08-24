@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#101014"/>
-  <path d="M160 96v320M160 256l176-160M160 256l176 160" stroke="#4f7cff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Kairo — the Projector K mark on the brand dark tile (Slice 20). -->
+  <rect width="24" height="24" rx="4.5" fill="#1d2434"/>
+  <g transform="translate(12.5 12) scale(0.82) translate(-12.3 -12)">
+    <rect x="4.8" y="3.8" width="3.1" height="16.4" rx="1.55" fill="#f4efe4"/>
+    <path d="M9.4 12 L19.8 4.6 M9.4 12 L19.8 19.4" stroke="#f4efe4" stroke-width="2.9" stroke-linecap="round" fill="none"/>
+    <circle cx="9.4" cy="12" r="1.7" fill="#e9cf8f"/>
+  </g>
 </svg>

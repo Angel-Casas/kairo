@@ -50,6 +50,13 @@ export interface AssetVersion {
    * lightbox sync, export narration files) must NOT double it.
    */
   embedsNarration?: boolean
+  /**
+   * The user's own call (20.2): silence the side narration for this take,
+   * everywhere — workbench, lightbox, premiere, and export files. Unlike
+   * embedsNarration (set automatically on lip-sync takes) this is a manual,
+   * reversible choice that persists with the project.
+   */
+  narrationSilenced?: boolean
   /** Path of the binary in the BlobStore (OPFS), e.g. `<projectId>/<versionId>`. */
   blobPath: string
   mimeType: string
@@ -266,6 +273,22 @@ function healMimeType(version: AssetVersion): AssetVersion {
         ? 'audio/mpeg'
         : 'image/png'
   return { ...version, mimeType: fallback }
+}
+
+/**
+ * True when a clip's own audio is the whole soundtrack — the narration
+ * must not be layered on top of it anywhere (20.2): lip-sync takes carry
+ * it automatically, and the user can silence any take by hand.
+ */
+export function clipCarriesOwnAudio(
+  version:
+    | Pick<AssetVersion, 'embedsNarration' | 'narrationSilenced'>
+    | null
+    | undefined,
+): boolean {
+  return (
+    version?.embedsNarration === true || version?.narrationSilenced === true
+  )
 }
 
 export function normalizeProject(project: Project): Project {

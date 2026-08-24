@@ -208,6 +208,15 @@ interface ProjectState {
   >
   setActiveVideoVersion: (sceneId: string, versionId: string) => Promise<void>
   /**
+   * Silence (or restore) the side narration for one clip take (20.2).
+   * Persisted on the version: the premiere and the export files follow.
+   */
+  setClipNarrationSilenced: (
+    sceneId: string,
+    versionId: string,
+    silenced: boolean,
+  ) => Promise<void>
+  /**
    * Submit an image-to-video job for a scene's active image. Charged at
    * submission; polling continues in the background (and resumes after a
    * reload). Returns true if the submission succeeded. `promptOverride`
@@ -1387,6 +1396,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({ allAudioProgress: { done, total: pending.length } })
     }
     set({ allAudioProgress: null })
+  },
+
+  setClipNarrationSilenced: async (
+    sceneId: string,
+    versionId: string,
+    silenced: boolean,
+  ) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = {
+      ...project,
+      scenes: project.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              videoVersions: s.videoVersions.map((v) =>
+                v.id === versionId ? { ...v, narrationSilenced: silenced } : v,
+              ),
+            }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
   },
 
   setActiveVideoVersion: async (sceneId: string, versionId: string) => {

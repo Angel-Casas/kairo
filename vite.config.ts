@@ -23,9 +23,9 @@ export default defineConfig({
         name: 'Kairo',
         short_name: 'Kairo',
         description:
-          'Generate YouTube videos step by step with your own NanoGPT API key — script, art, animation, export.',
-        theme_color: '#101014',
-        background_color: '#101014',
+          'Generate videos in any format with your own NanoGPT API key — script, art, animation, export.',
+        theme_color: '#1d2434',
+        background_color: '#1d2434',
         display: 'standalone',
         start_url: '/',
         icons: [

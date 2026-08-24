@@ -14,6 +14,7 @@ import { formatUsd } from '../lib/format'
 import { Perforation } from './Reel'
 import { useBlobUrl } from './useBlobUrl'
 import { useFormatSpec } from './useFormatSpec'
+import { clipCarriesOwnAudio } from '../domain/types'
 import type { CostLogEntry, GenerationKind, Scene } from '../domain/types'
 
 type Busy = 'zip' | 'backup' | 'stitch-loading' | 'stitch-running' | null
@@ -52,10 +53,9 @@ function premiereProgram(scenes: Scene[]): PremiereItem[] {
       (v) => v.id === scene.activeVideoVersionId,
     )
     if (clip === undefined) continue
-    const narration =
-      clip.embedsNarration === true
-        ? undefined
-        : scene.audioVersions.find((v) => v.id === scene.activeAudioVersionId)
+    const narration = clipCarriesOwnAudio(clip)
+      ? undefined
+      : scene.audioVersions.find((v) => v.id === scene.activeAudioVersionId)
     items.push({
       scene,
       n: i + 1,

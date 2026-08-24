@@ -406,3 +406,23 @@ opacity transition with `visibility: hidden` (delayed to the fade's
 end) so the layer is torn down. And treat "headless can't reproduce a
 rendering artifact" as expected, not as proof it's fixed: verify the
 layer is actually destroyed (computed visibility), not just invisible.
+
+## An invisible pseudo-element still occupies scrollable overflow (18.3)
+
+The pastel hover ring is a `button::before` with `inset: -4px`,
+`visibility: hidden` until hover. Hidden or not, an absolutely
+positioned box that extends past its scroll container's content edge
+COUNTS as scrollable overflow — and in LTR only the rightward/downward
+excess extends the scroll range. Result: every horizontal scroller
+holding ring-bearing buttons carried 4 phantom pixels past its last
+item, so "scrolled to the end" was never actually the end. In the
+stage rail that surfaced as a dark crescent at the pill corner that
+survived two geometry fixes (18.1, 18.2) because the geometry was
+right — the scroll math wasn't.
+
+Diagnosis that worked: stop eyeballing corners and measure — a sweep
+across widths printed a CONSTANT 5px gap (4px inset + 1px border),
+which is a signature, not a coincidence. Fix: groups excluded from the
+ring (`.rail-segment`, `.reel-frame`, `[role='option']`) get
+`content: none`, not just no hover style — a box that never paints
+should never exist.

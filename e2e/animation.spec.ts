@@ -412,19 +412,29 @@ test('narration rides the clip player with a mute toggle', async ({ page }) => {
   const mute = scene1.getByRole('button', { name: 'Mute narration' })
   await expect(mute).toHaveAttribute('aria-pressed', 'false')
   await mute.click()
+  // The silence PERSISTS on the take (20.2): the status line says so, and
+  // the fullscreen viewer no longer pairs the narration at all.
   await expect(mute).toHaveAttribute('aria-pressed', 'true')
   await expect(mute).toHaveText('Unmute')
-
-  // The fullscreen viewer carries the narration too, with its own toggle.
+  await expect(scene1.getByText(/silenced for this take/)).toBeVisible()
   await page.getByLabel('View scene 1 large').click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  const viewerMute = dialog.getByRole('button', { name: 'Mute narration' })
-  await expect(viewerMute).toHaveAttribute('aria-pressed', 'false')
-  await viewerMute.click()
-  await expect(viewerMute).toHaveAttribute('aria-pressed', 'true')
+  await expect(
+    dialog.getByRole('button', { name: 'Mute narration' }),
+  ).toBeHidden()
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible()
+
+  // Unmuting restores the pairing — viewer toggle included.
+  await mute.click()
+  await expect(mute).toHaveAttribute('aria-pressed', 'false')
+  await expect(scene1.getByText('plays along with the clip')).toBeVisible()
+  await page.getByLabel('View scene 1 large').click()
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Mute narration' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
 })
 
 test('a clip file imports as a free take', async ({ page }) => {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiKeySettings } from './components/ApiKeySettings'
 import { AppBackground } from './components/AppBackground'
+import { FeedbackOverlay } from './components/FeedbackOverlay'
+import { KairoMark } from './components/KairoMark'
 import { MotionSettings } from './components/MotionSettings'
 import { PalettePicker } from './components/PalettePicker'
 import { ProjectList } from './components/ProjectList'
@@ -26,6 +28,7 @@ function App() {
   const lightThemeId = useSettingsStore((s) => s.lightThemeId)
   const motionMode = useSettingsStore((s) => s.motionMode)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const online = useOnlineStatus()
 
@@ -77,7 +80,10 @@ function App() {
           alignItems: 'center',
           justifyContent: 'space-between',
           position: 'relative',
-          gap: 'var(--space-4)',
+          // Lets .nav-middle drop to its own centered row on tiny
+          // screens (19) — inert above 560px where it floats absolute.
+          flexWrap: 'wrap',
+          gap: 'var(--space-2) var(--space-4)',
         }}
       >
         {/* The wordmark is the way home (16.2): it links to the landing
@@ -90,6 +96,9 @@ function App() {
               color: 'inherit',
               textDecoration: 'none',
               transition: 'opacity var(--t-fast) var(--ease-film)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.opacity = '0.75'
@@ -98,6 +107,9 @@ function App() {
               e.currentTarget.style.opacity = '1'
             }}
           >
+            {/* The Projector K (Slice 20): beams leave the lens, the
+                spark rides the theme accent. */}
+            <KairoMark size={22} />
             Kairo
           </a>
         </h1>
@@ -144,6 +156,96 @@ function App() {
               Offline — generation needs a connection; your work is safe here.
             </span>
           )}
+          {/* The suggestion box (Slice 19): bugs and ideas go to GitHub
+              through a prefilled issue — see FeedbackOverlay. */}
+          <button
+            type="button"
+            className="nav-icon"
+            aria-label={feedbackOpen ? 'Close feedback' : 'Send feedback'}
+            title="Found a bug, or wishing for something?"
+            onClick={() => {
+              setFeedbackOpen(!feedbackOpen)
+              setSettingsOpen(false)
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '40px',
+              height: '40px',
+              padding: 0,
+            }}
+          >
+            {/* Same choreography as the gear (20.1): a half-turn spin
+                cross-fades the circled ? into the shared X glyph. */}
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'grid',
+                width: '18px',
+                height: '18px',
+                transform: feedbackOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform var(--t-slow) var(--ease-film)',
+              }}
+            >
+              <span
+                style={{
+                  gridArea: '1 / 1',
+                  display: 'inline-flex',
+                  opacity: feedbackOpen ? 0 : 1,
+                  transition: 'opacity var(--t-med) var(--ease-film)',
+                }}
+              >
+                {/* A circled question mark: help wanted, help offered. */}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M9.2 9.3 a2.9 2.9 0 1 1 4.2 2.6 c-0.9 0.5 -1.4 1 -1.4 2.1 v0.4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                  <circle cx="12" cy="17.4" r="1.25" fill="currentColor" />
+                </svg>
+              </span>
+              <span
+                style={{
+                  gridArea: '1 / 1',
+                  display: 'inline-flex',
+                  opacity: feedbackOpen ? 1 : 0,
+                  transition: 'opacity var(--t-med) var(--ease-film)',
+                }}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M6 6 L18 18 M18 6 L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </span>
+          </button>
           <PalettePicker />
           <button
             type="button"
@@ -151,6 +253,7 @@ function App() {
             aria-label={settingsOpen ? 'Close settings' : 'Settings'}
             onClick={() => {
               setSettingsOpen(!settingsOpen)
+              setFeedbackOpen(false)
             }}
             style={{
               display: 'inline-flex',
@@ -277,6 +380,14 @@ function App() {
           </>
         )}
       </main>
+
+      {feedbackOpen && (
+        <FeedbackOverlay
+          onClose={() => {
+            setFeedbackOpen(false)
+          }}
+        />
+      )}
 
       {settingsOpen && (
         <div

@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from 'fflate'
+import { clipCarriesOwnAudio } from '../domain/types'
 import type { Project, Scene } from '../domain/types'
 import type { BlobStore } from '../persistence/blobStore'
 
@@ -86,7 +87,7 @@ export async function buildClipsZip(
     const activeClip = scene.videoVersions.find(
       (v) => v.id === scene.activeVideoVersionId,
     )
-    if (activeClip?.embedsNarration === true) continue
+    if (clipCarriesOwnAudio(activeClip)) continue
     const blob = await blobs.get(narration.blobPath)
     if (blob === null) continue
     const number = String(index + 1).padStart(2, '0')

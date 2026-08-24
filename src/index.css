@@ -328,6 +328,17 @@ button::before {
     visibility 0s var(--t-fast);
   pointer-events: none;
 }
+/* The groups excluded from the ring never show it — so they must not
+   carry the hidden -4px pseudo box either. Inside a scroll container
+   (the stage rail, the reel strips) that invisible box still counts as
+   scrollable overflow, adding ~4 phantom pixels past the last item: at
+   full scroll the rail's white end segment stopped 5px short of the
+   pill corner, leaving a dark crescent (18.3, Angel's report). */
+button[role='option']::before,
+button.rail-segment::before,
+button.reel-frame::before {
+  content: none;
+}
 button:not(:disabled):not([role='option']):not(.rail-segment):not(
     .reel-frame
   ):hover::before {
@@ -455,9 +466,23 @@ a {
   align-items: baseline;
   white-space: nowrap;
 }
+/* Small screens keep the money visible (19, Angel's call — hiding it was
+   overkill): first it compresses, and once centering would collide with
+   the wordmark and the nav icons it drops to its own centered row (the
+   header wraps; .nav-middle leaves the absolute center slot). */
 @media (max-width: 860px) {
   .nav-middle {
-    display: none;
+    font-size: var(--text-sm);
+    gap: var(--space-2);
+  }
+}
+@media (max-width: 560px) {
+  .nav-middle {
+    position: static;
+    transform: none;
+    order: 3;
+    width: 100%;
+    justify-content: center;
   }
 }
 

@@ -2,6 +2,120 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 20.2 — A muted narration stays muted, everywhere (2026-08-24, Angel's report)
+
+- Angel silenced a take's narration in the Animation workbench (a
+  lip-sync clip that carries its own voice), but the premiere player
+  still layered the separate narration on top — doubled audio and a
+  volume jump. Root cause: the workbench Mute was TRANSIENT component
+  state; only auto-detected lip-sync takes (`embedsNarration`) were
+  excluded from pairing, and this take didn't carry the flag.
+- The mute is now a persisted, per-take choice: a new
+  `narrationSilenced` field on the clip version, written by the same
+  Mute/Unmute button, and one helper — `clipCarriesOwnAudio` (lip-sync
+  flag OR user silencing) — now guards every narration pairing: the
+  workbench side player, the fullscreen lightbox, the premiere player,
+  and the clips-zip narration files. The status line says where it
+  applies: "silenced for this take, here and in the export". Reversible
+  any time; survives reload and .kairo round trips.
+- Verified: 279 unit tests (new clipCarriesOwnAudio suite), all 9
+  animation e2e tests green (the mute test now pins the persistent
+  behavior), and a probe walking mute → premiere (no narration element,
+  also after reload) → unmute → pairing restored.
+
+## Slice 20 — The Projector K + the suggestion box learns the house choreography (2026-08-24, Angel's picks)
+
+- Kairo has a logo: **the Projector K** (Angel's pick from the ten-
+  direction canvas) — a K whose arms are projector beams leaving the
+  lens, with the lens as a golden spark. One component
+  (`KairoMark.tsx`, strokes in currentColor, spark on the theme
+  accent) renders it beside the wordmark in the app navbar; the same
+  mark is inlined beside "Kairo" in the landing page's header and
+  footer (gold spark in the light palette's #a4712c).
+- The browser tab and PWA wear it too: `public/favicon.svg` is the
+  mark on the brand-dark rounded tile, and the 192/512 PWA icons were
+  re-rendered from it; the manifest's theme/background colors moved
+  from the pre-design-pass #101014 to the brand #1d2434, and its
+  description no longer says "YouTube videos" (any format now).
+- The feedback overlay now behaves exactly like Settings (Angel's
+  request): a fullscreen frosted layer UNDER the navbar — the bar
+  stays visible on top, the ?-button does the gear's half-turn
+  cross-fade into the shared X glyph, and the same button (or Escape)
+  closes it. Opening feedback closes settings and vice versa, so the
+  two layers never stack. The in-card X from 19.1 is gone — the nav
+  X is the one way out, same as Settings.
+- Verified: 277 unit tests, theme + apikey e2e suites green (the
+  settings-overlay contract they pin is untouched), and a probe
+  confirming the navbar stays clickable above the open layer, the
+  ?/X flip both ways, and the mutual exclusion.
+
+## Slice 19.1 — Overlay X + the circled question mark (2026-08-24, Angel's request)
+
+- The feedback overlay gets a visible way out: an X button in the
+  dialog's top-right — the exact same glyph the Settings gear turns
+  into (Angel's call: one X design everywhere). Escape and the veil
+  click still close it too.
+- The nav button's life buoy became a circled question mark — reads
+  more immediately as "support/help".
+
+## Slice 19 — Money back on small screens + the suggestion box (2026-08-24, Angel's request)
+
+- The balance and Spent chips are no longer hidden on small screens —
+  hiding them was overkill. Below 860px the center cluster compresses
+  (smaller type, tighter gap) but stays centered in the bar; below
+  560px it drops to its own centered second row (the header wraps and
+  `.nav-middle` leaves its absolute center slot). Verified at 700px and
+  480px with overlap checks against the wordmark.
+- New nav button (life-buoy icon, right cluster): "Send feedback".
+  Angel's call: the project lives on GitHub, so feedback goes there —
+  the overlay ("From the audience / Make Kairo better") takes a type
+  (Bug report / Suggestion / Question), a one-line summary, and
+  optional details, then "Open on GitHub ↗" is a real link to a
+  prefilled new-issue page. Nothing is sent from the app itself, and
+  only what the user typed goes into the URL. `buildIssueUrl` is pure
+  and unit-tested (3 tests); the repo URL is one TODO(angel) constant
+  in `src/lib/feedback.ts` (the landing page's GitHub links can share
+  it once set).
+- Verified: build green, 277 unit tests across 33 files, probe checks
+  the composed issue URL (title prefix + encoded body), the disabled
+  state on an empty summary, and Escape closing the overlay.
+
+## Slice 18.3 — The phantom four pixels (2026-08-24, Angel's report)
+
+- The crescent STILL showed on small screens after 18.2 — but now the
+  measurement told the real story: at full scroll the last segment
+  stopped a constant 5px short of the rail's corner, at every width.
+  The culprit: the pastel hover ring is a `button::before` box with
+  `inset: -4px`, created on EVERY button — including the rail segments
+  that are excluded from ever showing it. A hidden absolutely
+  positioned box still counts as scrollable overflow, so inside the
+  scrolling rail it added 4 phantom pixels past the last segment (plus
+  the 1px border): max scroll could never bring Export flush with the
+  corner. Only rightward overflow extends scroll range, which is why
+  the left corner was always fine. It also made the rail scrollable by
+  4px even on big screens where everything fit — the "now on big
+  screens too" sighting.
+- Fix: the ring-excluded groups (`.rail-segment`, `.reel-frame`,
+  `[role='option']`) get `content: none` — no ring, no phantom box.
+  Sweep-verified 360→760px: the gap is now exactly the rail's 1px
+  border everywhere, and the rail stops being scrollable once its
+  labels fit. LESSONS: an invisible pseudo-element still occupies
+  scrollable overflow.
+
+## Slice 18.2 — The end segments carry the pill curve themselves (2026-08-24, Angel's report)
+
+- The dark crescent at the rail's corner survived 18.1 — and showed on
+  big screens too. Root cause: the segments relied on the rail (an
+  `overflow-x: auto` scroll container) to clip their square fills to
+  its rounded corners, and that corner clipping is unreliable — the
+  active segment's white rectangle poked into the curve, leaving a
+  crescent of the rail's dark background visible. Now the first and
+  last segments carry the pill radius on their own outer corners
+  (`pill 0 0 pill` / `0 pill pill 0`), so their fills hug the curve by
+  construction, at every width and scroll position. Middle segments
+  stay square. Verified with corner close-ups at 1280/700/420 with
+  Export active, and the mirrored Script-at-left-corner case.
+
 ## Slice 18.1 — Small-screen rail fills its corner (2026-08-24, Angel's report)
 
 - On small screens the stage rail's segments were `flex: 0 0 auto`
