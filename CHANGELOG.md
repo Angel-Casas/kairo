@@ -2,6 +2,18 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 18.1 — Small-screen rail fills its corner (2026-08-24, Angel's report)
+
+- On small screens the stage rail's segments were `flex: 0 0 auto`
+  (content width, scrollable), so at widths where all six labels fit
+  with room to spare, the row ended short of the rail's right edge —
+  and the rail's dark background peeked past the last segment's white
+  active fill in the rounded corner. Now `flex: 1 0 auto`: content
+  width stays the floor (the rail still scrolls when labels overflow),
+  but segments grow to fill spare width, so the active fill always
+  reaches the corner. Verified at 700px (gap ≤ the rail's own 1px
+  border) and 360px (scroll behavior intact).
+
 ## Slice 18 — Any format: 9:16 to 21:9 (2026-08-24, Angel's request)
 
 - Kairo is no longer a Shorts-only tool. The video format is a project

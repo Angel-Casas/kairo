@@ -507,7 +507,12 @@ select {
 }
 @media (max-width: 720px) {
   .stage-rail .rail-segment {
-    flex: 0 0 auto;
+    /* Content width is the FLOOR (the rail scrolls when labels overflow),
+       but segments still grow to fill spare width — flex-basis auto with
+       grow 1. A basis of 0 0 auto left the row shorter than the rail on
+       some widths, and the rail's dark background peeked past the last
+       segment's white active fill in the rounded corner (18.1). */
+    flex: 1 0 auto;
     padding: 0 var(--space-4);
   }
 }

@@ -127,7 +127,7 @@ function AccountUsage({ apiKey }: { apiKey: string }) {
       </h3>
       {usage !== null ? (
         <p aria-label="Account usage totals" style={{ margin: 0 }}>
-          {usage.requests} requests, {formatUsd(usage.netCostUsd)} net spend.{' '}
+          {usage.requests} requests, {formatUsd(usage.netCostUsd)} net spent.{' '}
           <button type="button" onClick={() => void load()}>
             Refresh
           </button>
