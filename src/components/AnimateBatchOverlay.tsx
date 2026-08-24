@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { VideoModel } from '../api/nanogpt'
+import { useFormatSpec } from './useFormatSpec'
 import type { Scene } from '../domain/types'
 import { audioBlobDuration } from '../lib/audioBlob'
 import { pickClipDuration } from '../lib/clipDuration'
@@ -344,6 +345,7 @@ function BatchRow({
   onModel: (modelId: string) => void
   onDuration: (duration: string) => void
 }) {
+  const formatSpec = useFormatSpec()
   const still =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
   const thumbUrl = useBlobUrl(still?.blobPath ?? null, still?.mimeType)
@@ -368,7 +370,7 @@ function BatchRow({
           alt={`Scene ${n} still`}
           style={{
             width: '3.2rem',
-            aspectRatio: '9 / 16',
+            aspectRatio: formatSpec.cssAspect,
             objectFit: 'cover',
             borderRadius: 'var(--radius)',
             flexShrink: 0,
@@ -380,7 +382,7 @@ function BatchRow({
           aria-hidden="true"
           style={{
             width: '3.2rem',
-            aspectRatio: '9 / 16',
+            aspectRatio: formatSpec.cssAspect,
             borderRadius: 'var(--radius)',
             flexShrink: 0,
             background: 'var(--color-surface)',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ImageModel } from '../api/nanogpt'
-import { getPerImagePriceUsd, pickPortraitResolution } from './resolution'
+import { getPerImagePriceUsd, pickResolutionForRatio } from './resolution'
 
 function model(overrides: Partial<ImageModel>): ImageModel {
   return {
@@ -15,32 +15,55 @@ function model(overrides: Partial<ImageModel>): ImageModel {
   }
 }
 
-describe('pickPortraitResolution', () => {
-  it('prefers the portrait resolution closest to 9:16', () => {
+describe('pickResolutionForRatio', () => {
+  const VERTICAL = 9 / 16
+  const WIDESCREEN = 16 / 9
+
+  it('prefers the portrait resolution closest to 9:16 for vertical', () => {
     const m = model({
       resolutions: ['1024x1024', '768x1344', '1024x1536', '1344x768'],
     })
     // 768x1344 = 0.571 ratio ≈ 9:16 (0.5625); 1024x1536 = 0.667.
-    expect(pickPortraitResolution(m)).toBe('768x1344')
+    expect(pickResolutionForRatio(m, VERTICAL)).toBe('768x1344')
   })
 
-  it('falls back to square when no portrait exists', () => {
+  it('prefers the landscape resolution closest to 16:9 for widescreen', () => {
+    const m = model({
+      resolutions: ['1024x1024', '768x1344', '1344x768', '1536x1024'],
+    })
+    // 1344x768 = 1.75 ≈ 16:9 (1.778); 1536x1024 = 1.5.
+    expect(pickResolutionForRatio(m, WIDESCREEN)).toBe('1344x768')
+  })
+
+  it('picks the exact square for a 1:1 project', () => {
+    const m = model({ resolutions: ['768x1344', '1024x1024', '1344x768'] })
+    expect(pickResolutionForRatio(m, 1)).toBe('1024x1024')
+  })
+
+  it('falls back to square when no same-orientation size exists', () => {
     const m = model({ resolutions: ['1344x768', '1024x1024'] })
-    expect(pickPortraitResolution(m)).toBe('1024x1024')
+    expect(pickResolutionForRatio(m, VERTICAL)).toBe('1024x1024')
+    const m2 = model({ resolutions: ['768x1344', '1024x1024'] })
+    expect(pickResolutionForRatio(m2, WIDESCREEN)).toBe('1024x1024')
+  })
+
+  it('falls back to the closest ratio when neither orientation nor square exists', () => {
+    const m = model({ resolutions: ['768x1344'] })
+    expect(pickResolutionForRatio(m, WIDESCREEN)).toBe('768x1344')
   })
 
   it('falls back to the first listed when nothing parses', () => {
     const m = model({ resolutions: ['auto'] })
-    expect(pickPortraitResolution(m)).toBe('auto')
+    expect(pickResolutionForRatio(m, VERTICAL)).toBe('auto')
   })
 
   it('returns null for models without listed resolutions', () => {
-    expect(pickPortraitResolution(model({}))).toBeNull()
+    expect(pickResolutionForRatio(model({}), VERTICAL)).toBeNull()
   })
 
   it('tolerates the * separator', () => {
     const m = model({ resolutions: ['1024*1792', '1024*1024'] })
-    expect(pickPortraitResolution(m)).toBe('1024*1792')
+    expect(pickResolutionForRatio(m, VERTICAL)).toBe('1024*1792')
   })
 })
 

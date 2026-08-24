@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import type { ImageModel } from '../api/nanogpt'
 import type { ReferenceAsset, ReferenceKind } from '../domain/types'
 import { formatUsd } from '../lib/format'
-import { getPerImagePriceUsd, pickPortraitResolution } from '../lib/resolution'
+import { getPerImagePriceUsd, pickResolutionForRatio } from '../lib/resolution'
+import { useFormatSpec } from './useFormatSpec'
 import { useProjectStore } from '../state/project'
 import { ConfirmDialog } from './ConfirmDialog'
 import { GenerationHistory } from './GenerationHistory'
@@ -23,6 +24,7 @@ const KIND_LABELS: Record<ReferenceKind, string> = {
  * verbatim into the image prompts of the scenes that tick them.
  */
 export function ReferencesPanel() {
+  const formatSpec = useFormatSpec()
   const project = useProjectStore((s) => s.project)
   const addReference = useProjectStore((s) => s.addReference)
 
@@ -32,7 +34,9 @@ export function ReferencesPanel() {
   if (project === null) return null
 
   const effectiveResolution =
-    model === null ? null : (resolution ?? pickPortraitResolution(model))
+    model === null
+      ? null
+      : (resolution ?? pickResolutionForRatio(model, formatSpec.ratio))
 
   return (
     <div
@@ -158,6 +162,7 @@ function ReferenceCard({
   model: ImageModel | null
   resolution: string | null
 }) {
+  const formatSpec = useFormatSpec()
   const updateReference = useProjectStore((s) => s.updateReference)
   const removeReference = useProjectStore((s) => s.removeReference)
   const flushProject = useProjectStore((s) => s.flushProject)
@@ -204,7 +209,7 @@ function ReferenceCard({
             alt={`Reference image for ${displayName}`}
             style={{
               width: '100%',
-              aspectRatio: '9 / 16',
+              aspectRatio: formatSpec.cssAspect,
               objectFit: 'cover',
               borderRadius: 'var(--radius)',
               display: 'block',
@@ -215,7 +220,7 @@ function ReferenceCard({
             aria-label={`Reference ${displayName} has no image yet`}
             style={{
               width: '100%',
-              aspectRatio: '9 / 16',
+              aspectRatio: formatSpec.cssAspect,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

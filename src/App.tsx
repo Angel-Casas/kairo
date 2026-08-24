@@ -80,7 +80,27 @@ function App() {
           gap: 'var(--space-4)',
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>Kairo</h1>
+        {/* The wordmark is the way home (16.2): it links to the landing
+            page. A real <a> — new-tab/middle-click work — styled as the
+            plain wordmark. The logo, when it exists, joins this link. */}
+        <h1 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>
+          <a
+            href="/landing.html"
+            style={{
+              color: 'inherit',
+              textDecoration: 'none',
+              transition: 'opacity var(--t-fast) var(--ease-film)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '0.75'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '1'
+            }}
+          >
+            Kairo
+          </a>
+        </h1>
 
         <div className="nav-middle">
           {apiKey !== null && balanceUsd !== null && (

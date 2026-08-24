@@ -7,7 +7,29 @@
  * - Cost transparency: every generation is recorded in the project's cost log.
  */
 
-export type ProjectFormat = 'short'
+/**
+ * The project's video format (Slice 18). Metadata (ratio, API parameter,
+ * prompt fragment) lives in domain/formats.ts; the ids live here so the
+ * Project type has no dependency on presentation strings. The pre-18
+ * placeholder value 'short' is healed to 'vertical' in normalizeProject.
+ */
+export const PROJECT_FORMAT_IDS = [
+  'vertical',
+  'widescreen',
+  'square',
+  'portrait',
+  'cinematic',
+] as const
+
+export type ProjectFormat = (typeof PROJECT_FORMAT_IDS)[number]
+
+export const DEFAULT_PROJECT_FORMAT: ProjectFormat = 'vertical'
+
+function healFormat(format: unknown): ProjectFormat {
+  return (PROJECT_FORMAT_IDS as readonly string[]).includes(format as string)
+    ? (format as ProjectFormat)
+    : DEFAULT_PROJECT_FORMAT
+}
 
 export type AssetKind = 'image' | 'video' | 'audio'
 
@@ -163,12 +185,16 @@ export function normalizeJob(job: GenerationJob): GenerationJob {
   }
 }
 
-export function createProject(title: string, now: () => string): Project {
+export function createProject(
+  title: string,
+  now: () => string,
+  format: ProjectFormat = DEFAULT_PROJECT_FORMAT,
+): Project {
   const at = now()
   return {
     id: crypto.randomUUID(),
     title,
-    format: 'short',
+    format,
     script: { text: '', locked: false },
     styleNotes: '',
     stylePresetId: null,
@@ -245,6 +271,7 @@ function healMimeType(version: AssetVersion): AssetVersion {
 export function normalizeProject(project: Project): Project {
   return {
     ...project,
+    format: healFormat(project.format),
     styleNotes: project.styleNotes ?? '',
     stylePresetId: project.stylePresetId ?? null,
     references: (project.references ?? []).map((reference) => ({

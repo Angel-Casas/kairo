@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatUsd } from '../lib/format'
 import { useProjectStore } from '../state/project'
+import { useSettingsStore } from '../state/settings'
 import type { GenerationKind } from '../domain/types'
 
 const KIND_LABELS: Record<GenerationKind, string> = {
@@ -9,6 +10,32 @@ const KIND_LABELS: Record<GenerationKind, string> = {
   image: 'Images',
   video: 'Clips',
   audio: 'Narration',
+}
+
+/** Fixed order for the composition bar and legend — never re-ranked. */
+const KIND_ORDER: GenerationKind[] = ['text', 'audio', 'image', 'video']
+
+/**
+ * Series colors for the spend composition bar (15.19). Literal hex, one
+ * hue per kind in BOTH modes (color follows the entity); dark mode uses
+ * its own gold step. Both sets pass the palette validator (lightness
+ * band, chroma floor, CVD separation, normal-vision floor, contrast)
+ * against the app's dark and light surfaces — the soft UI pastels
+ * failed every check as data colors, so the bar wears the jewel steps.
+ */
+const SPEND_COLORS: Record<'dark' | 'light', Record<GenerationKind, string>> = {
+  dark: {
+    text: '#d76487',
+    audio: '#a3891f',
+    image: '#4187cf',
+    video: '#3f9e68',
+  },
+  light: {
+    text: '#d76487',
+    audio: '#b99b25',
+    image: '#4187cf',
+    video: '#3f9e68',
+  },
 }
 
 /**
@@ -20,6 +47,7 @@ const KIND_LABELS: Record<GenerationKind, string> = {
  */
 export function SpendMenu() {
   const project = useProjectStore((s) => s.project)
+  const themeMode = useSettingsStore((s) => s.themeMode)
   const [open, setOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
 
@@ -52,6 +80,9 @@ export function SpendMenu() {
     byKind.set(entry.kind, agg)
   }
 
+  const colors = SPEND_COLORS[themeMode]
+  const presentKinds = KIND_ORDER.filter((k) => (byKind.get(k)?.usd ?? 0) > 0)
+
   const kindRows = [...byKind.entries()].map(([kind, agg]) => (
     <div
       key={kind}
@@ -62,7 +93,23 @@ export function SpendMenu() {
         padding: 'var(--space-1) 0',
       }}
     >
-      <span style={{ color: 'var(--color-text-muted)' }}>
+      <span
+        style={{
+          color: 'var(--color-text-muted)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: '9px',
+            height: '9px',
+            borderRadius: 'var(--radius-pill)',
+            background: colors[kind],
+          }}
+        />
         {KIND_LABELS[kind]}
       </span>
       <span>
@@ -236,29 +283,56 @@ export function SpendMenu() {
                 cursor: 'default',
               }}
             >
+              {/* Ledger head: eyebrow, the headline number, Close. */}
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'baseline',
+                  alignItems: 'flex-start',
                   justifyContent: 'space-between',
                   gap: 'var(--space-4)',
                 }}
               >
-                <span>
-                  <strong>
-                    Spent {approx}
-                    {formatUsd(totalUsd)}
-                  </strong>{' '}
-                  <span
+                <div>
+                  <div
+                    style={{
+                      fontSize: 'var(--text-sm)',
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    Production ledger
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 'var(--space-1)',
+                      fontSize: 'var(--text-xl)',
+                      fontWeight: 700,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {/* Keyed: a new charge ticks the headline like a
+                        counter wheel. Keep the literal "Spent $X" text —
+                        the e2e contract greps for it. */}
+                    <span key={totalUsd} className="tick-in">
+                      Spent {approx}
+                      {formatUsd(totalUsd)}
+                    </span>
+                  </div>
+                  <div
                     style={{
                       color: 'var(--color-text-muted)',
                       fontSize: 'var(--text-sm)',
+                      marginTop: '2px',
                     }}
                   >
-                    ({entries.length}{' '}
-                    {entries.length === 1 ? 'generation' : 'generations'})
-                  </span>
-                </span>
+                    {entries.length}{' '}
+                    {entries.length === 1 ? 'generation' : 'generations'}
+                    {allActual
+                      ? ' · every cost is the reported actual'
+                      : ' · ~ marks an estimate until the actual lands'}
+                  </div>
+                </div>
                 <button
                   type="button"
                   aria-label="Close spend details"
@@ -273,6 +347,7 @@ export function SpendMenu() {
                   Close
                 </button>
               </div>
+
               {entries.length === 0 ? (
                 <p
                   style={{
@@ -283,35 +358,199 @@ export function SpendMenu() {
                   Nothing spent yet in this project.
                 </p>
               ) : (
-                <ul
-                  style={{
-                    listStyle: 'none',
-                    padding: 0,
-                    margin: 'var(--space-3) 0 0',
-                    fontSize: 'var(--text-sm)',
-                  }}
-                >
-                  {[...entries].reverse().map((entry) => (
-                    <li
-                      key={entry.id}
-                      style={{
-                        color: 'var(--color-text-muted)',
-                        padding: 'var(--space-2) 0',
-                        borderTop: '1px solid var(--color-border)',
-                      }}
-                    >
-                      {new Date(entry.at).toLocaleString()} — {entry.note} (
-                      {entry.model}) — estimated{' '}
-                      {entry.estimatedUsd !== null
-                        ? `up to ~${formatUsd(entry.estimatedUsd)}`
-                        : 'unknown'}
-                      , actual{' '}
-                      {entry.actualUsd !== null
-                        ? formatUsd(entry.actualUsd)
-                        : 'not reported'}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {/* Composition bar: where the money went, by kind.
+                      Fixed kind order; 2px surface gaps between segments;
+                      identity is never color-alone (the legend tiles
+                      below carry dot + label + number). */}
+                  <div
+                    role="img"
+                    aria-label={`Spend by kind: ${presentKinds
+                      .map(
+                        (k) =>
+                          `${KIND_LABELS[k]} ${formatUsd(byKind.get(k)?.usd ?? 0)}`,
+                      )
+                      .join(', ')}`}
+                    style={{
+                      display: 'flex',
+                      gap: '2px',
+                      height: '12px',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      margin: 'var(--space-4) 0 0',
+                      background: 'var(--color-surface-2)',
+                    }}
+                  >
+                    {presentKinds.map((kind) => {
+                      const usd = byKind.get(kind)?.usd ?? 0
+                      const share = totalUsd > 0 ? usd / totalUsd : 0
+                      return (
+                        <div
+                          key={kind}
+                          title={`${KIND_LABELS[kind]} — ${formatUsd(usd)} (${String(Math.round(share * 100))}%)`}
+                          style={{
+                            width: `${String(share * 100)}%`,
+                            minWidth: '6px',
+                            background: colors[kind],
+                            transition: 'width var(--t-med) var(--ease-film)',
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+
+                  {/* Legend tiles — the bar's key and the per-kind totals. */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        'repeat(auto-fit, minmax(8.5rem, 1fr))',
+                      gap: 'var(--space-2)',
+                      margin: 'var(--space-3) 0 0',
+                    }}
+                  >
+                    {presentKinds.map((kind) => {
+                      const agg = byKind.get(kind)
+                      if (agg === undefined) return null
+                      return (
+                        <div
+                          key={kind}
+                          style={{
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius)',
+                            padding: 'var(--space-2) var(--space-3)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '2px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 'var(--space-2)',
+                              fontSize: 'var(--text-sm)',
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: '9px',
+                                height: '9px',
+                                borderRadius: 'var(--radius-pill)',
+                                background: colors[kind],
+                              }}
+                            />
+                            {KIND_LABELS[kind]}
+                          </span>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {formatUsd(agg.usd)}
+                            <span
+                              style={{
+                                fontWeight: 400,
+                                color: 'var(--color-text-muted)',
+                                fontSize: 'var(--text-sm)',
+                              }}
+                            >
+                              {' '}
+                              · {agg.count}
+                            </span>
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* The itemized receipt, newest first — dashed rules and
+                      right-aligned tabular figures, like the landing
+                      page's sample run, but real. */}
+                  <ul
+                    style={{
+                      listStyle: 'none',
+                      padding: 0,
+                      margin: 'var(--space-4) 0 0',
+                      fontSize: 'var(--text-sm)',
+                    }}
+                  >
+                    {[...entries].reverse().map((entry) => (
+                      <li
+                        key={entry.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: 'var(--space-3)',
+                          padding: 'var(--space-2) 0',
+                          borderTop: '1px dashed var(--color-border)',
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: '9px',
+                            height: '9px',
+                            borderRadius: 'var(--radius-pill)',
+                            background: colors[entry.kind],
+                            flexShrink: 0,
+                            alignSelf: 'center',
+                          }}
+                        />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ color: 'var(--color-text)' }}>
+                            {entry.note}
+                          </span>{' '}
+                          <span style={{ color: 'var(--color-text-muted)' }}>
+                            ({entry.model})
+                          </span>
+                          <span
+                            style={{
+                              display: 'block',
+                              color: 'var(--color-text-muted)',
+                              fontSize: '12px',
+                            }}
+                          >
+                            {new Date(entry.at).toLocaleString()} — estimated{' '}
+                            {entry.estimatedUsd !== null
+                              ? `up to ~${formatUsd(entry.estimatedUsd)}`
+                              : 'unknown'}
+                            , actual{' '}
+                            {entry.actualUsd !== null
+                              ? formatUsd(entry.actualUsd)
+                              : 'not reported'}
+                          </span>
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            fontVariantNumeric: 'tabular-nums',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {entry.actualUsd !== null
+                            ? formatUsd(entry.actualUsd)
+                            : entry.estimatedUsd !== null
+                              ? `~${formatUsd(entry.estimatedUsd)}`
+                              : '—'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p
+                    style={{
+                      margin: 'var(--space-3) 0 0',
+                      color: 'var(--color-text-muted)',
+                      fontSize: '12px',
+                    }}
+                  >
+                    Booked the moment a job is submitted — nothing is spent
+                    without a stated price first.
+                  </p>
+                </>
               )}
             </div>
           </div>,

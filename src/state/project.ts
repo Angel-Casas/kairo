@@ -16,6 +16,7 @@ import {
   styleFromImageUserText,
 } from '../domain/prompts'
 import { parseSceneBreakdown } from '../domain/sceneParser'
+import { getFormatSpec } from '../domain/formats'
 import { getStylePreset } from '../domain/stylePresets'
 import { applyJobEvent, isActiveJobState } from '../domain/transitions'
 import { createReference, createScene } from '../domain/types'
@@ -23,6 +24,7 @@ import type {
   AssetVersion,
   GenerationJob,
   Project,
+  ProjectFormat,
   ReferenceAsset,
   ReferenceKind,
   Scene,
@@ -143,6 +145,8 @@ interface ProjectState {
   /** Progress of a running generate-all, or null when not running. */
   allImagesProgress: { done: number; total: number } | null
   setStylePreset: (presetId: string | null) => Promise<void>
+  /** Change the project's video format (Slice 18); new generations use it. */
+  setFormat: (format: ProjectFormat) => Promise<void>
   setActiveImageVersion: (sceneId: string, versionId: string) => Promise<void>
   /**
    * Generate one image for a scene as a NEW version. Returns true on success.
@@ -323,7 +327,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
     set({ scriptGenStatus: 'generating', scriptGenError: null })
 
-    const promptText = `${scriptSystemPrompt()}\n${scriptUserPrompt(instructions)}`
+    const promptText = `${scriptSystemPrompt(getFormatSpec(project.format).scriptNoun)}\n${scriptUserPrompt(instructions)}`
     const estimatedUsd = estimateChatCostUsd({
       promptText,
       outputTokenBudget: SCRIPT_OUTPUT_TOKEN_BUDGET,
@@ -341,7 +345,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         getClient(apiKey).chatComplete(
           model.id,
           [
-            { role: 'system', content: scriptSystemPrompt() },
+            {
+              role: 'system',
+              content: scriptSystemPrompt(
+                getFormatSpec(project.format).scriptNoun,
+              ),
+            },
             { role: 'user', content: scriptUserPrompt(instructions) },
           ],
           { maxTokens: SCRIPT_OUTPUT_TOKEN_BUDGET },
@@ -818,6 +827,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           getStylePreset(project.stylePresetId)?.promptFragment ?? null,
         styleNotes: project.styleNotes,
         visualDescription: reference.descriptor,
+        compositionFragment: getFormatSpec(project.format).promptFragment,
       })
     const priceUsd = getPerImagePriceUsd(model, resolution)
 
@@ -831,7 +841,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const images = await getClient(apiKey).generateImage({
           model: model.id,
           prompt,
-          ...(resolution !== null ? { resolution } : { aspectRatio: '9:16' }),
+          ...(resolution !== null
+            ? { resolution }
+            : { aspectRatio: getFormatSpec(project.format).aspectParam }),
           n: 1,
         })
         const image = images[0]
@@ -896,6 +908,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ project: updated, referenceImageStatus: restStatus })
     await persistProject(updated)
     return true
+  },
+
+  setFormat: async (format: ProjectFormat) => {
+    const { project } = get()
+    if (project === null) return
+    const updated: Project = { ...project, format, updatedAt: nowIso() }
+    set({ project: updated })
+    await persistProject(updated)
   },
 
   setStylePreset: async (presetId: string | null) => {
@@ -965,6 +985,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         styleNotes: project.styleNotes,
         referenceDescriptors: sceneReferences.map((r) => r.descriptor),
         visualDescription: scene.visualDescription,
+        compositionFragment: getFormatSpec(project.format).promptFragment,
       })
     const priceUsd = getPerImagePriceUsd(model, resolution)
 
@@ -994,7 +1015,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const images = await getClient(apiKey).generateImage({
           model: model.id,
           prompt,
-          ...(resolution !== null ? { resolution } : { aspectRatio: '9:16' }),
+          ...(resolution !== null
+            ? { resolution }
+            : { aspectRatio: getFormatSpec(project.format).aspectParam }),
           n: 1,
           ...(referenceImageUrls.length > 0
             ? { inputReferences: referenceImageUrls }
@@ -1495,7 +1518,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             : duration !== null
               ? { duration }
               : {}),
-        aspectRatio: '9:16',
+        aspectRatio: getFormatSpec(project.format).aspectParam,
         ...(resolution !== null ? { resolution } : {}),
         imageDataUrl,
       })

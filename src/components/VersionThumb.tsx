@@ -1,4 +1,5 @@
 import { useBlobUrl } from './useBlobUrl'
+import { useFormatSpec } from './useFormatSpec'
 
 /** Small clickable version thumbnail used for scene and reference images. */
 export function VersionThumb({
@@ -12,6 +13,7 @@ export function VersionThumb({
   active: boolean
   onSelect: () => void
 }) {
+  const formatSpec = useFormatSpec()
   const url = useBlobUrl(blobPath)
   return (
     <button
@@ -28,7 +30,7 @@ export function VersionThumb({
         overflow: 'hidden',
         cursor: 'pointer',
         background: 'var(--color-surface)',
-        width: '3.5rem',
+        width: formatSpec.ratio > 1 ? '6rem' : '3.5rem',
       }}
     >
       {url !== null ? (
@@ -37,13 +39,13 @@ export function VersionThumb({
           alt=""
           style={{
             width: '100%',
-            aspectRatio: '9 / 16',
+            aspectRatio: formatSpec.cssAspect,
             objectFit: 'cover',
             display: 'block',
           }}
         />
       ) : (
-        <div style={{ width: '100%', aspectRatio: '9 / 16' }} />
+        <div style={{ width: '100%', aspectRatio: formatSpec.cssAspect }} />
       )}
     </button>
   )

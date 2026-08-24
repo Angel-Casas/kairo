@@ -3,10 +3,12 @@
  * i18n does not apply here (prompts stay English for consistent results).
  */
 
-export function scriptSystemPrompt(): string {
+export function scriptSystemPrompt(
+  scriptNoun = 'short-form vertical videos (YouTube Shorts)',
+): string {
   return [
-    'You are an expert scriptwriter for short-form vertical videos',
-    '(YouTube Shorts). Write tight, engaging narration scripts meant to be',
+    `You are an expert scriptwriter for ${scriptNoun}.`,
+    'Write tight, engaging narration scripts meant to be',
     'read aloud in under 60 seconds (roughly 120-150 words). Hook the viewer',
     'in the first sentence. Use simple spoken language. Return ONLY the',
     'narration text: no headings, no scene directions, no timestamps,',
@@ -20,7 +22,7 @@ export function scriptUserPrompt(instructions: string): string {
 
 export function sceneBreakdownSystemPrompt(): string {
   return [
-    'You split narration scripts for short vertical videos into scenes.',
+    'You split narration scripts for short videos into scenes.',
     'Respond with ONLY a JSON array, no prose, no code fences. Each element:',
     '{"textExcerpt": "<the exact part of the script this scene covers>",',
     '"visualDescription": "<one vivid sentence describing the image for this',
@@ -111,13 +113,15 @@ export function buildImagePrompt(params: {
   styleNotes: string
   referenceDescriptors?: string[]
   visualDescription: string
+  /** The project format's composition fragment (Slice 18). */
+  compositionFragment?: string
 }): string {
   const parts = [
     unterminated(params.stylePromptFragment ?? ''),
     unterminated(params.styleNotes),
     ...(params.referenceDescriptors ?? []).map(unterminated),
     unterminated(params.visualDescription),
-    'vertical 9:16 composition',
+    params.compositionFragment ?? 'vertical 9:16 composition',
     'no readable text, signs, or lettering in the image',
   ].filter((p) => p.length > 0)
   return parts.join('. ')

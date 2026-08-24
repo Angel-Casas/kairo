@@ -767,6 +767,68 @@ button.rail-segment:not(:disabled):active .rail-label {
   animation: pastel-flow 2.8s linear infinite;
 }
 
+/* The premiere frame fullscreen (Slice 17.2): the browser hands the frame
+   the whole display; the house lights go down (black), and the clip is
+   centered by the flex row. Video sizing itself is inline (objectFit
+   contain when fullscreen). */
+.premiere-frame:fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+}
+
+/* The credits roll (Slice 17): the Export stage's end-of-picture scroll.
+   The track holds the credits content TWICE (second copy aria-hidden) and
+   slides up by exactly half its own height, so the loop point is invisible.
+   No fill-mode on purpose: when the global reduced-motion collapse forces
+   duration to 0.01ms with a single iteration, the finished animation snaps
+   back to the natural position — translateY(0), first block readable — so
+   still-motion users get a static, legible credits card, never a blank. */
+@keyframes credits-roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+.credits-roll {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  /* A porthole, not a page: the track is absolutely positioned so its
+     content NEVER drives this card's height (a long production once blew
+     the card — and the whole grid row — open to the full cast list). The
+     window simply fills whatever height the screening room row has, with
+     a floor for near-empty programs. */
+  min-height: 16rem;
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+.credits-track {
+  position: absolute;
+  inset: 0 0 auto;
+  animation: credits-roll 30s linear infinite;
+}
+/* Lean in to read a name and the reel holds for you. */
+.credits-roll:hover .credits-track {
+  animation-play-state: paused;
+}
+.credits-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /* The gap between the two copies must equal the gap inside a copy, or
+     the seam shows: padding-bottom plays that role for both. */
+  padding-bottom: var(--space-4);
+}
+
 /* Reduced motion: the whole language collapses to near-instant states.
    Not optional polish — vestibular a11y. The in-app Motion setting can
    override in both directions: data-motion='on' shows the animations even

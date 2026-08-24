@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
-import type { Project } from '../domain/types'
+import { getFormatSpec, VIDEO_FORMATS } from '../domain/formats'
+import type { Project, ProjectFormat } from '../domain/types'
 import { useAppStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 
 /**
  * Projects as a poster wall (ADR-011, Filmstrip design): every project is a
- * one-sheet — a 9:16 poster with its title on the plate. No artwork exists
+ * one-sheet — a poster in the project's own format, its title on the
+ * plate. No artwork exists
  * until images are generated, so each poster wears a deterministic gradient
  * mixed from the theme's own bubble colors.
  */
@@ -30,6 +32,7 @@ export function ProjectList() {
   const importProjectFile = useAppStore((s) => s.importProjectFile)
   const importError = useAppStore((s) => s.importError)
   const [title, setTitle] = useState('')
+  const [format, setFormat] = useState<ProjectFormat>('vertical')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   return (
@@ -66,7 +69,7 @@ export function ProjectList() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            void createNewProject(title)
+            void createNewProject(title, format)
             setTitle('')
           }}
           style={{ display: 'flex', gap: 'var(--space-2)' }}
@@ -77,6 +80,17 @@ export function ProjectList() {
             placeholder="New project title"
             aria-label="New project title"
           />
+          <select
+            aria-label="Video format"
+            value={format}
+            onChange={(e) => setFormat(e.target.value as ProjectFormat)}
+          >
+            {VIDEO_FORMATS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name} {f.ratioLabel} — {f.hint}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
             className="primary"
@@ -160,7 +174,7 @@ function PosterCard({ project }: { project: Project }) {
           borderRadius: '18px',
           overflow: 'hidden',
           position: 'relative',
-          aspectRatio: '9 / 16',
+          aspectRatio: getFormatSpec(project.format).cssAspect,
           width: '100%',
           background: posterBackground(project.id),
           boxShadow: 'var(--shadow-card)',

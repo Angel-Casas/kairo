@@ -459,3 +459,36 @@ Hardening that landed with the pass: `pollVideoJobTick` no longer shares
 the terminal "stop polling" path between a transient missing key and a
 closed project, and the interrupted-job e2e got a 60s budget since it
 runs the pipeline twice.
+
+## ADR-014 — Format is a project-level choice, not a product identity (2026-08-24)
+
+Kairo launched as a 9:16 Shorts tool, and "vertical" was baked in
+everywhere: the resolution picker, the API aspect parameter, the prompt
+composition fragments, and every frame drawn in the UI. But the models
+themselves advertise what sizes they support — the verticality was our
+constraint, not theirs.
+
+**Decision:** the video format is a per-project setting. Five presets
+(Vertical 9:16, Widescreen 16:9, Square 1:1, Portrait 4:5, Cinematic
+21:9), chosen at creation and editable afterwards from the project
+header. The format ids live in `domain/types.ts` (on the Project);
+everything derived — target ratio, `aspect_ratio` API parameter, CSS
+`aspect-ratio`, image-prompt composition fragment, script-prompt noun —
+lives in one table in `domain/formats.ts`. Components read it through a
+`useFormatSpec()` hook so no frame hardcodes a shape again.
+
+Consequences chosen deliberately:
+
+- **Editing the format later re-aims new generations only.** Finished
+  takes are paid assets and keep their pixels; thumbnails render in the
+  project's current shape (cover-cropped where needed). This follows
+  the never-lose-paid-assets principle rather than fighting it.
+- **Resolution picking is orientation-first**: from a model's advertised
+  sizes, pick the same-orientation size closest to the target ratio;
+  fall back to square, then to the overall-closest, then to the
+  `aspect_ratio` parameter alone. A 16:9 project on a portrait-only
+  model degrades gracefully instead of failing.
+- **Legacy projects heal on load**: the pre-18 placeholder
+  `format: 'short'` (and any unknown value) normalizes to 'vertical' in
+  `normalizeProject`, so old .kairo backups import cleanly with no
+  schema bump.

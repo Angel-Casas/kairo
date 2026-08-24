@@ -2,6 +2,181 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 18 — Any format: 9:16 to 21:9 (2026-08-24, Angel's request)
+
+- Kairo is no longer a Shorts-only tool. The video format is a project
+  choice — five presets: Vertical 9:16 (Shorts · Reels · TikTok),
+  Widescreen 16:9 (YouTube · TV), Square 1:1 (feeds), Portrait 4:5
+  (Instagram), Cinematic 21:9 (trailers) — picked in the creation form
+  and editable any time from the project header. New generations use
+  the new format; finished takes keep their shape (ADR-014).
+- One source of truth: `domain/formats.ts` maps each format to its
+  target ratio, API `aspect_ratio` parameter, CSS aspect, image-prompt
+  composition fragment, and script-prompt noun. A `useFormatSpec()`
+  hook feeds every frame in the UI — the reel, workbenches, takes,
+  batch overlay, references, lightbox thumbs, premiere player, recap
+  strip, and the poster wall (posters now wear their project's shape).
+- The resolution picker generalized: `pickResolutionForRatio` chooses
+  the model's same-orientation size closest to the target ratio, falls
+  back to square, then overall-closest, then the aspect parameter —
+  verified by request-body probes (a widescreen project asks the image
+  API for 1344x768 and submits video jobs at aspect_ratio 16:9, with
+  "widescreen 16:9 composition" woven into prompts).
+- Script prompts now name the destination per format; the scene
+  breakdown prompt is format-agnostic. Legacy projects (and .kairo
+  backups) heal `format: 'short'` → 'vertical' on load — no schema
+  bump, old backups import cleanly.
+- Landing page and README updated: "finished video in any format —
+  9:16 to 21:9" replaces the vertical-Short framing.
+- Verified: build green, 274 unit tests across 32 files (new
+  formats/normalize suite + ratio-picker suite), 23 touched e2e tests
+  green (projects, scenes, images, references, animation, export,
+  script), plus a full widescreen pipeline probe with screenshots.
+
+## Slice 17.2 — The balcony seat: fullscreen premiere (2026-08-23, Angel's request)
+
+- The premiere can now be watched fullscreen: a circular expand button
+  sits in the frame's top-right corner, and the whole frame — not just
+  the video — goes fullscreen, so the play/pause overlay keeps working
+  edge to edge. The house lights go down (black backdrop, clip
+  letterboxed with object-fit contain), the progress strip and the
+  "Scene N of M" caption move to the bottom of the screen like a
+  subtitle band, and the finished line becomes just "— encore?" (the
+  download buttons aren't visible from the balcony). The same button
+  (now a collapse glyph) or Escape comes back; the UI mirrors the
+  browser's own fullscreen state via `fullscreenchange`, so however
+  fullscreen ends, the frame is always right.
+- Verified by probe: the frame is the fullscreen element at exactly
+  viewport size with a black backdrop, play/pause works inside,
+  exiting restores the normal card intact. Headless-Escape note: the
+  probe exits via the button because synthesized Escape never reaches
+  the browser's fullscreen handler — real Escape is native behavior.
+
+## Slice 17.1 — The credits become a porthole (2026-08-23, Angel's report)
+
+- On a real project the cast list is long (every model that ever
+  charged gets a line), and the credits card grew to fit ALL of it —
+  which also stretched the screening card beside it, pushing "The
+  final cut" and the download buttons a full page down. Root cause:
+  the rolling track sat in normal flow, so its content height drove
+  the card's intrinsic height (`height: 16rem` lost to the flex
+  sizing). The track is now absolutely positioned inside the roll —
+  out of flow, so no cast length can ever grow the card — and the
+  roll just fills the screening row's height (16rem floor). Verified
+  by injecting 120 extra credit lines in a probe: card height moved
+  0px, and the recap strip stays within one screen of the title card.
+- Bonus: hovering the credits pauses the roll, so a long cast can
+  actually be read.
+
+## Slice 17 — Premiere night: the Export stage warms up (2026-08-23, Angel's request)
+
+- The Export stage was a file manager — buttons and readiness math,
+  nothing that honored the finished work. It's now premiere night:
+  - **Title card**: perforation strips frame a "Premiere night"
+    eyebrow, the project's title in lights, and warm readiness copy
+    ("That's a wrap — 1 of 1 scene has a finished clip" when complete,
+    "Nearly there —" with an encouraging note about premiering what's
+    ready when not), plus a one-line production tally (scenes ·
+    generations · made for $X). The e2e-pinned "Export readiness"
+    label and its "N of N scene(s) has a finished clip" phrasing are
+    unchanged.
+  - **Tonight's screening**: a premiere player that screens the
+    finished takes in scene order — active clip per scene with its
+    narration synced alongside (skipped when the clip embeds it),
+    custom play/pause overlay, a FilmProgress strip tracking the whole
+    program, a "Scene N of M" caption with the scene's excerpt, and an
+    encore state when the reel ends.
+  - **The credits**: a slowly rolling credits card built from the real
+    cost log — every model that actually charged for work, grouped by
+    department (Written with / Narrated by / Cinematography / Motion
+    by), closing with "Directed and produced by you". The content is
+    duplicated and the track slides −50% so the loop is seamless; a
+    top/bottom mask fades the edges. `creditsByKind` is exported and
+    unit-tested (3 tests). Reduced motion leaves a static, readable
+    card (no fill-mode, so the collapsed animation rests at the top).
+  - **The final cut**: a frame-by-frame recap strip of every scene's
+    active image; scenes still missing a clip render dimmed with a
+    dashed border.
+  - **Take it home**: the three download cards, retitled as keepsakes —
+    "Take it to the edit" (clips zip), "The one-file premiere"
+    (stitched draft), "Keep the negatives" (project backup). Button
+    names, busy progress bars, and all download logic are unchanged.
+- Verified: build green, 263 unit tests across 31 files, both
+  export.spec.ts e2e tests pass untouched, and a Playwright probe
+  walked the full mocked pipeline to Export, asserted the credits
+  track really animates (computed transform advances, mask present)
+  with motion on, exercised play/pause, and screenshotted both themes.
+
+## Slice 16.3.2 — Page transitions between landing and app removed (2026-08-23, Angel's call)
+
+- The landing ⇄ app transitions (16.3's browser view transition and
+  16.3.1's hand-animated direction) never earned their keep — the
+  asymmetric mechanics made the crossing feel worse, not smoother.
+  Both are gone: no @view-transition opt-ins, no exit/entrance
+  animations, plain instant navigation both ways. The landing page's
+  own on-page motion (ribbon flow, hero rise, scroll reveals) and all
+  in-app motion are untouched.
+
+## Slice 16.3.1 — The landing→app direction becomes visible (2026-08-23, Angel's report)
+
+- Angel saw the transition entering the landing page but not entering
+  the app. Root cause: the app is an SPA whose first paint is an empty
+  shell, so the browser-level view transition dutifully slid in a
+  featureless rectangle — invisible. That direction is now
+  hand-animated in three parts: the landing page plays a 240ms
+  exposure-dip exit on CTA clicks before navigating (plain left-clicks
+  only — new-tab clicks pass through), it skips the browser transition
+  toward the app (pageswap), and the app plays its film-advance
+  entrance on #root once React has actually painted (detected via
+  referrer, class removed after the run so no transform lingers).
+- App → landing keeps the browser-level cross-document transition from
+  16.3 — that direction was already visible since the landing paints
+  instantly. Reduced-motion and the Motion setting silence all of it.
+- Verified deterministically: exit class + dimmed mid-exit screenshot,
+  entrance animation running on arrival with the right referrer.
+
+## Slice 16.3 — Crossing between landing and app is a film advance (2026-08-23, Angel's request)
+
+- Navigating landing ⇄ app now plays a cross-document view transition
+  in the house style: the outgoing page dips its exposure (dims and
+  darkens slightly) while the incoming one slides into the gate from
+  the right on the film easing. Pure CSS (`@view-transition` opt-in in
+  both documents); browsers without support simply navigate.
+- Silenced by the Motion setting ('off'), and by the OS reduced-motion
+  preference unless Motion is 'Always on' — same policy as every other
+  animation. Verified by filming the crossing both ways and checking
+  both documents' opt-in rules; e2e (reduced-motion path) unaffected.
+
+## Slice 16.2 — The wordmark leads home (2026-08-23, Angel's request)
+
+- The "Kairo" wordmark in the app's navbar is now a real link to the
+  landing page (`/landing.html`) — middle-click and new-tab work, with
+  a subtle opacity dip on hover. When the logo mark exists it will join
+  the same link.
+- The theme e2e used a click on that heading as its click-outside
+  target; it now clicks an inert heading instead (the wordmark would
+  navigate away). 260 unit tests, theme + smoke e2e green.
+
+## Slice 16.1 — The spend breakdown becomes a production ledger (2026-08-23, Angel's request)
+
+- The spend overlay's flat text list grew into a ledger worthy of the
+  landing page's receipt: an eyebrow-titled header with the total as a
+  big tabular headline (ticking in on change), a per-kind composition
+  bar showing where the money went, legend tiles with per-kind totals
+  and counts, dashed-rule receipt rows (kind dot, note, model,
+  timestamp, estimate-vs-actual, bold right-aligned figure), and a
+  one-line promise footer.
+- The bar's series colors were chosen by procedure, not taste: the
+  soft UI pastels FAILED the palette validator on every check as data
+  colors (too pale, adjacent pairs indistinguishable), so the bar
+  wears validator-passing jewel steps — one hue per kind in both
+  themes (text rose, audio gold, image blue, video green; dark mode
+  gets its own gold step), fixed order, 2px surface gaps, identity
+  carried by dot + label + number, never color alone.
+- The e2e text contract ("Spent $X", "N generations", "actual $X")
+  is preserved verbatim; script + scenes + audio e2e green, 260 unit
+  tests green, verified by dark + light screenshots.
+
 ## Slice 16 — The Pastel River landing page (2026-08-23, Angel's pick from 10 directions)
 
 - Kairo has a marketing page: `/landing.html`, a second Vite entry

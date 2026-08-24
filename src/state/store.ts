@@ -1,5 +1,9 @@
 import { create } from 'zustand'
-import { createProject, type Project } from '../domain/types'
+import {
+  createProject,
+  type Project,
+  type ProjectFormat,
+} from '../domain/types'
 import { getRepository } from './repo'
 
 const nowIso = () => new Date().toISOString()
@@ -10,7 +14,7 @@ interface AppState {
   selectedProjectId: string | null
   importError: string | null
   init: () => Promise<void>
-  createNewProject: (title: string) => Promise<void>
+  createNewProject: (title: string, format?: ProjectFormat) => Promise<void>
   renameProject: (id: string, title: string) => Promise<void>
   removeProject: (id: string) => Promise<void>
   /** Import a .kairo backup file as a new project. */
@@ -29,11 +33,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ projects: await repo.listProjects(), loaded: true })
   },
 
-  createNewProject: async (title: string) => {
+  createNewProject: async (title: string, format?: ProjectFormat) => {
     const trimmed = title.trim()
     if (trimmed.length === 0) return
     const repo = await getRepository()
-    const project = createProject(trimmed, nowIso)
+    const project = createProject(trimmed, nowIso, format)
     await repo.putProject(project)
     set({ projects: await repo.listProjects() })
   },

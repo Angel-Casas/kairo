@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TextModel } from '../api/nanogpt'
 import { scriptSystemPrompt, scriptUserPrompt } from '../domain/prompts'
+import { getFormatSpec } from '../domain/formats'
 import {
   estimateChatCostUsd,
   SCRIPT_OUTPUT_TOKEN_BUDGET,
@@ -32,7 +33,7 @@ export function ScriptStage() {
     model === null
       ? null
       : estimateChatCostUsd({
-          promptText: `${scriptSystemPrompt()}\n${scriptUserPrompt(instructions)}`,
+          promptText: `${scriptSystemPrompt(getFormatSpec(project.format).scriptNoun)}\n${scriptUserPrompt(instructions)}`,
           outputTokenBudget: SCRIPT_OUTPUT_TOKEN_BUDGET,
           promptPricePerMTok: model.promptPricePerMTok,
           completionPricePerMTok: model.completionPricePerMTok,

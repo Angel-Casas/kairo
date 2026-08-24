@@ -79,7 +79,9 @@ test('the palette dropdown closes on Escape and on clicking outside', async ({
 
   await page.getByRole('button', { name: 'Color palette' }).click()
   await expect(listbox).toBeVisible()
-  await page.getByRole('heading', { name: 'Kairo' }).click()
+  // Click-outside target: an inert heading — the wordmark is a LINK to
+  // the landing page now (16.2), so clicking it would navigate away.
+  await page.getByRole('heading', { name: 'Your productions' }).click()
   await expect(listbox).not.toBeVisible()
 })
 

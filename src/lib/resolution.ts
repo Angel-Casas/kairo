@@ -18,11 +18,17 @@ function parse(resolution: string): { w: number; h: number } | null {
 }
 
 /**
- * Pick the best resolution for a vertical 9:16 short from a model's list:
- * the portrait resolution closest to 9:16, else square, else the first
- * listed, else null (caller falls back to the aspect_ratio parameter).
+ * Pick the best resolution for the project's format from a model's list
+ * (Slice 18): the resolution whose w/h ratio is closest to the target
+ * ratio — same-orientation candidates first, so a 16:9 project on a model
+ * offering only portrait + square sizes lands on square, never portrait.
+ * Falls back to the first listed size, else null (caller then relies on
+ * the aspect_ratio parameter instead).
  */
-export function pickPortraitResolution(model: ImageModel): string | null {
+export function pickResolutionForRatio(
+  model: ImageModel,
+  targetRatio: number,
+): string | null {
   const candidates = model.resolutions
     .map((r) => ({ raw: r, dims: parse(r) }))
     .filter((c): c is { raw: string; dims: { w: number; h: number } } =>
@@ -30,18 +36,27 @@ export function pickPortraitResolution(model: ImageModel): string | null {
     )
   if (candidates.length === 0) return model.resolutions[0] ?? null
 
-  const target = 9 / 16
-  const portrait = candidates.filter((c) => c.dims.h > c.dims.w)
-  if (portrait.length > 0) {
-    portrait.sort(
+  const orientation = (ratio: number): 'portrait' | 'square' | 'landscape' =>
+    ratio < 1 ? 'portrait' : ratio > 1 ? 'landscape' : 'square'
+  const target = orientation(targetRatio)
+  const byCloseness = (
+    list: { raw: string; dims: { w: number; h: number } }[],
+  ) =>
+    [...list].sort(
       (a, b) =>
-        Math.abs(a.dims.w / a.dims.h - target) -
-        Math.abs(b.dims.w / b.dims.h - target),
+        Math.abs(a.dims.w / a.dims.h - targetRatio) -
+        Math.abs(b.dims.w / b.dims.h - targetRatio),
     )
-    return portrait[0]?.raw ?? null
+
+  const sameOrientation = candidates.filter(
+    (c) => orientation(c.dims.w / c.dims.h) === target,
+  )
+  if (sameOrientation.length > 0) {
+    return byCloseness(sameOrientation)[0]?.raw ?? null
   }
   const square = candidates.find((c) => c.dims.w === c.dims.h)
-  return square?.raw ?? candidates[0]?.raw ?? null
+  if (square !== undefined && target !== 'square') return square.raw
+  return byCloseness(candidates)[0]?.raw ?? null
 }
 
 /**

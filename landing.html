@@ -6,7 +6,7 @@
     <title>Kairo — a film studio that fits in a browser tab</title>
     <meta
       name="description"
-      content="Kairo turns a script into a narrated, animated vertical Short — scene by scene, in your browser, on your own NanoGPT key. Free and open source."
+      content="Kairo turns a script into a narrated, animated video in any format — vertical, widescreen, square — scene by scene, in your browser, on your own NanoGPT key. Free and open source."
     />
     <meta
       property="og:title"
@@ -14,7 +14,7 @@
     />
     <meta
       property="og:description"
-      content="Write the script. Kairo breaks it into scenes, narrates, paints and animates them, and hands you a finished vertical Short. Free, open source, your own NanoGPT key."
+      content="Write the script. Kairo breaks it into scenes, narrates, paints and animates them, and hands you a finished video in any format — 9:16 to 21:9. Free, open source, your own NanoGPT key."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="/favicon.svg" />
@@ -651,7 +651,7 @@
 
       <section class="hero">
         <div class="kicker rise d1">
-          FREE - OPEN SOURCE - FOREVER
+          FREE · OPEN SOURCE · NOTHING TO INSTALL
         </div>
         <h1 class="rise d2">
           A film studio that fits in a
@@ -659,7 +659,8 @@
         </h1>
         <p class="sub rise d3">
           Write the script. Kairo breaks it into scenes, narrates them, paints
-          them, animates them, and hands you a finished vertical Short — on your
+          them, animates them, and hands you a finished video in any format —
+          Shorts to widescreen to cinematic — on your
           own NanoGPT key, at prices you approve line by line.
         </p>
         <div class="cta-row rise d4">
@@ -1044,7 +1045,7 @@
             <!-- TODO(angel): point at the real repository URL -->
             <a href="#">GitHub</a>
             <a href="#">MIT license</a>
-            <span>Built for 9:16</span>
+            <span>Any format — 9:16 to 21:9</span>
           </nav>
           <a
             class="btn btn-primary"
@@ -1073,10 +1074,11 @@
       )
       document.querySelectorAll('.reveal').forEach((el) => observer.observe(el))
 
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+
       // Gentle parallax on the hero ribbon: it drifts upward at a fraction
       // of scroll speed. rAF-throttled; disabled under reduced motion.
       const ribbon = document.getElementById('ribbon')
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
       let ticking = false
       window.addEventListener(
         'scroll',

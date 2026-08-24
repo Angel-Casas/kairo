@@ -3,7 +3,8 @@ import type { ImageModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
 import { FilmProgress } from './FilmProgress'
 import { formatUsd } from '../lib/format'
-import { getPerImagePriceUsd, pickPortraitResolution } from '../lib/resolution'
+import { getPerImagePriceUsd, pickResolutionForRatio } from '../lib/resolution'
+import { useFormatSpec } from './useFormatSpec'
 import { useProjectStore } from '../state/project'
 import { GenerationHistory } from './GenerationHistory'
 import { Lightbox, type LightboxItem } from './Lightbox'
@@ -21,6 +22,7 @@ import { VersionThumb } from './VersionThumb'
  * screen.
  */
 export function ImagesStage() {
+  const formatSpec = useFormatSpec()
   const project = useProjectStore((s) => s.project)
   const generateAllImages = useProjectStore((s) => s.generateAllImages)
   const allImagesProgress = useProjectStore((s) => s.allImagesProgress)
@@ -41,7 +43,9 @@ export function ImagesStage() {
     scenes.find((s) => s.id === selectedSceneId) ?? scenes[0] ?? null
 
   const effectiveResolution =
-    model === null ? null : (resolution ?? pickPortraitResolution(model))
+    model === null
+      ? null
+      : (resolution ?? pickResolutionForRatio(model, formatSpec.ratio))
   const perImageUsd =
     model === null ? null : getPerImagePriceUsd(model, effectiveResolution)
 
@@ -90,9 +94,9 @@ export function ImagesStage() {
           both open on their reel, so the two stages line up. */}
       <ReelShell
         hint="select a frame to work on it below"
-        // Selected frame: 11.5rem wide at 9:16, plus the strip's own
-        // vertical padding (border-box).
-        frameHeight="calc(11.5rem * 16 / 9 + 2 * var(--space-2))"
+        // Selected frame: 11.5rem wide at the project's aspect, plus
+        // the strip's own vertical padding (border-box).
+        frameHeight={`calc(11.5rem / ${String(formatSpec.ratio)} + 2 * var(--space-2))`}
       >
         {scenes.map((scene, index) => (
           <SceneFrame
@@ -167,6 +171,7 @@ function SceneFrame({
   onSelect: () => void
   onExpand: () => void
 }) {
+  const formatSpec = useFormatSpec()
   const status = useProjectStore((s) => s.sceneImageStatus[scene.id])
   const activeVersion =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
@@ -224,7 +229,7 @@ function SceneFrame({
             alt={`Scene ${n} active image`}
             style={{
               width: '100%',
-              aspectRatio: '9 / 16',
+              aspectRatio: formatSpec.cssAspect,
               objectFit: 'cover',
               display: 'block',
             }}
@@ -234,7 +239,7 @@ function SceneFrame({
             aria-label={`Scene ${n} has no image yet`}
             style={{
               width: '100%',
-              aspectRatio: '9 / 16',
+              aspectRatio: formatSpec.cssAspect,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',

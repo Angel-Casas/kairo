@@ -7,8 +7,9 @@ import { ImagesStage } from './ImagesStage'
 import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
 import { buildStages, type Stage } from '../domain/stages'
-import type { Project } from '../domain/types'
+import type { Project, ProjectFormat } from '../domain/types'
 import { StagesNav } from './StagesNav'
+import { VIDEO_FORMATS } from '../domain/formats'
 
 /**
  * Stage order for the direction-aware transition (ADR-013): moving to a
@@ -60,6 +61,7 @@ export function ProjectView({
   const loadProject = useProjectStore((s) => s.loadProject)
   const closeProject = useProjectStore((s) => s.closeProject)
   const flushProject = useProjectStore((s) => s.flushProject)
+  const setFormat = useProjectStore((s) => s.setFormat)
   const [stage, setStage] = useState<Stage>('script')
   // Remember where we came from so the incoming stage knows which way the
   // film is travelling (forward advance vs. rewind).
@@ -123,6 +125,24 @@ export function ProjectView({
         <h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>
           {project.title}
         </h2>
+        {/* The frame the whole production is shot in (Slice 18). Editable
+            any time: new generations use it; finished takes keep their
+            shape. */}
+        <select
+          aria-label="Video format"
+          value={project.format}
+          onChange={(e) => {
+            void setFormat(e.target.value as ProjectFormat)
+          }}
+          style={{ marginLeft: 'auto' }}
+          title="New generations use this format — already-generated takes keep their shape"
+        >
+          {VIDEO_FORMATS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name} {f.ratioLabel}
+            </option>
+          ))}
+        </select>
       </div>
       <StagesNav
         stages={buildStages(project)}

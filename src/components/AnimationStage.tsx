@@ -8,6 +8,7 @@ import { sortVideoResolutionsCheapestFirst } from '../lib/resolution'
 import { useModelsStore } from '../state/models'
 import { AnimateBatchOverlay, type BatchItem } from './AnimateBatchOverlay'
 import { useProjectStore } from '../state/project'
+import { useFormatSpec } from './useFormatSpec'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FilmProgress } from './FilmProgress'
 import { GenerationHistory } from './GenerationHistory'
@@ -61,6 +62,7 @@ type PendingConfirm =
  * cost-confirmation dialog (Slice 6.1) — video is the expensive kind.
  */
 export function AnimationStage() {
+  const formatSpec = useFormatSpec()
   const project = useProjectStore((s) => s.project)
   const generateSceneVideo = useProjectStore((s) => s.generateSceneVideo)
   const videoModels = useModelsStore((s) => s.videoModels)
@@ -174,9 +176,9 @@ export function AnimationStage() {
     <section>
       <ReelShell
         hint="select a frame to animate it below"
-        // Selected frame: 11.5rem wide at 9:16, plus the strip's own
-        // vertical padding (border-box).
-        frameHeight="calc(11.5rem * 16 / 9 + 2 * var(--space-2))"
+        // Selected frame: 11.5rem wide at the project's aspect, plus
+        // the strip's own vertical padding (border-box).
+        frameHeight={`calc(11.5rem / ${String(formatSpec.ratio)} + 2 * var(--space-2))`}
       >
         {scenes.map((scene, index) => (
           <AnimationFrame
@@ -356,6 +358,7 @@ function AnimationFrame({
   onSelect: () => void
   onExpand: () => void
 }) {
+  const formatSpec = useFormatSpec()
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
   const activeImage =
     scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
@@ -413,7 +416,7 @@ function AnimationFrame({
             alt={`Scene ${n} source image`}
             style={{
               width: '100%',
-              aspectRatio: '9 / 16',
+              aspectRatio: formatSpec.cssAspect,
               objectFit: 'cover',
               display: 'block',
             }}
@@ -422,7 +425,7 @@ function AnimationFrame({
           <div
             style={{
               width: '100%',
-              aspectRatio: '9 / 16',
+              aspectRatio: formatSpec.cssAspect,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -536,6 +539,7 @@ function AnimationWorkbench({
   onSelectLipSyncModel: (m: VideoModel) => void
   onRequestLipSync: () => void
 }) {
+  const formatSpec = useFormatSpec()
   const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
   const importSceneClip = useProjectStore((s) => s.importSceneClip)
   const updateScene = useProjectStore((s) => s.updateScene)
@@ -955,7 +959,7 @@ function AnimationWorkbench({
               }}
               style={{
                 width: '10rem',
-                aspectRatio: '9 / 16',
+                aspectRatio: formatSpec.cssAspect,
                 borderRadius: 'var(--radius)',
                 background: 'var(--color-surface)',
                 display: 'block',

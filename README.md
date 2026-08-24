@@ -1,6 +1,6 @@
 # Kairo
 
-Generate YouTube videos (shorts first) through a step-by-step pipeline —
+Generate videos in any format — Shorts, widescreen, square — through a step-by-step pipeline —
 **script → scenes → images → animation → export** — using your own
 [NanoGPT](https://nano-gpt.com) API key. Pick your preferred model at every step
 and pay only for what you actually generate. No subscription.
