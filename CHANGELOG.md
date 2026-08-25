@@ -2,6 +2,37 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 20.4 — Four new artistic styles (2026-08-24, Angel's picks)
+
+- The style gallery grows from 16 to 20 presets, each filling a gap
+  Angel picked from the proposed set, placed beside its kin:
+  - **Felted wool** (after Claymation) — needle-felted miniatures,
+    fuzzy fiber texture, the cozy cousin of the handmade family.
+  - **Film noir** (after Cinematic still) — hard black-and-white,
+    venetian-blind shadows, smoke and rain; the monochrome counterpart
+    to the color film look.
+  - **Stained glass** (after Ukiyo-e) — jewel-toned glass with bold
+    leading, the only preset that glows from within.
+  - **Vintage poster** (after Synthwave) — mid-century travel-poster
+    gouache, flat confident shapes, screen-print grain.
+- The four render as name-tiles until their thumbnails exist: run
+  `NANOGPT_API_KEY=your-key node scripts/generate-style-thumbnails.mjs`
+  (existing thumbnails are skipped; ~$0.01 per new style) to generate
+  them on the shared lighthouse subject per ADR-008.
+
+## Slice 20.3 — Claymation, enriched (2026-08-24, Angel's request)
+
+- Angel asked for a Claymation preset — and one already existed in the
+  style gallery, but its fragment was thin next to the reference he
+  brought. The prompt fragment now names what makes the look sing:
+  "claymation stop-motion film still, hand-molded plasticine
+  characters with visible fingerprints and tool marks, handcrafted
+  miniature set, warm practical lighting with string-bulb bokeh,
+  shallow depth of field, tactile handmade charm". Same id, same
+  thumbnail (ADR-008 keeps all thumbnails on the shared lighthouse
+  subject so styles stay comparable); projects already using the
+  preset simply generate richer takes from now on.
+
 ## Slice 20.2 — A muted narration stays muted, everywhere (2026-08-24, Angel's report)
 
 - Angel silenced a take's narration in the Animation workbench (a

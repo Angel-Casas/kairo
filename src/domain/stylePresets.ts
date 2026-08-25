@@ -54,9 +54,19 @@ export const STYLE_PRESETS: StylePreset[] = [
   {
     id: 'claymation',
     name: 'Claymation',
+    // Enriched in 20.3 from Angel's reference: the charm lives in the
+    // handmade evidence (fingerprints, tool marks) and the warm
+    // practical-light miniature-set photography around it.
     promptFragment:
-      'claymation stop-motion style, hand-molded plasticine characters, soft studio lighting, miniature set',
+      'claymation stop-motion film still, hand-molded plasticine characters with visible fingerprints and tool marks, handcrafted miniature set, warm practical lighting with string-bulb bokeh, shallow depth of field, tactile handmade charm',
     thumbnail: '/styles/claymation.webp',
+  },
+  {
+    id: 'felted-wool',
+    name: 'Felted wool',
+    promptFragment:
+      'needle-felted wool miniature, fuzzy fiber texture, soft rounded handmade characters, warm cozy lighting, shallow depth of field, tactile craft charm',
+    thumbnail: '/styles/felted-wool.webp',
   },
   {
     id: '3d-render',
@@ -78,6 +88,13 @@ export const STYLE_PRESETS: StylePreset[] = [
     promptFragment:
       'cinematic film still, anamorphic framing, moody color grading, dramatic key light, shallow depth of field',
     thumbnail: '/styles/cinematic.webp',
+  },
+  {
+    id: 'film-noir',
+    name: 'Film noir',
+    promptFragment:
+      '1940s film noir photograph, hard black-and-white contrast, venetian-blind shadows, drifting cigarette smoke and rain-slick streets, low-key dramatic lighting',
+    thumbnail: '/styles/film-noir.webp',
   },
   {
     id: 'low-poly',
@@ -108,11 +125,25 @@ export const STYLE_PRESETS: StylePreset[] = [
     thumbnail: '/styles/ukiyo-e.webp',
   },
   {
+    id: 'stained-glass',
+    name: 'Stained glass',
+    promptFragment:
+      'luminous stained glass window panel, jewel-toned glass segments, bold black leading outlines, light glowing through translucent color, cathedral mosaic composition',
+    thumbnail: '/styles/stained-glass.webp',
+  },
+  {
     id: 'synthwave',
     name: 'Synthwave',
     promptFragment:
       'synthwave retrofuturism, neon magenta and cyan glow, gridlines and haze, 1980s sci-fi poster',
     thumbnail: '/styles/synthwave.webp',
+  },
+  {
+    id: 'vintage-poster',
+    name: 'Vintage poster',
+    promptFragment:
+      'mid-century travel poster gouache, flat confident shapes, limited retro palette, subtle screen-print grain, elegant simplified forms',
+    thumbnail: '/styles/vintage-poster.webp',
   },
   {
     id: 'storybook',
