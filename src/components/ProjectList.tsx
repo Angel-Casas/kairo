@@ -3,13 +3,17 @@ import { getFormatSpec, VIDEO_FORMATS } from '../domain/formats'
 import type { Project, ProjectFormat } from '../domain/types'
 import { useAppStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
+import { KairoMark } from './KairoMark'
+import { useBlobUrl } from './useBlobUrl'
 
 /**
  * Projects as a poster wall (ADR-011, Filmstrip design): every project is a
  * one-sheet — a poster in the project's own format, its title on the
- * plate. No artwork exists
- * until images are generated, so each poster wears a deterministic gradient
- * mixed from the theme's own bubble colors.
+ * plate. A project with generated artwork wears its OWN opening frame
+ * (22.17, Angel's report: every poster looked the same); before any
+ * image exists, each poster gets a deterministic aurora mixed from the
+ * six ring pastels — seeded by the project id, so no two posters match
+ * and each keeps its art between visits — under a faint Kairo mark.
  */
 
 /** Stable tiny hash so a project keeps its poster art between visits. */
@@ -21,9 +25,31 @@ function posterSeed(id: string): number {
 
 function posterBackground(id: string): string {
   const seed = posterSeed(id)
-  const angle = 140 + (seed % 60)
-  const coolStop = 25 + (seed % 30)
-  return `linear-gradient(${String(angle)}deg, rgba(var(--bubble-cool), 0.85) 0%, rgba(var(--bubble-warm), 0.55) ${String(coolStop + 35)}%, var(--color-bg) 100%)`
+  // Three of the six ring pastels, spread so neighbours rarely rhyme.
+  const a = (seed % 6) + 1
+  const b = ((seed + 2 + (seed % 3)) % 6) + 1
+  const c = ((seed + 4) % 6) + 1
+  const angle = 100 + (seed % 140)
+  const x = 12 + (seed % 70)
+  const y = 8 + (Math.floor(seed / 7) % 40)
+  return [
+    `radial-gradient(120% 90% at ${String(x)}% ${String(y)}%, color-mix(in srgb, var(--ring-${String(a)}) 88%, transparent) 0%, transparent 60%)`,
+    `radial-gradient(150% 110% at ${String(100 - x)}% 88%, color-mix(in srgb, var(--ring-${String(c)}) 72%, transparent) 0%, transparent 68%)`,
+    `linear-gradient(${String(angle)}deg, var(--ring-${String(b)}) 0%, var(--color-bg) 135%)`,
+  ].join(', ')
+}
+
+/** The project's opening frame: the first scene with an active image. */
+function heroImage(project: Project) {
+  return (
+    [...project.scenes]
+      .sort((a, b) => a.order - b.order)
+      .map(
+        (s) =>
+          s.imageVersions.find((v) => v.id === s.activeImageVersionId) ?? null,
+      )
+      .find((v) => v !== null) ?? null
+  )
 }
 
 export function ProjectList() {
@@ -156,6 +182,12 @@ function PosterCard({ project }: { project: Project }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(project.title)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const hero = heroImage(project)
+  const heroUrl = useBlobUrl(hero?.blobPath ?? null, hero?.mimeType)
+  const sceneCount = project.scenes.length
+  const clipCount = project.scenes.filter(
+    (s) => s.activeVideoVersionId !== null,
+  ).length
 
   return (
     <li
@@ -167,6 +199,7 @@ function PosterCard({ project }: { project: Project }) {
     >
       <button
         type="button"
+        className="poster-card"
         onClick={() => select(project.id)}
         style={{
           padding: 0,
@@ -182,6 +215,39 @@ function PosterCard({ project }: { project: Project }) {
           textAlign: 'left',
         }}
       >
+        {heroUrl !== null ? (
+          <img
+            src={heroUrl}
+            alt=""
+            aria-hidden="true"
+            className="poster-art"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : (
+          // No artwork yet: the aurora shows through, watermarked with
+          // a faint projector K so the empty poster still feels ours.
+          <span
+            aria-hidden="true"
+            className="poster-mark"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'rgba(255, 255, 255, 0.5)',
+              opacity: 0.55,
+            }}
+          >
+            <KairoMark size={64} spark="rgba(255, 255, 255, 0.75)" />
+          </span>
+        )}
         <span
           style={{
             position: 'absolute',
@@ -211,8 +277,38 @@ function PosterCard({ project }: { project: Project }) {
               marginTop: '2px',
             }}
           >
+            {getFormatSpec(project.format).ratioLabel}
+            {sceneCount > 0 &&
+              ` · ${String(sceneCount)} ${sceneCount === 1 ? 'scene' : 'scenes'}`}
+            {clipCount > 0 &&
+              ` · ${String(clipCount)} ${clipCount === 1 ? 'clip' : 'clips'}`}
+          </span>
+          <span
+            style={{
+              display: 'block',
+              fontSize: '12px',
+              color: 'rgba(255, 255, 255, 0.6)',
+              marginTop: '2px',
+            }}
+          >
             updated {new Date(project.updatedAt).toLocaleString()}
           </span>
+        </span>
+        {/* Fades in with the hover lift — the poster says what a click does. */}
+        <span
+          className="poster-open-hint"
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: 'var(--space-3)',
+            right: 'var(--space-3)',
+            color: '#ffffff',
+            fontSize: 'var(--text-sm)',
+            fontWeight: 600,
+            textShadow: '0 1px 8px rgba(0, 0, 0, 0.7)',
+          }}
+        >
+          Open →
         </span>
       </button>
       {editing ? (

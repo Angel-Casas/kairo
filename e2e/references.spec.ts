@@ -64,11 +64,11 @@ test('create a reference, tick a scene, generate its image, survive reload', asy
   // Tick the reference on scene 1 only.
   await page.getByLabel('Scene 1 uses Mara').check()
 
-  // Generate the reference image from the descriptor (mocked, $0.01).
-  await page.getByText('Image model for generating reference images').click()
-  await pickModel(page, 'Image model', 'mock/painter-i2i')
+  // Generate the reference image from the descriptor (mocked, $0.02).
+  // The toggle defaults to image-from-description; one dropdown (22.7).
+  await pickModel(page, 'Model for Mara', 'mock/painter-i2i')
   await expect(page.getByText('Cost: $0.02; importing is free.')).toBeVisible()
-  await page.getByRole('button', { name: 'Generate from description' }).click()
+  await page.getByRole('button', { name: 'Generate for Mara' }).click()
   await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
 
   // Wait for the persisted state (UI updates before the write commits).
@@ -96,16 +96,132 @@ test('create a reference, tick a scene, generate its image, survive reload', asy
   await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
 })
 
+test('an imported image can be removed with the X (free versions only)', async ({
+  page,
+}) => {
+  await addCharacterMara(page)
+
+  await page.getByLabel('Import an image for Mara').setInputFiles({
+    name: 'mara.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(TINY_PNG_B64, 'base64'),
+  })
+  await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
+
+  // The enlarge control opens the fullscreen lightbox (22.10).
+  await page.getByLabel('View Mara image large').click()
+  await expect(
+    page.getByRole('dialog', { name: 'Reference Mara image — enlarged' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByRole('dialog', { name: 'Reference Mara image — enlarged' }),
+  ).toHaveCount(0)
+
+  // Double-clicking the thumbnail enlarges too (22.10.1, like the reels).
+  await page.getByAltText('Reference image for Mara').dblclick()
+  await expect(
+    page.getByRole('dialog', { name: 'Reference Mara image — enlarged' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // X on the thumbnail → confirm → back to "No image".
+  await page.getByLabel('Remove imported image for Mara').click()
+  await expect(page.getByText('Remove this imported image?')).toBeVisible()
+  await page.getByRole('button', { name: 'Remove image' }).click()
+  await expect(page.getByAltText('Reference image for Mara')).toHaveCount(0)
+  await expect(page.getByLabel('Reference Mara has no image yet')).toBeVisible()
+
+  // Paid generations never show the X.
+  await pickModel(page, 'Model for Mara', 'mock/painter-i2i')
+  await page.getByRole('button', { name: 'Generate for Mara' }).click()
+  await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
+  await expect(page.getByLabel('Remove imported image for Mara')).toHaveCount(0)
+
+  // The removal is persisted: only the generated version remains.
+  await expect
+    .poll(async () => {
+      const [stored] = (await readStoredProjects(page)) as {
+        references: { imageVersions: { model: string }[] }[]
+      }[]
+      return stored?.references[0]?.imageVersions.map((v) => v.model)
+    })
+    .toEqual(['mock/painter-i2i'])
+})
+
+test('a vision model writes the description from the imported image', async ({
+  page,
+}) => {
+  // A reference with a name but NO description — the case the button solves.
+  await page.getByRole('button', { name: 'Add character' }).click()
+  await page.getByLabel('Reference Unnamed character name').fill('Mara')
+  await page.getByLabel('Reference Mara name').blur()
+
+  await page.getByLabel('Import an image for Mara').setInputFiles({
+    name: 'mara.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(TINY_PNG_B64, 'base64'),
+  })
+  await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
+
+  // Pick the vision model; the description comes back from the mock.
+  const VISION_DESCRIPTOR =
+    'a tall woman in her 40s, cropped silver hair, navy captain coat with brass buttons'
+  await page.route(`${API}/v1/chat/completions`, (route) =>
+    route.fulfill({
+      json: {
+        model: 'mock/seer-1',
+        choices: [
+          { message: { role: 'assistant', content: VISION_DESCRIPTOR } },
+        ],
+        usage: { prompt_tokens: 300, completion_tokens: 60 },
+      },
+    }),
+  )
+  // Flip the toggle (22.7): the single dropdown now lists TEXT models
+  // that accept image input, and Generate writes the description.
+  await page
+    .getByRole('button', {
+      name: 'Generate description from image for Mara',
+    })
+    .click()
+  await pickModel(page, 'Model for Mara', 'mock/seer-1')
+  await page.getByRole('button', { name: 'Generate for Mara' }).click()
+  await expect(page.getByLabel('Reference Mara description')).toHaveValue(
+    VISION_DESCRIPTOR,
+  )
+
+  // Describing again over an existing description asks first.
+  await page.getByRole('button', { name: 'Generate for Mara' }).click()
+  await expect(page.getByText('Replace the description?')).toBeVisible()
+  await page.getByRole('button', { name: 'Replace description' }).click()
+  await expect(page.getByLabel('Reference Mara description')).toHaveValue(
+    VISION_DESCRIPTOR,
+  )
+
+  // The descriptor is persisted, not just shown.
+  await expect
+    .poll(async () => {
+      const [stored] = (await readStoredProjects(page)) as {
+        references: { descriptor: string }[]
+      }[]
+      return stored?.references[0]?.descriptor
+    })
+    .toBe(VISION_DESCRIPTOR)
+})
+
 test('scene generation attaches the reference image for i2i models and says so', async ({
   page,
 }) => {
   await addCharacterMara(page)
   await page.getByLabel('Scene 1 uses Mara').check()
 
-  // Import a reference image (free, no generation call).
+  // Import a reference image (free, no generation call) — as a JPEG:
+  // OPFS strips MIME types on read-back, and the attachment must restore
+  // the STORED type, not stamp everything image/png (22.11).
   await page.getByLabel('Import an image for Mara').setInputFiles({
-    name: 'mara.png',
-    mimeType: 'image/png',
+    name: 'mara.jpg',
+    mimeType: 'image/jpeg',
     buffer: Buffer.from(TINY_PNG_B64, 'base64'),
   })
   await expect(page.getByAltText('Reference image for Mara')).toBeVisible()
@@ -152,5 +268,7 @@ test('scene generation attaches the reference image for i2i models and says so',
   expect(requestBody.prompt).toContain(DESCRIPTOR)
   const references = requestBody.input_references as string[]
   expect(references).toHaveLength(1)
-  expect(references[0]).toMatch(/^data:image\/png;base64,/)
+  // The JPEG import must reach the API as a JPEG data URL — the stored
+  // mime type restored after OPFS stripped it (22.11).
+  expect(references[0]).toMatch(/^data:image\/jpeg;base64,/)
 })

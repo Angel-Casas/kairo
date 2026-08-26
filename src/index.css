@@ -289,10 +289,16 @@ button {
     --ring-angle: 360deg;
   }
 }
-button {
+button,
+.seg-group {
   position: relative;
 }
-button::before {
+/* .seg-group: a segmented toggle (22.9). Its segments are ring-excluded
+   (their rectangles sit flush inside the group, so a per-segment ring
+   gets clipped to a sliver at the divider — Angel's report); instead
+   the GROUP wears one ring around the whole control on hover. */
+button::before,
+.seg-group::before {
   content: '';
   position: absolute;
   inset: -4px;
@@ -336,12 +342,14 @@ button::before {
    pill corner, leaving a dark crescent (18.3, Angel's report). */
 button[role='option']::before,
 button.rail-segment::before,
-button.reel-frame::before {
+button.reel-frame::before,
+button.seg-option::before {
   content: none;
 }
 button:not(:disabled):not([role='option']):not(.rail-segment):not(
     .reel-frame
-  ):hover::before {
+  ):not(.seg-option):hover::before,
+.seg-group:hover::before {
   opacity: 1;
   visibility: visible;
   transition:
@@ -582,6 +590,173 @@ select {
 .frame-wrap:hover .expand-btn,
 .frame-wrap .expand-btn:focus-visible {
   opacity: 1;
+}
+
+/* -- The poster wall (22.19, Angel's request) -------------------------------
+   Posters sat inert: their overflow:hidden clips the global hover ring
+   (the 22.9 toggle trap again), so hovering showed nothing. Instead the
+   one-sheet gets its own move: it lifts off the wall with a whisper of
+   tilt and an accent glow, while the artwork inside eases into a slow
+   zoom — a poster picked up for a closer look. Hover only: keyboard
+   focus keeps its existing treatment (Angel's call). Reduced motion
+   collapses the transitions to instant state changes via the global
+   rules. */
+.poster-card {
+  transition:
+    transform var(--t-med) var(--ease-film),
+    box-shadow var(--t-med) var(--ease-film),
+    border-color var(--t-med) var(--ease-film);
+}
+.poster-card:hover {
+  transform: translateY(-6px) rotate(-0.4deg);
+  border-color: var(--color-accent) !important;
+  box-shadow:
+    0 0 0 5px var(--color-accent-soft),
+    0 22px 44px rgba(0, 0, 0, 0.35);
+}
+.poster-card .poster-art {
+  transition: transform 1.2s var(--ease-film);
+}
+.poster-card:hover .poster-art {
+  transform: scale(1.06);
+}
+.poster-card .poster-mark {
+  transition:
+    transform var(--t-med) var(--ease-film),
+    opacity var(--t-med) var(--ease-film);
+}
+.poster-card:hover .poster-mark {
+  transform: scale(1.12);
+  opacity: 0.85;
+}
+/* The plate's open hint: appears only while the poster is lifted. */
+.poster-card .poster-open-hint {
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-film);
+}
+.poster-card:hover .poster-open-hint {
+  opacity: 1;
+}
+
+/* -- The developing veil (22.15, Angel's request) ---------------------------
+   The frame being generated sits in the developing bath: the pastel
+   projector ring spins around its edge (same conic band as the hover
+   ring, but ON for the duration) while a soft beam of darkroom light
+   sweeps diagonally across the print. The sweep sheet is oversized and
+   both keyframe ends park the beam outside the frame, so the loop
+   restart is invisible. Under reduced motion the global rules freeze
+   both: the beam parks off-frame and the ring stands still as a quiet
+   pastel border — a static "busy" mark. */
+.developing-veil {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}
+.developing-sweep {
+  position: absolute;
+  inset: -150% -60%;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    color-mix(in srgb, var(--ring-2) 45%, transparent) 46%,
+    rgba(255, 255, 255, 0.38) 50%,
+    color-mix(in srgb, var(--ring-5) 45%, transparent) 54%,
+    transparent 60%
+  );
+  mix-blend-mode: screen;
+  animation: develop-sweep 2.6s linear infinite;
+}
+@keyframes develop-sweep {
+  from {
+    transform: translate3d(-45%, -35%, 0);
+  }
+  to {
+    transform: translate3d(45%, 35%, 0);
+  }
+}
+/* The centered mark (22.15.1, unboxed in 22.15.2): the bottom caption
+   was easy to miss on a frame that already holds an image — the state
+   now announces itself in the middle of the print. No pill, no border:
+   a thin spinning arc above bare text, both carrying soft shadows so
+   they read over any artwork. Under reduced motion the arc freezes
+   into a notched circle — still a busy mark. */
+.developing-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  color: #ffffff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 10px rgba(0, 0, 0, 0.75),
+    0 0 3px rgba(0, 0, 0, 0.6);
+}
+.developing-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.6));
+  animation: developing-spin 0.9s linear infinite;
+}
+@keyframes developing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.developing-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--ring-angle),
+    var(--ring-1),
+    var(--ring-2),
+    var(--ring-3),
+    var(--ring-4),
+    var(--ring-5),
+    var(--ring-6),
+    var(--ring-1)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: ring-spin 2.4s linear infinite;
+}
+
+/* The attention pulse (22.14, Angel's idea): a soft accent glow that
+   beats a few times on elements pointing at a pending step — the
+   saved-as-reference notice, the spotlighted reference card after the
+   cross-stage jump. Finite on purpose: it asks for a glance, it does
+   not nag. The global reduced-motion rules silence it like every other
+   animation. */
+@keyframes attention-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--color-accent-soft);
+  }
+}
+.attention-pulse {
+  animation: attention-pulse 1.4s var(--ease-film) 3;
 }
 
 /* -- Motion (ADR-013 — "the projectionist's cut") --------------------------- */

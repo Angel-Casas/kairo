@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   achievableFrameDurations,
+  narrationCutoffWarning,
   pickClipDuration,
   planFrames,
 } from './clipDuration'
@@ -63,5 +64,26 @@ describe('achievableFrameDurations', () => {
       '15',
       '20',
     ])
+  })
+})
+
+describe('narrationCutoffWarning (22.16)', () => {
+  it('warns when the clip is shorter than the narration', () => {
+    const warning = narrationCutoffWarning(8.2, 5)
+    expect(warning).toContain('8.2s')
+    expect(warning).toContain('5s')
+    expect(warning).toContain('cut off')
+  })
+
+  it('stays quiet when the clip covers the narration (with grace)', () => {
+    expect(narrationCutoffWarning(4.9, 5)).toBeNull()
+    expect(narrationCutoffWarning(5.2, 5)).toBeNull()
+    expect(narrationCutoffWarning(5.26, 5)).not.toBeNull()
+  })
+
+  it('stays quiet when either length is unknown', () => {
+    expect(narrationCutoffWarning(null, 5)).toBeNull()
+    expect(narrationCutoffWarning(8, null)).toBeNull()
+    expect(narrationCutoffWarning(8, Number.NaN)).toBeNull()
   })
 })

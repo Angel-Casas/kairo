@@ -28,6 +28,25 @@ export function pickClipDuration(
 }
 
 /**
+ * Pre-submit cutoff caution (22.16, Angel's mistake to make once): a 5s
+ * clip under an 8s narration means the voice gets cut mid-sentence in
+ * the final video. Returns the warning text, or null when there is
+ * nothing to warn about (no narration, unknown lengths, or the clip
+ * covers the narration — a small grace absorbs rounding).
+ */
+export function narrationCutoffWarning(
+  narrationSeconds: number | null,
+  clipSeconds: number | null,
+): string | null {
+  if (narrationSeconds === null || clipSeconds === null) return null
+  if (!Number.isFinite(clipSeconds) || !Number.isFinite(narrationSeconds)) {
+    return null
+  }
+  if (narrationSeconds <= clipSeconds + 0.25) return null
+  return `This scene's narration runs ${narrationSeconds.toFixed(1)}s, but the clip will only be ${String(clipSeconds)}s — in the final video the narration gets cut off mid-sentence. Pick a longer clip or a shorter narration, or continue only if the cut is intended.`
+}
+
+/**
  * Frame-based duration control (Slice 15.14). Some models (Wan 2.1, Wan
  * 2.2 5b) take no `duration` at all — they take `num_frames` and
  * `frames_per_second`, and silently ignore a duration ask (Angel's 8s

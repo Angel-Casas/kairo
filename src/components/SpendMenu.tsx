@@ -50,12 +50,22 @@ export function SpendMenu() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const [open, setOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
+  // Hover-linking in the breakdown (22.18, Angel's request): pointing at
+  // a legend tile or a receipt row lights its segment in the composition
+  // bar and dims the rest — the eye finds "where that money sits" in one
+  // glance.
+  const [highlightKind, setHighlightKind] = useState<GenerationKind | null>(
+    null,
+  )
 
   // Escape closes the breakdown overlay.
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        setOpen(false)
+        setHighlightKind(null)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
@@ -243,6 +253,7 @@ export function SpendMenu() {
             className="motion-veil"
             onClick={() => {
               setOpen(false)
+              setHighlightKind(null)
             }}
             style={{
               position: 'fixed',
@@ -338,6 +349,7 @@ export function SpendMenu() {
                   aria-label="Close spend details"
                   onClick={() => {
                     setOpen(false)
+                    setHighlightKind(null)
                   }}
                   style={{
                     fontSize: 'var(--text-sm)',
@@ -388,11 +400,28 @@ export function SpendMenu() {
                         <div
                           key={kind}
                           title={`${KIND_LABELS[kind]} — ${formatUsd(usd)} (${String(Math.round(share * 100))}%)`}
+                          onMouseEnter={() => {
+                            setHighlightKind(kind)
+                          }}
+                          onMouseLeave={() => {
+                            setHighlightKind(null)
+                          }}
                           style={{
                             width: `${String(share * 100)}%`,
                             minWidth: '6px',
                             background: colors[kind],
-                            transition: 'width var(--t-med) var(--ease-film)',
+                            // Hover-linking (22.18): the pointed-at kind
+                            // stays lit, the rest of the bar dims.
+                            opacity:
+                              highlightKind === null || highlightKind === kind
+                                ? 1
+                                : 0.2,
+                            filter:
+                              highlightKind === kind
+                                ? 'saturate(1.2) brightness(1.1)'
+                                : undefined,
+                            transition:
+                              'width var(--t-med) var(--ease-film), opacity var(--t-fast) var(--ease-film), filter var(--t-fast) var(--ease-film)',
                           }}
                         />
                       )
@@ -415,13 +444,21 @@ export function SpendMenu() {
                       return (
                         <div
                           key={kind}
+                          onMouseEnter={() => {
+                            setHighlightKind(kind)
+                          }}
+                          onMouseLeave={() => {
+                            setHighlightKind(null)
+                          }}
                           style={{
-                            border: '1px solid var(--color-border)',
+                            border: `1px solid ${highlightKind === kind ? colors[kind] : 'var(--color-border)'}`,
                             borderRadius: 'var(--radius)',
                             padding: 'var(--space-2) var(--space-3)',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '2px',
+                            transition:
+                              'border-color var(--t-fast) var(--ease-film)',
                           }}
                         >
                           <span
@@ -481,6 +518,12 @@ export function SpendMenu() {
                     {[...entries].reverse().map((entry) => (
                       <li
                         key={entry.id}
+                        onMouseEnter={() => {
+                          setHighlightKind(entry.kind)
+                        }}
+                        onMouseLeave={() => {
+                          setHighlightKind(null)
+                        }}
                         style={{
                           display: 'flex',
                           alignItems: 'baseline',

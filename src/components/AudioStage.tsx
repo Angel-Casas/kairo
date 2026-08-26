@@ -5,6 +5,7 @@ import type { Scene } from '../domain/types'
 import { FilmProgress } from './FilmProgress'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
+import { useRememberedChoice } from '../state/modelChoices'
 import { useProjectStore } from '../state/project'
 import { GenerationHistory } from './GenerationHistory'
 import { TtsModelPicker } from './ModelPicker'
@@ -25,9 +26,18 @@ export function AudioStage() {
   const allAudioProgress = useProjectStore((s) => s.allAudioProgress)
 
   const ttsModels = useModelsStore((s) => s.ttsModels)
-  const [modelId, setModelId] = useState<string | null>(null)
+  // Remembered across stage hops and reloads (22.12); the voice choice
+  // falls back to the model's first voice when it doesn't belong to the
+  // currently selected model.
+  const [modelId, setModelId] = useRememberedChoice('audio.tts')
   const model: TtsModel | null = ttsModels.find((m) => m.id === modelId) ?? null
-  const [voice, setVoice] = useState<string>('')
+  const [voiceChoice, setVoiceChoice] = useRememberedChoice('audio.voice')
+  const voice =
+    model === null
+      ? ''
+      : voiceChoice !== null && model.voices.includes(voiceChoice)
+        ? voiceChoice
+        : (model.voices[0] ?? '')
   const [speed, setSpeed] = useState(1)
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
 
@@ -83,11 +93,10 @@ export function AudioStage() {
           model={model}
           onSelectModel={(m) => {
             setModelId(m.id)
-            setVoice(m.voices[0] ?? '')
             setSpeed(1) // each model's pace starts neutral
           }}
           voice={voice}
-          onSelectVoice={setVoice}
+          onSelectVoice={setVoiceChoice}
           speed={speed}
           onSelectSpeed={setSpeed}
           pendingCount={pending.length}

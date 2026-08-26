@@ -33,6 +33,9 @@ export const SCENES_OUTPUT_TOKEN_BUDGET = 800
  */
 export const STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET = 150
 
+/** Reference described from its image (22.3): fuller than style notes. */
+export const DESCRIBE_REFERENCE_OUTPUT_TOKEN_BUDGET = 220
+
 export function estimateTokensFromText(text: string): number {
   if (text.length === 0) return 0
   return Math.ceil(text.length / CHARS_PER_TOKEN)

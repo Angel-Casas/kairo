@@ -9,7 +9,9 @@ import {
   STYLE_FROM_IMAGE_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { formatUsd } from '../lib/format'
+import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
+import { useRememberedModel } from '../state/modelChoices'
 import { ConfirmDialog } from './ConfirmDialog'
 import { TextModelPicker } from './ModelPicker'
 
@@ -28,7 +30,12 @@ export function StyleFromImage() {
   const status = useProjectStore((s) => s.styleFromImageStatus)
   const error = useProjectStore((s) => s.styleFromImageError)
 
-  const [model, setModel] = useState<TextModel | null>(null)
+  const textModels = useModelsStore((s) => s.textModels)
+  // Remembered across stage hops and reloads (22.12).
+  const [model, setModel] = useRememberedModel<TextModel>(
+    'style.vision',
+    textModels,
+  )
   const [file, setFile] = useState<File | null>(null)
   const [proposal, setProposal] = useState<string | null>(null)
   const [confirmingReplace, setConfirmingReplace] = useState(false)

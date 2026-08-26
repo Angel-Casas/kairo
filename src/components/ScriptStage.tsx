@@ -7,7 +7,9 @@ import {
   SCRIPT_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { formatUsd } from '../lib/format'
+import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
+import { useRememberedModel } from '../state/modelChoices'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FilmProgress } from './FilmProgress'
 import { TextModelPicker } from './ModelPicker'
@@ -21,7 +23,12 @@ export function ScriptStage() {
   const genStatus = useProjectStore((s) => s.scriptGenStatus)
   const genError = useProjectStore((s) => s.scriptGenError)
 
-  const [model, setModel] = useState<TextModel | null>(null)
+  const textModels = useModelsStore((s) => s.textModels)
+  // Remembered across stage hops and reloads (22.12).
+  const [model, setModel] = useRememberedModel<TextModel>(
+    'script.text',
+    textModels,
+  )
   const [instructions, setInstructions] = useState('')
   const [confirmingOverwrite, setConfirmingOverwrite] = useState(false)
   const [confirmingUnlock, setConfirmingUnlock] = useState(false)

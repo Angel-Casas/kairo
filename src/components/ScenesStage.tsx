@@ -10,8 +10,11 @@ import {
   SCENES_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
 import { formatUsd } from '../lib/format'
+import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
+import { useRememberedModel } from '../state/modelChoices'
 import { ConfirmDialog } from './ConfirmDialog'
+import { DevelopingVeil } from './DevelopingVeil'
 import { FilmProgress } from './FilmProgress'
 import { TextModelPicker } from './ModelPicker'
 import { ReferencesPanel } from './ReferencesPanel'
@@ -24,7 +27,12 @@ export function ScenesStage() {
   const genStatus = useProjectStore((s) => s.scenesGenStatus)
   const genError = useProjectStore((s) => s.scenesGenError)
 
-  const [model, setModel] = useState<TextModel | null>(null)
+  const textModels = useModelsStore((s) => s.textModels)
+  // Remembered across stage hops and reloads (22.12).
+  const [model, setModel] = useRememberedModel<TextModel>(
+    'scenes.text',
+    textModels,
+  )
   const [confirmingReplace, setConfirmingReplace] = useState(false)
 
   if (project === null) return null
@@ -87,8 +95,12 @@ export function ScenesStage() {
         style={{
           marginTop: 'var(--space-6)',
           padding: 'var(--space-4)',
+          // Host for the developing veil while the breakdown runs (22.15).
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        {genStatus === 'generating' && <DevelopingVeil />}
         <h4 style={{ marginTop: 0 }}>Break into scenes with AI</h4>
         <div
           style={{

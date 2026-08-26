@@ -61,6 +61,53 @@ export function styleFromImageUserText(): string {
 }
 
 /**
+ * Describe-from-image for references (22.3): a vision model turns a
+ * reference image into the reference's DESCRIPTOR — the text injected
+ * verbatim into every ticked scene's prompt. The opposite discipline of
+ * style-from-image: here the SUBJECT is exactly what we want, described
+ * so completely that any model can redraw it identically.
+ */
+export function describeReferenceSystemPrompt(
+  kind: 'character' | 'location' | 'style',
+): string {
+  const focus =
+    kind === 'character'
+      ? [
+          'You describe the PERSON or CHARACTER in an image so they can be',
+          'redrawn identically in other images. Name apparent age, build,',
+          'face shape, skin tone, hair (color, length, style), eyes,',
+          'distinctive marks, and every clothing item with its exact colors',
+          'and materials.',
+        ]
+      : kind === 'location'
+        ? [
+            'You describe the PLACE in an image so it can be redrawn',
+            'identically in other images. Name the architecture or terrain,',
+            'materials, era, layout, dominant colors, vegetation, weather,',
+            'and lighting mood.',
+          ]
+        : [
+            'You describe the visual STYLE of an image so it can be applied',
+            'to other images. Name the palette, lighting, medium or',
+            'rendering style, and composition character. Never mention the',
+            'subject or scene content.',
+          ]
+  return [
+    ...focus,
+    'Respond with ONLY one line of comma-separated fragments, ready to',
+    'paste into an image prompt. No preamble, no lists, no camera jargon.',
+  ].join(' ')
+}
+
+export function describeReferenceUserText(
+  kind: 'character' | 'location' | 'style',
+): string {
+  return kind === 'style'
+    ? 'Describe the style of this image as reusable style fragments.'
+    : `Describe this ${kind} so it can be redrawn identically.`
+}
+
+/**
  * Motion prompt for animating a scene image into a clip. The image already
  * carries the style; the prompt describes what should MOVE. Craft rules:
  * pair the camera with an event happening in the clip (a camera move past a
@@ -84,10 +131,21 @@ export function unterminated(fragment: string): string {
 export function buildVideoPrompt(
   visualDescription: string,
   cameraNotes = '',
+  /**
+   * The project's artistic style (preset fragment + style notes), woven
+   * into the MOTION prompt too (21.3). Start-frame image-to-video models
+   * carry the style in the input image's pixels and treat this as
+   * redundant confirmation — but REFERENCE-to-video models regenerate
+   * the scene from the text, using the image only for identity, and
+   * without these words they fall back to their default photoreal look
+   * (Angel's grok-imagine handoff clip lost the whole palette).
+   */
+  styleFragments: string[] = [],
 ): string {
   const description = unterminated(visualDescription)
   const camera = unterminated(cameraNotes)
   return [
+    ...styleFragments.map(unterminated),
     description,
     // The user's camera direction REPLACES the gentle-drift default — a
     // "fixed tripod" note must not fight a baked-in drifting camera.

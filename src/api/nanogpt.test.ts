@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
+  extractApiErrorMessage,
   InvalidApiKeyError,
   maskApiKey,
   NanoGptClient,
@@ -60,6 +61,45 @@ describe('NanoGptClient auth', () => {
     )
     await expect(client().checkBalance()).rejects.toThrow('insufficient funds')
     await expect(client().checkBalance()).rejects.toBeInstanceOf(NanoGptError)
+  })
+})
+
+describe('extractApiErrorMessage (22.4 — HTTP 400 said nothing)', () => {
+  it('reads every error shape NanoGPT answers with', () => {
+    expect(extractApiErrorMessage({ message: 'bad prompt' })).toBe('bad prompt')
+    expect(extractApiErrorMessage({ error: 'too many images' })).toBe(
+      'too many images',
+    )
+    expect(
+      extractApiErrorMessage({ error: { message: 'nested reason' } }),
+    ).toBe('nested reason')
+    expect(extractApiErrorMessage({ detail: 'a detail line' })).toBe(
+      'a detail line',
+    )
+  })
+
+  it('appends code and offending parameter when the API names them', () => {
+    expect(
+      extractApiErrorMessage({
+        message: 'Invalid reference images.',
+        code: 'invalid_input_references',
+        parameter: 'input_references',
+      }),
+    ).toBe(
+      'Invalid reference images. (invalid_input_references, parameter: input_references)',
+    )
+    expect(
+      extractApiErrorMessage({
+        error: { message: 'Bad size.', param: 'resolution' },
+      }),
+    ).toBe('Bad size. (parameter: resolution)')
+  })
+
+  it('returns null for unusable bodies', () => {
+    expect(extractApiErrorMessage(null)).toBeNull()
+    expect(extractApiErrorMessage('plain text')).toBeNull()
+    expect(extractApiErrorMessage({})).toBeNull()
+    expect(extractApiErrorMessage({ message: '   ' })).toBeNull()
   })
 })
 
@@ -148,6 +188,22 @@ describe('model listings', () => {
     expect(models[0]?.perImageUsd['1024x1024']).toBe(0.01)
     expect(models[0]?.supportsImageToImage).toBe(true)
     expect(models[0]?.resolutions).toEqual(['1024x1024'])
+  })
+
+  it('hides image models NanoGPT reliably breaks on (22.11.1)', async () => {
+    server.use(
+      http.get(`${BASE}/v1/image-models`, () =>
+        HttpResponse.json({
+          object: 'list',
+          data: [
+            { id: 'xai/grok-imagine-image/v2.0/edit', name: 'Broken Edit' },
+            { id: 'working-model', name: 'Works' },
+          ],
+        }),
+      ),
+    )
+    const models = await client().listImageModels()
+    expect(models.map((m) => m.id)).toEqual(['working-model'])
   })
 
   it('parses video models with capabilities, price range, and resolutions', async () => {
@@ -641,6 +697,33 @@ describe('generateImage', () => {
       inputReferences: [],
     })
     expect(body).not.toHaveProperty('input_references')
+  })
+
+  it('sends ratio-label "resolutions" as aspect_ratio, pixels as resolution (22.4)', async () => {
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post(`${BASE}/v1/images`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ data: [{ b64_json: 'aGVsbG8=' }] })
+      }),
+    )
+    // Grok Imagine lists "9:16" under resolutions — that is an aspect
+    // ratio, not a pixel size.
+    await client().generateImage({
+      model: 'm',
+      prompt: 'p',
+      resolution: '9:16',
+    })
+    expect(body).not.toHaveProperty('resolution')
+    expect(body.aspect_ratio).toBe('9:16')
+
+    await client().generateImage({
+      model: 'm',
+      prompt: 'p',
+      resolution: '768x1344',
+    })
+    expect(body.resolution).toBe('768x1344')
+    expect(body).not.toHaveProperty('aspect_ratio')
   })
 })
 

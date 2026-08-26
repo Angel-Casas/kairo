@@ -3,13 +3,25 @@ import { createPortal } from 'react-dom'
 import type { VideoModel } from '../api/nanogpt'
 import { clipCarriesOwnAudio } from '../domain/types'
 import type { Scene } from '../domain/types'
-import { planFrames } from '../lib/clipDuration'
+import { narrationCutoffWarning, planFrames } from '../lib/clipDuration'
+import { audioBlobDuration } from '../lib/audioBlob'
+import { getRepository } from '../state/repo'
 import { formatUsd } from '../lib/format'
-import { sortVideoResolutionsCheapestFirst } from '../lib/resolution'
+import {
+  resolutionLabel,
+  sortVideoResolutionsCheapestFirst,
+} from '../lib/resolution'
+import { DevelopingVeil } from './DevelopingVeil'
 import { useModelsStore } from '../state/models'
+import { useRememberedModel } from '../state/modelChoices'
 import { AnimateBatchOverlay, type BatchItem } from './AnimateBatchOverlay'
 import { useProjectStore } from '../state/project'
 import { useFormatSpec } from './useFormatSpec'
+import { HandoffOverlay } from './HandoffOverlay'
+import { buildVideoPrompt } from '../domain/prompts'
+import { getStylePreset } from '../domain/stylePresets'
+import { HandoffTakeNote } from './HandoffTakeNote'
+import { ComposedPrompt, RecipeFixedText, RecipeRow } from './PromptRecipe'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FilmProgress } from './FilmProgress'
 import { GenerationHistory } from './GenerationHistory'
@@ -52,9 +64,39 @@ function describeClipPrice(model: VideoModel): string {
 }
 
 type PendingConfirm =
-  | { type: 'one'; sceneId: string; label: string }
-  | { type: 'tweak'; sceneId: string; label: string; prompt: string }
+  | {
+      type: 'one'
+      sceneId: string
+      label: string
+      narrationSeconds: number | null
+    }
+  | {
+      type: 'tweak'
+      sceneId: string
+      label: string
+      prompt: string
+      narrationSeconds: number | null
+    }
   | { type: 'lipsync'; sceneId: string; label: string }
+
+/**
+ * Length of the scene's active narration, for the cutoff caution
+ * (22.16). Null when there is no narration or it cannot be decoded —
+ * then there is nothing to warn about.
+ */
+async function measureNarrationSeconds(scene: Scene): Promise<number | null> {
+  const narration = scene.audioVersions.find(
+    (v) => v.id === scene.activeAudioVersionId,
+  )
+  if (narration === undefined) return null
+  const repo = await getRepository()
+  const blob = await repo.blobs.get(narration.blobPath)
+  if (blob === null) return null
+  // OPFS strips the MIME type; restore it so decoding works.
+  const typed =
+    blob.type.length > 0 ? blob : new Blob([blob], { type: narration.mimeType })
+  return audioBlobDuration(typed)
+}
 
 /**
  * The Animation stage as a reel (ADR-011): frames show each scene's source
@@ -68,8 +110,15 @@ export function AnimationStage() {
   const generateSceneVideo = useProjectStore((s) => s.generateSceneVideo)
   const videoModels = useModelsStore((s) => s.videoModels)
 
-  const [model, setModel] = useState<VideoModel | null>(null)
-  const [lipSyncModel, setLipSyncModel] = useState<VideoModel | null>(null)
+  // Remembered across stage hops and reloads (22.12).
+  const [model, setModel] = useRememberedModel<VideoModel>(
+    'animation.video',
+    videoModels,
+  )
+  const [lipSyncModel, setLipSyncModel] = useRememberedModel<VideoModel>(
+    'animation.lipsync',
+    videoModels,
+  )
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<PendingConfirm | null>(null)
@@ -205,6 +254,7 @@ export function AnimationStage() {
           key={selectedScene.id}
           scene={selectedScene}
           index={selectedIndex}
+          nextScene={scenes[selectedIndex + 1] ?? null}
           model={model}
           onSelectModel={(m) => {
             setModel(m)
@@ -218,19 +268,29 @@ export function AnimationStage() {
           onSelectResolution={setResolution}
           pendingCount={pendingCount}
           onRequestGenerate={() => {
-            setConfirming({
-              type: 'one',
-              sceneId: selectedScene.id,
-              label: `Animate scene ${String(selectedIndex + 1)}`,
-            })
+            void measureNarrationSeconds(selectedScene).then(
+              (narrationSeconds) => {
+                setConfirming({
+                  type: 'one',
+                  sceneId: selectedScene.id,
+                  label: `Animate scene ${String(selectedIndex + 1)}`,
+                  narrationSeconds,
+                })
+              },
+            )
           }}
           onRequestTweak={(prompt) => {
-            setConfirming({
-              type: 'tweak',
-              sceneId: selectedScene.id,
-              label: `Animate scene ${String(selectedIndex + 1)} with the edited motion prompt`,
-              prompt,
-            })
+            void measureNarrationSeconds(selectedScene).then(
+              (narrationSeconds) => {
+                setConfirming({
+                  type: 'tweak',
+                  sceneId: selectedScene.id,
+                  label: `Animate scene ${String(selectedIndex + 1)} with the edited motion prompt`,
+                  prompt,
+                  narrationSeconds,
+                })
+              },
+            )
           }}
           onRequestAll={() => {
             setBatchOpen(true)
@@ -292,6 +352,16 @@ export function AnimationStage() {
                     return `This submits one lip-sync job with ${lipSyncModel.name} at ${est.resolution ?? 'the model\u2019s default resolution'}. The clip follows the scene's narration; billed per second, charged at submission.`
                   })()
                 : confirmMessage('This submits one video job')
+            }
+            warning={
+              confirming.type !== 'lipsync'
+                ? (narrationCutoffWarning(
+                    confirming.narrationSeconds,
+                    effectiveDuration === null
+                      ? null
+                      : Number(effectiveDuration),
+                  ) ?? undefined)
+                : undefined
             }
             confirmLabel="Submit and charge"
             onConfirm={() => {
@@ -468,6 +538,7 @@ function AnimationFrame({
               ? `clip ✓ (${String(scene.videoVersions.length)})`
               : 'no clip yet'}
         </span>
+        {generating && <DevelopingVeil label="Animating…" />}
       </button>
       {hasMedia && (
         <button
@@ -523,9 +594,11 @@ function AnimationWorkbench({
   lipSyncModel,
   onSelectLipSyncModel,
   onRequestLipSync,
+  nextScene,
 }: {
   scene: Scene
   index: number
+  nextScene: Scene | null
   model: VideoModel | null
   onSelectModel: (m: VideoModel) => void
   duration: string | null
@@ -543,6 +616,18 @@ function AnimationWorkbench({
   onRequestLipSync: () => void
 }) {
   const formatSpec = useFormatSpec()
+  const [handoffOpen, setHandoffOpen] = useState(false)
+  const stylePresetId = useProjectStore((s) => s.project?.stylePresetId ?? null)
+  const styleNotes = useProjectStore((s) => s.project?.styleNotes ?? '')
+  const updateStyleNotes = useProjectStore((s) => s.updateStyleNotes)
+  const stylePreset = getStylePreset(stylePresetId)
+  const stylePresetFragment = stylePreset?.promptFragment ?? null
+  const stylePresetName = stylePreset?.name ?? null
+  const composedMotionPrompt = buildVideoPrompt(
+    scene.visualDescription,
+    scene.cameraNotes,
+    [stylePresetFragment ?? '', styleNotes],
+  )
   const setActiveVideoVersion = useProjectStore((s) => s.setActiveVideoVersion)
   const importSceneClip = useProjectStore((s) => s.importSceneClip)
   const updateScene = useProjectStore((s) => s.updateScene)
@@ -614,21 +699,51 @@ function AnimationWorkbench({
       {/* Motion panel */}
       <div className="card" style={panel}>
         <div style={panelTitle}>Scene {n} — motion</div>
-        <SceneDescriptionEditor scene={scene} n={n} />
-        <label style={{ display: 'block' }}>
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-              color: 'var(--color-text-muted)',
-              fontSize: 'var(--text-sm)',
-              marginBottom: 'var(--space-1)',
-            }}
+        {/* If the start image is a carried-in frame, the undo lives HERE
+            too — same stage as the carry button (21.2, Angel's call). */}
+        <HandoffTakeNote scene={scene} />
+        {/* THE PROMPT RECIPE (22, Angel's request): every ingredient of
+            the motion prompt, in the order it is sent, editable where it
+            lives — and the exact composed prompt below. */}
+        {stylePresetFragment !== null && (
+          <RecipeRow
+            label="Artistic style"
+            hint={`${stylePresetName ?? 'preset'} — change it on the Images stage`}
           >
-            Camera direction (optional) — steers the motion prompt
-            <CameraHelp />
-          </span>
+            <RecipeFixedText text={stylePresetFragment} />
+          </RecipeRow>
+        )}
+        <RecipeRow
+          label="Style notes"
+          hint="shared with every prompt in the project"
+        >
+          <textarea
+            aria-label="Style notes"
+            placeholder="Palette, medium, lighting — travels word for word into every prompt."
+            value={styleNotes}
+            onChange={(e) => {
+              updateStyleNotes(e.target.value)
+            }}
+            rows={2}
+            style={{
+              width: '100%',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+            }}
+          />
+        </RecipeRow>
+        <RecipeRow label="Scene description" hint="the action of this shot">
+          <SceneDescriptionEditor scene={scene} n={n} />
+        </RecipeRow>
+        <RecipeRow
+          label="Camera direction"
+          hint={
+            <>
+              optional — steers the motion prompt
+              <CameraHelp />
+            </>
+          }
+        >
           <textarea
             aria-label="Camera direction"
             placeholder="Say what the camera DOES: “static shot, fixed tripod, the framing never changes” · “slow push-in” · “pan left following the subject” — models ignore negations like “no zoom”."
@@ -643,7 +758,42 @@ function AnimationWorkbench({
               boxSizing: 'border-box',
             }}
           />
-        </label>
+        </RecipeRow>
+        <RecipeRow label="Always added" hint="Kairo's guardrails">
+          <RecipeFixedText text="one continuous natural action · no frozen figures, no readable text or lettering · keep the style, palette, and composition of the image" />
+        </RecipeRow>
+        <ComposedPrompt
+          label="The exact motion prompt, as sent"
+          text={composedMotionPrompt}
+          note="Using “Tweak” at generation time replaces this with your text, verbatim."
+        />
+        {/* The handoff (Slice 21; moved into the recipe in 22): the next
+            shot can start exactly where this one ends — free. */}
+        {nextScene !== null && activeVideo !== null && (
+          <button
+            type="button"
+            onClick={() => {
+              setHandoffOpen(true)
+            }}
+            style={{
+              fontSize: 'var(--text-sm)',
+              alignSelf: 'flex-start',
+            }}
+          >
+            Carry final frame → scene {String(index + 2)}
+          </button>
+        )}
+        {handoffOpen && nextScene !== null && activeVideo !== null && (
+          <HandoffOverlay
+            clipBlobPath={activeVideo.blobPath}
+            fromN={index + 1}
+            toScene={nextScene}
+            toN={index + 2}
+            onClose={() => {
+              setHandoffOpen(false)
+            }}
+          />
+        )}
         <p
           style={{
             margin: 0,
@@ -761,7 +911,7 @@ function AnimationWorkbench({
               >
                 {resolutionOptions.map((r) => (
                   <option key={r} value={r}>
-                    {r}
+                    {resolutionLabel(r)}
                   </option>
                 ))}
               </select>

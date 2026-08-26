@@ -1231,3 +1231,79 @@ describe('project store — voice previews (Slice 15.9)', () => {
     expect(log[0]?.note).toContain('failed after being charged')
   }, 20000)
 })
+
+describe('handoff frame removal (21.1)', () => {
+  it('adds a free image version and removes it, restoring the previous take', async () => {
+    const project = createProject('T', nowIso)
+    const scene = createScene(0)
+    project.scenes = [scene]
+    const repo = await getRepository()
+    await repo.putProject(project)
+    await useProjectStore.getState().loadProject(project.id)
+
+    // A paid take first, then a free handoff frame on top.
+    const state = useProjectStore.getState()
+    const okPaidSetup = await state.addSceneImageVersion(
+      scene.id,
+      new Blob(['paid'], { type: 'image/png' }),
+      'first take',
+    )
+    expect(okPaidSetup).toBe(true)
+    const firstId =
+      useProjectStore.getState().project?.scenes[0]?.activeImageVersionId
+    const okFree = await useProjectStore
+      .getState()
+      .addSceneImageVersion(
+        scene.id,
+        new Blob(['frame'], { type: 'image/png' }),
+        'Handoff frame from scene 1 (1.00s)',
+      )
+    expect(okFree).toBe(true)
+    const s1 = useProjectStore.getState().project?.scenes[0]
+    expect(s1?.imageVersions).toHaveLength(2)
+    const handoffId = s1?.activeImageVersionId
+    expect(handoffId).not.toBe(firstId)
+
+    // Removal restores the earlier take and deletes the blob.
+    const blobPath = s1?.imageVersions.find((v) => v.id === handoffId)?.blobPath
+    const removed = await useProjectStore
+      .getState()
+      .removeFreeSceneImageVersion(scene.id, handoffId ?? '')
+    expect(removed).toBe(true)
+    const s2 = useProjectStore.getState().project?.scenes[0]
+    expect(s2?.imageVersions).toHaveLength(1)
+    expect(s2?.activeImageVersionId).toBe(firstId)
+    if (blobPath !== undefined) {
+      expect(await repo.blobs.get(blobPath)).toBeNull()
+    }
+  })
+
+  it('refuses to remove a paid take', async () => {
+    const project = createProject('T', nowIso)
+    const scene = createScene(0)
+    scene.imageVersions = [
+      {
+        id: 'paid-1',
+        kind: 'image',
+        model: 'painter',
+        prompt: '',
+        costUsd: 0.01,
+        blobPath: `${project.id}/paid-1`,
+        mimeType: 'image/png',
+        createdAt: nowIso(),
+      },
+    ]
+    scene.activeImageVersionId = 'paid-1'
+    project.scenes = [scene]
+    const repo = await getRepository()
+    await repo.putProject(project)
+    await useProjectStore.getState().loadProject(project.id)
+    const removed = await useProjectStore
+      .getState()
+      .removeFreeSceneImageVersion(scene.id, 'paid-1')
+    expect(removed).toBe(false)
+    expect(
+      useProjectStore.getState().project?.scenes[0]?.imageVersions,
+    ).toHaveLength(1)
+  })
+})

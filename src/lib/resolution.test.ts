@@ -65,6 +65,13 @@ describe('pickResolutionForRatio', () => {
     const m = model({ resolutions: ['1024*1792', '1024*1024'] })
     expect(pickResolutionForRatio(m, VERTICAL)).toBe('1024*1792')
   })
+
+  it('understands ratio labels like "9:16" (22.6 — Grok Imagine lists ratios)', () => {
+    const m = model({ resolutions: ['1:1', '16:9', '9:16', '4:3'] })
+    expect(pickResolutionForRatio(m, VERTICAL)).toBe('9:16')
+    expect(pickResolutionForRatio(m, 16 / 9)).toBe('16:9')
+    expect(pickResolutionForRatio(m, 1)).toBe('1:1')
+  })
 })
 
 describe('video resolution ranking', () => {
@@ -80,6 +87,35 @@ describe('video resolution ranking', () => {
     expect(
       sortVideoResolutionsCheapestFirst(['auto', '1792x1024', '480p']),
     ).toEqual(['480p', '1792x1024', 'auto'])
+  })
+})
+
+describe('resolutionLabel (22.5 — ratios humans think in)', () => {
+  it('appends the exact ratio and orientation to pixel sizes', async () => {
+    const { resolutionLabel } = await import('./resolution')
+    expect(resolutionLabel('1152x2048')).toBe('1152x2048 — 9:16 (Portrait)')
+    expect(resolutionLabel('1024x768')).toBe('1024x768 — 4:3 (Landscape)')
+    expect(resolutionLabel('1024x1024')).toBe('1024x1024 — 1:1 (Square)')
+    expect(resolutionLabel('1024*1792')).toBe('1024*1792 — ≈9:16 (Portrait)')
+  })
+
+  it('marks approximate ratios with ≈', async () => {
+    const { resolutionLabel } = await import('./resolution')
+    // 768x1344 is exactly 4:7 — close to, but not, 9:16.
+    expect(resolutionLabel('768x1344')).toBe('768x1344 — ≈9:16 (Portrait)')
+  })
+
+  it('adds only the orientation to bare ratio labels', async () => {
+    const { resolutionLabel } = await import('./resolution')
+    expect(resolutionLabel('9:16')).toBe('9:16 (Portrait)')
+    expect(resolutionLabel('16:9')).toBe('16:9 (Landscape)')
+    expect(resolutionLabel('1:1')).toBe('1:1 (Square)')
+  })
+
+  it('passes tiers and unparseable values through unchanged', async () => {
+    const { resolutionLabel } = await import('./resolution')
+    expect(resolutionLabel('480p')).toBe('480p')
+    expect(resolutionLabel('auto')).toBe('auto')
   })
 })
 

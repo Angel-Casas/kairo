@@ -426,3 +426,22 @@ which is a signature, not a coincidence. Fix: groups excluded from the
 ring (`.rail-segment`, `.reel-frame`, `[role='option']`) get
 `content: none`, not just no hover style — a box that never paints
 should never exist.
+
+## A blob read back from OPFS has no MIME type — restore it before it leaves the app (22.11)
+
+OPFS stores bytes, not metadata: `getFile()` on an extension-less path
+returns a type-less blob. The UI already knew this (`useBlobUrl` takes
+the stored `mimeType`; the lip-sync path re-wrapped its audio blob) —
+but `blobToDataUrl` quietly stamped every type-less blob `image/png`.
+So an imported JPEG rode to the API as `data:image/png;base64,/9j/…`:
+PNG label, JPEG bytes. Lenient providers sniff the bytes and cope;
+strict ones (Grok Imagine 2.0 Edit) drop the reference as
+not-an-image and then report that no input image arrived — an error
+that pointed everywhere except the label.
+
+The rule: every `AssetVersion` records its true `mimeType` at
+creation, and ANY path that serializes a stored blob for the outside
+world (data URLs, uploads) must restore it. The paired diagnostic —
+"Kairo attached N reference images" appended when a provider claims
+none arrived — turns the contradiction into a one-glance diagnosis:
+label bug on our side before 22.11, provider-side gap after.

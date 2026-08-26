@@ -2,6 +2,576 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 22.19 — Posters come off the wall (2026-08-26, Angel's request)
+
+- The poster wall had no hover response at all — the global pastel
+  ring exists on every button, but the poster's overflow:hidden clips
+  it (the 22.9 toggle trap again), so pointing at a production showed
+  nothing.
+- Posters now get their own move on hover: the one-sheet lifts off
+  the wall (translateY + a whisper of tilt) with an accent border and
+  soft glow, the artwork inside eases into a slow 6% zoom — a poster
+  picked up for a closer look — the empty-poster K mark swells
+  slightly, and an "Open →" hint fades in at the top corner so the
+  click's meaning is stated. Hover only, by Angel's call — keyboard
+  focus keeps its existing treatment. Reduced motion collapses the
+  transitions to instant state changes.
+- projects e2e suite green.
+
+## Slice 22.18 — The ledger's hover-linking (2026-08-26, Angel's request)
+
+- In the Production ledger, pointing at a legend tile ("Text",
+  "Narration", "Images", "Clips") or at any receipt row now lights
+  that kind's segment in the composition bar (slightly saturated and
+  brightened) while the rest of the bar dims to 20% — one glance
+  answers "where does this money sit in the whole". Hovering a bar
+  segment itself does the same, and the hovered tile's border tints
+  to its series color.
+- Pure hover state, cleared on every close path (Close, veil,
+  Escape); the bar's aria description and the receipt stay the
+  accessible record — the linking is a sighted-reading accelerator,
+  not the only channel.
+
+## Slice 22.17 — Every poster earns its face (2026-08-26, Angel's request)
+
+- The poster wall showed every production in the same stock gradient
+  — two finished films, indistinguishable but for their titles. Now a
+  project with artwork wears its OWN opening frame: the first scene's
+  active image fills the poster, so the wall becomes a real one-sheet
+  gallery of your productions.
+- Projects without images yet get a deterministic AURORA: three of
+  the six ring pastels picked and placed by a hash of the project id
+  (two radial glows over an angled wash), so no two posters match and
+  each keeps its art between visits — under a faint Projector-K
+  watermark so the empty poster still feels like Kairo. The pastels
+  follow the theme, so light palettes get the jewel-tone set.
+- The plate gains a second line of real metadata: format ratio, scene
+  count, clip count — before the updated timestamp.
+- 304 unit tests; projects + smoke suites green.
+
+## Slice 22.16 — The cutoff caution (2026-08-26, Angel's mistake to make once)
+
+- Angel animated a 5s clip for a scene whose narration runs 8s — the
+  voice gets cut mid-sentence in the final video, and nothing warned
+  him before the money was spent. (Animate-all has auto-fit durations
+  since 15.11; the single-scene Animate button was the gap.)
+- The cost-confirmation dialog now measures the scene's active
+  narration at click time (blob decoded with its stored MIME type
+  restored) and, when the chosen clip is shorter, shows an
+  accent-bordered caution: narration length, clip length, "the
+  narration gets cut off mid-sentence", and the ways out. Cancel stays
+  focused; nothing is submitted until the user decides.
+- narrationCutoffWarning lives in lib/clipDuration.ts with a 0.25s
+  rounding grace and stays quiet when lengths are unknown; the
+  ConfirmDialog gains an optional `warning` prop (accent, role=alert)
+  for confirmations that are technically fine but probably a mistake.
+  Lip-sync submissions never warn — the narration defines their
+  length.
+- 304 unit tests (3 new); animation + audio e2e suites green.
+
+## Slice 22.15 — The developing veil (2026-08-26, Angel's request)
+
+- Long-running work only showed in the FilmProgress strip below the
+  controls — the frame being worked on sat still. Now it visibly sits
+  in the developing bath: Kairo's signature pastel projector ring
+  spins around the frame's edge (the hover ring's conic band, ON for
+  the duration) while a soft beam of darkroom light sweeps diagonally
+  across the print. New DevelopingVeil component, pure decoration
+  (aria-hidden, pointer-events none) — the caption text and the strip
+  remain the accessible status.
+- Worn by: the Images reel frame while its image generates, the
+  Animation reel frame while its clip animates, the "Break into
+  scenes with AI" card while the breakdown runs, and reference
+  thumbnails while generating or being described.
+- The sweep sheet is oversized with both keyframe ends parked
+  off-frame, so the loop restart is invisible. Under reduced motion
+  the globals freeze it: beam parked off-frame, ring standing still
+  as a quiet pastel border — a static busy mark.
+- 301 unit tests; images, animation, scenes, references suites green.
+- 22.15.1 (Angel's follow-up): the bottom-caption "generating…" was
+  easy to miss on a frame that already holds an image — the veil now
+  floats a centered mark over the print ("Generating…" on a
+  regenerating Images frame, "Animating…" on an Animation frame). The
+  empty-frame placeholder keeps its own centered text; captions
+  remain the accessible status.
+- 22.15.2 (Angel's polish): the mark looked like a button — the pill
+  and border are gone. Now it is a thin white arc spinning above bare
+  text, both under soft shadows so they read over any artwork; under
+  reduced motion the arc freezes into a notched circle, still a busy
+  mark.
+
+## Slice 22.14 — The saved reference asks for its description (2026-08-26, Angel's idea)
+
+- 22.13's flow had a quiet failure mode Angel hit immediately: save
+  the exiled-boy image as a reference, generate the next scene — and
+  the look drifts, because the new reference has no DESCRIPTION, and
+  the description is the channel that actually rides the prompt.
+- The saved notice now earns its keep: an accent-bordered box that
+  states the risk plainly ("without one the look will drift"), beats
+  the new attention-pulse a few times (finite by design — it asks for
+  a glance, it does not nag; silenced by reduced motion like all
+  Kairo animation), and carries a "Describe it now →" button.
+- The button jumps straight to the Scenes stage with the new
+  reference card scrolled into view and wearing the same pulse — one
+  click from save to describing. Auto-navigating was considered and
+  rejected: the user may want to keep generating; the jump stays
+  theirs to take.
+- Plumbing: the pipeline stage moved from ProjectView's useState into
+  a small UI store (src/state/ui.ts) so any stage can send the user to
+  another; each project still opens at Script.
+  createReferenceFromSceneImage now returns the new reference's id.
+- e2e: the save flow now travels via "Describe it now" instead of the
+  nav rail. Images suite green; 301 unit tests.
+
+## Slice 22.13 — References evolve with the story (2026-08-26, Angel's request)
+
+- Angel's last-emperor project surfaced the gap: the story stripped
+  the boy of crown and cape mid-arc, but the reference image still
+  wore them — so later scenes snapped back to full regalia. Two
+  changes in the Images workbench:
+- "Save image as reference": name it, click, and the scene's active
+  image is copied (free) into a NEW reference — kind, name, and
+  description all editable on the References panel like any other,
+  removable with the thumbnail X. It starts ticked on the scene it
+  came from, and a notice points at the References panel for the
+  description (the channel that rides the prompt). New store action
+  `createReferenceFromSceneImage`.
+- The workbench's reference chips are now TOGGLES: every project
+  reference shows as a chip (ticked = accent + ✓ when it has an
+  image; unticked = dashed, muted), and clicking ticks or unticks it
+  for that scene in place — no more round-trip to the Scenes stage to
+  fix a mis-ticked reference. The 22.2 no-description warnings keep
+  watching the ticked set.
+- e2e: generate → save as reference → chip arrives pressed → the
+  Scenes stage shows the same card and tick → untick in place from
+  Images → persisted. Images + references suites green; 301 unit
+  tests.
+
+## Slice 22.12 — Model choices survive the pipeline (2026-08-26, Angel's report)
+
+- Every stage held its model selection in component useState, so
+  leaving a stage threw the choice away — Images → Audio → Images and
+  the model had to be picked again, every time.
+- New src/state/modelChoices.ts: choices keyed by picker slot
+  ("images.image", "audio.tts", …), mirrored to localStorage — they
+  now survive stage hops AND full reloads. Only IDs are stored; each
+  stage re-resolves them against the live catalog, so a model that
+  vanished from NanoGPT simply comes back unselected instead of
+  crashing anything.
+- Wired everywhere a model is picked: Script and Scenes text models,
+  Images image model, References image + describe models,
+  style-from-image vision model, Animation video + lip-sync models,
+  Audio narration model AND voice (the voice falls back to the
+  model's first voice when the remembered one belongs to another
+  model). Resolutions still auto-default from the project format.
+- e2e: pick on Images → wander to Audio → return → still picked →
+  reload → still picked → Scenes' own choice remembered
+  independently. 301 unit tests; images, references, audio,
+  animation, scenes, script, styleFromImage suites green.
+
+## Slice 22.11.1 — Hide the half-wired Grok 2.0 Edit (2026-08-26, Angel's verification)
+
+- With 22.11's fix, reference generation works across models — except
+  xai/grok-imagine-image/v2.0/edit, which still answers "requires at
+  least one input image" while the new diagnostic confirms Kairo
+  attached one. Angel checked NanoGPT's own site: the model isn't even
+  listed there — a half-wired catalog entry on their side.
+- The model joins the broken-model blocklist (same discipline as the
+  vibevoice TTS hide): filtered out of the image catalog with a dated
+  comment; re-test before un-hiding. The working Grok Imagine Image
+  and both Quality variants stay listed.
+- New OPFS-mime lesson recorded in docs/LESSONS.md. 298 unit tests.
+
+## Slice 22.11 — Reference images keep their true type (2026-08-26, Angel's report)
+
+- Angel's regenerate with Rómulo ticked died with "Grok Imagine Image
+  2.0 Edit requires at least one input image" while the workbench
+  promised one would attach. Root cause found in our own data URLs:
+  OPFS strips MIME types on read-back, and blobToDataUrl stamped every
+  type-less blob `image/png` — an imported JPEG reached the API as
+  `data:image/png;base64,/9j/…`, PNG label on JPEG bytes. Lenient
+  providers sniffed past it; the new Grok 2.0 Edit pipeline drops the
+  mislabeled reference and then reports no input image.
+- blobToDataUrl now takes the version's STORED mimeType (recorded at
+  creation, authoritative) and restores it — applied to scene i2i
+  attachments, describe-from-image, and the image-to-video source
+  frame (lip-sync audio already did this; now every path does).
+- Two safety nets while we were in there: if the workbench promised
+  attachments but none of the blobs could be loaded, generation now
+  fails BEFORE spending money, with an error naming the fix; and if a
+  provider still claims "no input image" on a request that carried
+  references, the error now says how many Kairo attached — turning a
+  contradiction into a diagnosis (provider-side gap, try another
+  model).
+- e2e now imports the reference as a JPEG and pins that the request
+  carries `data:image/jpeg` — the stored type restored after OPFS
+  stripped it. References + images suites green; 297 unit tests.
+
+## Slice 22.10 — Reference images go fullscreen (2026-08-26, Angel's request)
+
+- The same enlarge control the scene reels wear (arrows glyph, fades
+  in on thumbnail hover) now sits on every reference thumbnail with an
+  image, opening the SAME fullscreen Lightbox used by Images and
+  Animation: dark veil, natural-best size, Escape or outside-click to
+  leave.
+- The lightbox walks every reference that has an active image with
+  the arrow keys, with the reference's name as the caption plate and
+  its description as the caption text — reviewing all your characters
+  large, back to back, is exactly the consistency check references
+  exist for.
+- e2e: enlarge → dialog visible → Escape closes, pinned in the
+  references suite. Reuses Lightbox untouched.
+- 22.10.1 (Angel's follow-up): double-clicking the thumbnail enlarges
+  too, matching the scene reels' dblclick-to-expand. Pinned in e2e.
+
+## Slice 22.9.2 — References show the developing strip (2026-08-26, Angel's report)
+
+- Generating on a reference card gave no wait signal beyond the
+  disabled "Generating…" button — the Images and Animation stages show
+  the FilmProgress developing strip, references showed nothing.
+- The strip now flows under the generation block while the model
+  works, in both directions: "Generating the image for Mara" /
+  "Writing the description for Mara" (indeterminate — the API gives
+  no partial progress for either call).
+- Lesson re-learned: aria labels match by SUBSTRING — a first attempt
+  labeled the strip "Reference Mara description generating", which
+  shadowed the "Reference Mara description" textarea and broke strict
+  mode. Progress labels now share no prefix with any input label.
+
+## Slice 22.9 — The toggle wears one ring (2026-08-26, Angel's report)
+
+- Hovering a toggle segment showed only a sliver of the pastel hover
+  ring at the divider: the per-button ring sits 4px OUTSIDE each
+  button, and the group's overflow:hidden clipped everything but the
+  gap between segments.
+- Segmented toggles now have their own ring rule: segments join the
+  ring-exclusion list (same as rail segments and picker options), and
+  the GROUP (.seg-group) wears a single ring around the whole control
+  on hover — which is what the control is: one thing with two
+  positions. The group drops overflow:hidden (it would clip its own
+  ring); segments round their own outer corners instead.
+- References e2e suite green (aria unchanged — styling only).
+- 22.9.1 (Angel's follow-up): the ring's corners still didn't match
+  the toggle's — the same radius drawn 4px further out always
+  pinches. The toggle is now a PILL like every other Kairo button
+  (999px radius stays concentric at any offset, which is why the ring
+  looks right everywhere else); segments round their outer ends and
+  gained a touch of horizontal padding to clear the curve.
+
+## Slice 22.8 — Imports get a way out (2026-08-26, Angel's report)
+
+- Angel imported an image, changed his mind, and found no way to
+  remove it. Free versions now get one: an X on the thumbnail's
+  corner (same glyph family as the app's other closers) whenever the
+  ACTIVE version is free — imports — with a confirm dialog spelling
+  out what happens (previous version becomes active, or the reference
+  returns to "No image"; re-importing is free).
+- New store action `removeFreeReferenceImageVersion`, the exact
+  discipline of scene takes: only `costUsd === null` versions are
+  removable — paid generations never show the X and never can be
+  deleted. Blob deleted last, so a crash leaves an orphan file at
+  worst, never a version pointing at nothing.
+- New e2e: import → X → confirm → "No image"; a paid generation shows
+  no X; the removal persists. 297 unit tests; references suite green.
+
+## Slice 22.7 — One toggle, one dropdown, one Generate (2026-08-26, Angel's design)
+
+- Angel simplified the reference card to its final shape: an Import
+  button under the thumbnail (plain, free), a two-way toggle —
+  "Generate image from description" | "Generate description from
+  image" — and ONE model dropdown plus ONE Generate button that follow
+  the toggle. His insight resolved the model-type problem: the two
+  directions need different model kinds (image models vs. text models
+  that read images), so the dropdown swaps catalogs with the toggle,
+  and each direction remembers its own pick.
+- Image mode shows the resolution select (format-defaulted) and the
+  per-image cost; description mode shows the token estimate, requires
+  an image, and still confirms before replacing an existing
+  description. Spend-log notes unchanged.
+- Retired: 22.6's "Generate from image" auto-redraw
+  (generateReferenceImageFromImage) — import is import again, one
+  meaning per button. The describe row is gone; describing is now the
+  toggle's second direction.
+- Aria grammar per card: segments "Generate image from description
+  for Mara" / "Generate description from image for Mara", action
+  "Generate for Mara", dropdown "Model for Mara". 297 unit tests;
+  references e2e suite rewritten for the toggle, green.
+
+## Slice 22.6 — Reference cards generate from images too (2026-08-26, Angel's requests)
+
+- Three changes to the References panel, all from Angel's screenshot:
+- The image-model picker leaves its collapsed row (the same trap the
+  describe picker escaped in 22.3.2) and sits inline on every card,
+  right of the generate buttons; the resolution select and cost hint
+  sit on the row below. One choice, shared across cards.
+- "Import image" becomes "Generate from image": pick a file, it is
+  imported (free, kept as a version) and — when the selected model
+  accepts reference images — immediately redrawn by that model, with
+  the import riding as the i2i input and style + description as the
+  prompt (empty description → "faithfully recreate the subject").
+  Model picked later? An accent notice says the import stands and
+  what to do next, and the button then redraws the imported active
+  image without asking for the file again. New store action
+  `generateReferenceImageFromImage`; spend logged as "Reference image
+  from image".
+- Resolution now defaults to the project's format even for models
+  that list RATIO labels: pickResolutionForRatio understands "9:16"
+  as proportions (it only parsed pixel sizes, so Angel's vertical
+  project landed on the first listed ratio instead of 9:16).
+- Per-card aria labels ("Model for Mara images", "Generate Mara from
+  image/description", "Reference Mara resolution"). 297 unit tests;
+  references e2e suite (incl. a new generate-from-image test) green.
+
+## Slice 22.5 — Resolutions speak human (2026-08-25, Angel's request)
+
+- Angel, after seeing NanoGPT's own picker: pixel sizes alone are hard
+  to reason about — show the aspect ratio too. Every resolution
+  dropdown (Images workbench, References panel, Animation) now labels
+  pixel sizes with their ratio and orientation: "1152x2048 — 9:16
+  (Portrait)", "1024x1024 — 1:1 (Square)".
+- `resolutionLabel` in lib/resolution.ts: exact friendly ratios shown
+  plainly; near-misses marked "≈" (768x1344 is exactly 4:7, shown as
+  "≈9:16 (Portrait)" — the ratio a human actually thinks in); bare
+  ratio labels like "9:16" gain just "(Portrait)"; tiers like "480p"
+  and "auto" pass through untouched. Option VALUES are unchanged —
+  only the visible text grew, so pricing lookups and the API payload
+  are untouched.
+- 296 unit tests; references + images + animation e2e suites green.
+- Also confirmed from Angel's live run: 22.4's error surfacing works —
+  Grok Imagine answered "Content flagged as potentially sensitive
+  (content_policy_violation)" for Mario/Luigi likenesses. That's the
+  provider refusing copyrighted characters, not a Kairo bug.
+
+## Slice 22.4 — Ratio labels ride aspect_ratio; 400s explain themselves (2026-08-25, Angel's report)
+
+- Angel's first live i2i generation (Grok Imagine Image, 9:16, Mario +
+  Luigi references) died with "NanoGPT request failed (HTTP 400)." —
+  an error that names nothing. Two fixes:
+- Prime suspect: Grok Imagine lists RATIO labels ("9:16") under its
+  "resolutions" — those are aspect ratios, not pixel sizes. The client
+  now routes any `\d+:\d+` resolution value into `aspect_ratio` and
+  keeps pixel values ("768x1344") in `resolution`. One choke point in
+  generateImage covers scene, reference, and generate-all paths.
+- The error parser only understood `{message}` bodies; NanoGPT also
+  answers `{error: "…"}`, OpenAI-style `{error: {message, code,
+param}}`, and `{detail}`. `extractApiErrorMessage` now reads all of
+  them and appends the machine hints ("…(invalid_input_references,
+  parameter: input_references)"), so the next failure states its
+  reason instead of just its status. Server words only — the API key
+  can never appear in an error.
+- 292 unit tests (4 new: ratio routing + every error shape);
+  references + images e2e suites green.
+
+## Slice 22.3.2 — The describe picker moves in with its button (2026-08-25, Angel's critique)
+
+- Two corrections from Angel. First, wording: "vision model" read as a
+  model that OUTPUTS images. What the feature uses — and always used —
+  is a text model that accepts image input; the copy now says exactly
+  that ("a text model that can read images"), including the picker's
+  empty-catalog message.
+- Second, placement: the panel-level collapsed row died twice (22.3
+  invisible, 22.3.1 reachable only through the button). It's gone. The
+  model picker now sits inline right beside each card's "Describe from
+  image" button — repeated per reference, because that is where it is
+  used. The choice is shared: pick a model on Mario's card and Luigi's
+  card shows it too. Cost hint sits under the pair.
+- Picker aria-labels are per-card ("Model to describe Mara"); e2e
+  updated to pin the inline flow. Build, 288 unit tests, references
+  suite green.
+
+## Slice 22.3.1 — The describe button finds its own model (2026-08-25, Angel's report)
+
+- Angel imported Mario and Luigi, saw the new "Describe from image"
+  button — greyed out — and couldn't find where the vision models
+  live. The collapsed "Vision model for describing an image" row was
+  invisible in practice, and a disabled button offers no way forward.
+- The button is no longer dead: with no vision model picked, clicking
+  it expands the collapsed row and opens the vision-model menu itself
+  — pick a model, land back on the card, and the button now shows the
+  cost and describes on the next click. The hint reads "click to pick
+  one" instead of pointing at a row nobody sees.
+- If the model catalog reports no vision-capable models at all, the
+  picker now says so instead of rendering an empty menu (with a reload
+  button) — an empty list looked identical to a broken app.
+- e2e updated to pin the click-through: describe with no model →
+  vision menu opens → pick → describe runs.
+
+## Slice 22.3 — Describe a reference from its image (2026-08-25, Angel's request)
+
+- The natural flow after 22.2's warnings: you imported a Mario image,
+  the app tells you the description is the channel that actually rides
+  the prompt — and now a button writes that description for you. "Could
+  we add a button to generate a description from the imported image?
+  That way users dont need to type it."
+- References panel gains a second collapsed picker, "Vision model for
+  describing an image" (vision-capable text models only), and every
+  reference with an image gains a "Describe from image" button with an
+  upfront cost estimate. The vision model looks at the ACTIVE image
+  version and writes the descriptor: kind-aware prompts ask for exactly
+  what must survive redrawing — a character's face, hair, and clothing
+  with colors and materials; a location's architecture, era, and light;
+  a style's palette and medium (subject never mentioned, same
+  discipline as style-from-image). One paste-ready line of
+  comma-separated fragments, 220-token budget.
+- The result lands straight in the description textarea (persisted,
+  logged in the spend log as "Reference description from image"). If a
+  description already exists, a confirm dialog asks before replacing
+  it. Errors surface per reference, separate from image-generation
+  status.
+- New e2e: import image → describe → textarea filled → describe again
+  asks first → descriptor persisted. Unit tests pin the kind-aware
+  prompt discipline. 288 unit tests green; references suite green.
+
+## Slice 22.2 — References that do nothing now say so (2026-08-25, Angel's report)
+
+- Angel ticked two image-only references (no descriptions) and
+  generated with a model that can't take reference images — nothing of
+  the references reached the model, and the only warning was a muted
+  gray line. References are a TWO-channel mechanism: the description
+  rides every prompt verbatim; the image attaches only to
+  image-to-image capable models. His setup had both channels empty for
+  that generation.
+- Three fixes in the Images workbench:
+  - Reference chips flag the gap inline: "Mario ✓ · no description".
+  - A real alert (accent-colored, role=alert) names every ticked
+    reference without a description and explains that an empty one
+    adds nothing to the prompt — and that with an image-skipping
+    model, nothing of the reference reaches the model at all.
+  - The "this model cannot use reference images" note is no longer
+    muted whisper-gray: accent color, bold — it's the "why did my
+    references do nothing?" trap. The composed-prompt receipt's note
+    also turns honest for that case ("this model SKIPS reference
+    images — only the words above reach it").
+- The "Only show models that can use reference images" filter already
+  existed; now the warnings push you toward it. Pinned e2e text
+  unchanged (only its styling); references + images suites green.
+
+## Slice 22.1 — One grammar for the recipe (2026-08-25, Angel's critique)
+
+- The recipe mixed three interaction patterns — live textareas, a
+  text-plus-Edit-button description, and bare italic preset text —
+  and the inconsistency read as scrambled. Now every row speaks one
+  language: a small-caps label with a hint, then a box. Editable
+  ingredients are ALWAYS-ON textareas that save as you type (the
+  scene description dropped its Edit/Save/Cancel modes — same live
+  semantics as camera notes and style notes, on both the Images and
+  Animation stages); fixed ingredients (preset fragment, guardrails)
+  are the same box shape but visibly inert — dashed border, muted
+  italic. The camera row joined the same labeled-row grammar.
+- The edit-in-place e2e spec was updated to the live-editor flow (the
+  Cancel-discards case no longer exists — there are no drafts, edits
+  ARE the text, as everywhere else in Kairo).
+
+## Slice 22 — The prompt recipe (2026-08-25, Angel's request)
+
+- No more guessing what the model was told. The Animation stage's
+  motion panel is now a full prompt recipe: every ingredient of the
+  motion prompt, labeled in the order it is sent, editable where it
+  lives — Artistic style (the preset fragment, with a pointer to where
+  it's changed), Style notes (editable right there — project-wide, the
+  same field as the Images stage), Scene description (the existing
+  editor), Camera direction, and Kairo's always-added guardrails —
+  followed by "The exact motion prompt, as sent": the composed prompt,
+  updating live as you type, with a note that Tweak replaces it
+  verbatim.
+- The "Carry final frame → scene N+1" button moved from the Clips
+  panel into this recipe panel (Angel's call — it belongs with the
+  prompt machinery), alongside the carried-in-frame notice it pairs
+  with.
+- The Images stage's "Scene N — prompt" panel gets the same receipt:
+  "The exact image prompt, as sent" — preset + style notes +
+  reference descriptors + description + format composition, composed
+  live. (Its ingredients were already editable on that stage; the
+  composed view was the missing piece.)
+- New shared presentation bits in `PromptRecipe.tsx` (RecipeRow,
+  RecipeFixedText, ComposedPrompt). One existing spec updated to
+  exact-match a description locator the new preview also contains.
+- Verified: 285 unit tests, animation + images e2e suites green, and a
+  probe with Claymation + custom notes confirming both composed
+  prompts contain every ingredient, that editing style notes in the
+  Animation panel updates the composed prompt live, and that the carry
+  button now sits inside the motion panel.
+
+## Slice 21.3 — The style rides the motion prompt (2026-08-25, Angel's report)
+
+- Angel animated a handoff frame with grok-imagine's
+  reference-to-video model: the character survived, the whole painterly
+  style vanished. Reason: Kairo's motion prompt was deliberately
+  minimal — style lived only in the IMAGE prompt, because start-frame
+  image-to-video models inherit the look from the input frame's
+  pixels. Reference-to-video models don't: they use the image for
+  identity and regenerate the scene from the TEXT — and our text said
+  nothing about the style, so the model defaulted to photoreal.
+- `buildVideoPrompt` now weaves the project's artistic style (preset
+  fragment + style notes) ahead of the scene description in every
+  motion prompt. For start-frame models it's redundant confirmation of
+  what the pixels already say; for reference models it's the styling
+  instruction they were missing. Prompt overrides (Tweak) remain
+  verbatim, untouched.
+- Verified: 285 unit tests (new weave-order + empty-fragment tests),
+  all 9 animation e2e tests green (their project has no style set, so
+  their pinned prompts are unchanged).
+
+## Slice 21.2 — The undo lives where the action is (2026-08-25, Angel's call)
+
+- 21.1 put the handoff removal on the Images stage — but the carry
+  button lives on the Animation stage, and no user would cross stages
+  to find the undo. The carried-in-frame notice ("The active take is a
+  carried-in frame…" + "Remove handoff frame") is now one shared
+  component, `HandoffTakeNote`, rendered in BOTH places the user meets
+  the frame: the Animation workbench's motion panel (same stage as the
+  carry button) and the Images stage takes panel. Same confirm, same
+  guarantees.
+- Verified by probe: carry a frame on the Animation stage, select the
+  receiving scene there — the notice and removal work without ever
+  leaving the stage.
+
+## Slice 21.1 — The handoff can be taken back (2026-08-25, Angel's report)
+
+- A carried-in frame had no visible way back out: it became the next
+  scene's active image and, when that scene had no earlier takes,
+  there was nothing to switch to. Now free takes are removable — a new
+  `removeFreeSceneImageVersion` action, guarded to `costUsd === null`
+  so a PAID take can never be deleted (the founding principle stays
+  intact). On the Images stage, when the active take is a handoff
+  frame, the takes panel says so ("The active take is a carried-in
+  frame…") and offers "Remove handoff frame" behind a confirm: the
+  previous take becomes active again, or the scene returns to "no
+  image"; the frame's blob is deleted last (crash-safe ordering — an
+  orphan file at worst, never a dangling take). The handoff overlay's
+  copy now says where the undo lives.
+- Verified: 283 unit tests (adds free-removal restore + paid-guard
+  suites), and a probe covering both removal cases end to end —
+  handoff onto an imageless scene → remove → "no image yet"; handoff
+  on top of a generated take → remove → the generated take is active
+  again and the note disappears.
+
+## Slice 21 — The handoff: continuation, phase 1 (2026-08-25, Angel's request)
+
+- The next shot can now start exactly where the previous one ended.
+  On the Animation stage, a scene with a finished clip (and a scene
+  after it) gets a "Carry final frame → scene N+1" button. It opens
+  "The handoff": the clip's closing 0.8s is sampled into 8 candidate
+  frames — entirely client-side (hidden video + canvas), free, the
+  clip never leaves the browser — because the literal last frame is
+  often mid-blink or motion-smeared. A cheap gradient-energy score
+  suggests the sharpest candidate ("sharpest" badge); the user has
+  the final say. The pick is saved as a NEW image version on the next
+  scene (model 'handoff-frame', costUsd null — append-only, no cost
+  log entry) and becomes its active image, ready to animate from with
+  any image-to-video model.
+- This is continuation phase 1 (the AI-research memo distilled to its
+  practical kernel for a client-side app). Phase 2 — true
+  video-reference continuation for capable models — waits on
+  confirming what NanoGPT's generate-video endpoint accepts.
+- Verified: 281 unit tests (new sharpest-pick suite), build green, and
+  an end-to-end probe with a real decodable clip: import → handoff →
+  frame strip renders with the suggested badge → save → scene 2 shows
+  the frame as its active image, cost log untouched. The undecodable-
+  clip path degrades to a clear message with the save disabled
+  (exercised incidentally: Playwright's Chromium lacks H.264, so the
+  probe's first mp4 hit exactly that path before switching to WebM).
+
 ## Slice 20.4 — Four new artistic styles (2026-08-24, Angel's picks)
 
 - The style gallery grows from 16 to 20 presets, each filling a gap

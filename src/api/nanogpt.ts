@@ -505,6 +505,48 @@ export class NanoGptError extends Error {
   }
 }
 
+/**
+ * Pull the human-readable reason out of a NanoGPT error body (22.4 —
+ * Angel's HTTP 400 said nothing). The API answers errors in several
+ * shapes: `{message, type, code, parameter}` at the top level, the
+ * OpenAI-style `{error: {message, code, param}}` nesting, a plain
+ * `{error: "…"}` string, or `{detail: "…"}`. Returns null when nothing
+ * usable is found (the caller keeps its generic HTTP-status message).
+ * NEVER includes anything but the server's own words — no headers, no
+ * request echo, so the API key cannot leak into an error message.
+ */
+export function extractApiErrorMessage(raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const body = raw as Record<string, unknown>
+  const nested =
+    typeof body['error'] === 'object' && body['error'] !== null
+      ? (body['error'] as Record<string, unknown>)
+      : null
+  const candidates = [
+    body['message'],
+    typeof body['error'] === 'string' ? body['error'] : null,
+    nested?.['message'],
+    body['detail'],
+  ]
+  const message = candidates.find(
+    (c): c is string => typeof c === 'string' && c.trim().length > 0,
+  )
+  if (message === undefined) return null
+  // Append the machine-readable hints when the API names the offender.
+  const source = nested ?? body
+  const code = source['code'] ?? source['type']
+  const parameter = source['parameter'] ?? source['param']
+  const extras = [
+    typeof code === 'string' && code.trim().length > 0 ? code : null,
+    typeof parameter === 'string' && parameter.trim().length > 0
+      ? `parameter: ${parameter}`
+      : null,
+  ].filter((e): e is string => e !== null)
+  return extras.length > 0
+    ? `${message.trim()} (${extras.join(', ')})`
+    : message.trim()
+}
+
 export class InvalidApiKeyError extends NanoGptError {
   constructor() {
     super(401, 'The API key was rejected by NanoGPT.')
@@ -542,8 +584,8 @@ export class NanoGptClient {
       }
       let message = `NanoGPT request failed (HTTP ${String(response.status)}).`
       try {
-        const data = (await response.json()) as { message?: string }
-        if (typeof data.message === 'string') message = data.message
+        const detail = extractApiErrorMessage(await response.json())
+        if (detail !== null) message = detail
       } catch {
         // Non-JSON error body; keep the generic message.
       }
@@ -587,6 +629,19 @@ export class NanoGptClient {
     }))
   }
 
+  /**
+   * Image models hidden from the catalog because NanoGPT reliably breaks
+   * on them. xai/grok-imagine-image/v2.0/edit: answers "requires at least
+   * one input image" even when input_references carries a correctly typed
+   * data URL, and NanoGPT's own site does not list the model — a
+   * half-wired catalog entry (verified live 2026-08-26, Angel's run,
+   * with the 22.11 attach-count diagnostic confirming the reference was
+   * sent). Re-test before un-hiding.
+   */
+  static readonly BROKEN_IMAGE_MODEL_IDS = new Set([
+    'xai/grok-imagine-image/v2.0/edit',
+  ])
+
   /** GET /v1/image-models — image models with per-image pricing. */
   async listImageModels(): Promise<ImageModel[]> {
     const data = (await this.request(
@@ -603,15 +658,17 @@ export class NanoGptClient {
         created?: number
       }[]
     }
-    return data.data.map((m) => ({
-      id: m.id,
-      name: m.name ?? m.id,
-      description: m.description ?? '',
-      perImageUsd: m.pricing?.per_image ?? {},
-      resolutions: m.supported_parameters?.resolutions ?? [],
-      supportsImageToImage: m.capabilities?.image_to_image ?? false,
-      releasedAt: releasedAtFromCreated(m.created),
-    }))
+    return data.data
+      .filter((m) => !NanoGptClient.BROKEN_IMAGE_MODEL_IDS.has(m.id))
+      .map((m) => ({
+        id: m.id,
+        name: m.name ?? m.id,
+        description: m.description ?? '',
+        perImageUsd: m.pricing?.per_image ?? {},
+        resolutions: m.supported_parameters?.resolutions ?? [],
+        supportsImageToImage: m.capabilities?.image_to_image ?? false,
+        releasedAt: releasedAtFromCreated(m.created),
+      }))
   }
 
   /** GET /v1/video-models — video models, capabilities, and pricing hints. */
@@ -762,15 +819,23 @@ export class NanoGptClient {
   async generateImage(
     params: ImageGenerationParams,
   ): Promise<GeneratedImage[]> {
+    // Some models (Grok Imagine…) list RATIO labels like "9:16" as their
+    // "resolutions" — those are aspect ratios, not pixel sizes, and belong
+    // in `aspect_ratio` (22.4: sending them as `resolution` is the prime
+    // suspect for Angel's HTTP 400). Pixel values keep riding `resolution`.
+    const resolutionIsRatio =
+      params.resolution !== undefined && /^\d+:\d+$/.test(params.resolution)
     const data = (await this.request('POST', '/v1/images', {
       model: params.model,
       prompt: params.prompt,
-      ...(params.resolution !== undefined
+      ...(params.resolution !== undefined && !resolutionIsRatio
         ? { resolution: params.resolution }
         : {}),
-      ...(params.aspectRatio !== undefined
-        ? { aspect_ratio: params.aspectRatio }
-        : {}),
+      ...(resolutionIsRatio
+        ? { aspect_ratio: params.resolution }
+        : params.aspectRatio !== undefined
+          ? { aspect_ratio: params.aspectRatio }
+          : {}),
       ...(params.n !== undefined ? { n: params.n } : {}),
       ...(params.inputReferences !== undefined &&
       params.inputReferences.length > 0
@@ -816,8 +881,8 @@ export class NanoGptClient {
       }
       let message = `NanoGPT request failed (HTTP ${String(response.status)}).`
       try {
-        const data = (await response.json()) as { message?: string }
-        if (typeof data.message === 'string') message = data.message
+        const detail = extractApiErrorMessage(await response.json())
+        if (detail !== null) message = detail
       } catch {
         // Non-JSON error body; keep the generic message.
       }

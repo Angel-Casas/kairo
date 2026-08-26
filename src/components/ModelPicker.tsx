@@ -621,6 +621,21 @@ export function TextModelPicker({
     [models, onlyVision],
   )
 
+  // Honest empty state (22.3.1): if the catalog reports no text models
+  // that accept image input, an empty picker just looks broken — say
+  // what happened.
+  if (status === 'ready' && onlyVision && shown.length === 0) {
+    return (
+      <p role="alert" style={{ color: 'var(--color-text-muted)', margin: 0 }}>
+        The model list reports no text models that can read images right now, so
+        nothing can describe one.{' '}
+        <button type="button" onClick={() => void load(true)}>
+          Reload the list
+        </button>
+      </p>
+    )
+  }
+
   return (
     <PickerShell
       models={shown}
@@ -802,11 +817,14 @@ export function ImageModelPicker({
   selectedId,
   onSelect,
   onlyImageToImage = false,
+  ariaLabel = 'Image model',
 }: {
   selectedId: string | null
   onSelect: (model: ImageModel) => void
   /** Show only models that accept reference images (Slice 10). */
   onlyImageToImage?: boolean
+  /** Override when two pickers share a page (labels must stay unique). */
+  ariaLabel?: string
 }) {
   const models = useModelsStore((s) => s.imageModels)
   const status = useModelsStore((s) => s.imageModelsStatus)
@@ -833,7 +851,7 @@ export function ImageModelPicker({
       models={shown}
       status={status}
       selectedId={selectedId}
-      ariaLabel="Image model"
+      ariaLabel={ariaLabel}
       optionLabel={(m) => {
         const r = range(m)
         const i2i = m.supportsImageToImage ? ' — accepts reference images' : ''

@@ -1,15 +1,27 @@
 import { useState, type CSSProperties } from 'react'
 import type { ImageModel } from '../api/nanogpt'
 import type { Scene } from '../domain/types'
+import { DevelopingVeil } from './DevelopingVeil'
 import { FilmProgress } from './FilmProgress'
+import { HandoffTakeNote } from './HandoffTakeNote'
 import { formatUsd } from '../lib/format'
-import { getPerImagePriceUsd, pickResolutionForRatio } from '../lib/resolution'
+import {
+  getPerImagePriceUsd,
+  pickResolutionForRatio,
+  resolutionLabel,
+} from '../lib/resolution'
 import { useFormatSpec } from './useFormatSpec'
+import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
+import { useRememberedModel } from '../state/modelChoices'
+import { useUiStore } from '../state/ui'
 import { GenerationHistory } from './GenerationHistory'
 import { Lightbox, type LightboxItem } from './Lightbox'
 import { ReelShell } from './Reel'
 import { SceneDescriptionEditor } from './SceneDescriptionEditor'
+import { ComposedPrompt } from './PromptRecipe'
+import { buildImagePrompt } from '../domain/prompts'
+import { getStylePreset } from '../domain/stylePresets'
 import { ImageModelPicker } from './ModelPicker'
 import { StyleGallery } from './StyleGallery'
 import { useBlobUrl } from './useBlobUrl'
@@ -27,7 +39,12 @@ export function ImagesStage() {
   const generateAllImages = useProjectStore((s) => s.generateAllImages)
   const allImagesProgress = useProjectStore((s) => s.allImagesProgress)
 
-  const [model, setModel] = useState<ImageModel | null>(null)
+  const imageModels = useModelsStore((s) => s.imageModels)
+  // Remembered across stage hops and reloads (22.12).
+  const [model, setModel] = useRememberedModel<ImageModel>(
+    'images.image',
+    imageModels,
+  )
   const [resolution, setResolution] = useState<string | null>(null)
   const [onlyImageToImage, setOnlyImageToImage] = useState(false)
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
@@ -255,6 +272,13 @@ function SceneFrame({
             {generating ? 'Generating…' : 'No image yet'}
           </div>
         )}
+        {generating && (
+          // The empty-frame placeholder already says "Generating…" in the
+          // middle; the badge covers the regenerate-over-an-image case.
+          <DevelopingVeil
+            label={activeUrl !== null ? 'Generating…' : undefined}
+          />
+        )}
         <span
           style={{
             position: 'absolute',
@@ -347,13 +371,28 @@ function Workbench({
 }) {
   const generateSceneImage = useProjectStore((s) => s.generateSceneImage)
   const setActiveImageVersion = useProjectStore((s) => s.setActiveImageVersion)
+  const toggleSceneReference = useProjectStore((s) => s.toggleSceneReference)
+  const createReferenceFromSceneImage = useProjectStore(
+    (s) => s.createReferenceFromSceneImage,
+  )
   const status = useProjectStore((s) => s.sceneImageStatus[scene.id])
   const references = useProjectStore((s) => s.project?.references ?? [])
-
+  const [newRefName, setNewRefName] = useState('')
+  const [savedRefId, setSavedRefId] = useState<string | null>(null)
+  const setStage = useUiStore((s) => s.setStage)
+  const setHighlightReference = useUiStore((s) => s.setHighlightReference)
+  const activeVersion =
+    scene.imageVersions.find((v) => v.id === scene.activeImageVersionId) ?? null
+  const stylePresetId = useProjectStore((s) => s.project?.stylePresetId ?? null)
+  const styleNotes = useProjectStore((s) => s.project?.styleNotes ?? '')
+  const workbenchFormat = useFormatSpec()
   const n = String(index + 1)
   const generating = status?.generating === true
   const hasDescription = scene.visualDescription.trim().length > 0
   const ticked = references.filter((r) => scene.referenceIds.includes(r.id))
+  const tickedWithoutDescription = ticked.filter(
+    (r) => r.descriptor.trim().length === 0,
+  )
   const attachableCount = ticked.filter(
     (r) => r.activeImageVersionId !== null,
   ).length
@@ -378,6 +417,25 @@ function Workbench({
       <div className="card" style={panel}>
         <div style={panelTitle}>Scene {n} — prompt</div>
         <SceneDescriptionEditor scene={scene} n={n} />
+        {/* The prompt recipe's receipt (22): the exact image prompt as
+            sent — preset + style notes + references + description +
+            format, composed live. */}
+        <ComposedPrompt
+          label="The exact image prompt, as sent"
+          text={buildImagePrompt({
+            stylePromptFragment:
+              getStylePreset(stylePresetId)?.promptFragment ?? null,
+            styleNotes,
+            referenceDescriptors: ticked.map((r) => r.descriptor),
+            visualDescription: scene.visualDescription,
+            compositionFragment: workbenchFormat.promptFragment,
+          })}
+          note={
+            model !== null && !model.supportsImageToImage && attachableCount > 0
+              ? 'Editing the prompt at generation time replaces this text verbatim. This model SKIPS reference images — only the words above reach it.'
+              : 'Editing the prompt at generation time replaces this text verbatim — reference images still attach.'
+          }
+        />
         {scene.textExcerpt.trim().length > 0 && (
           <p
             style={{
@@ -391,36 +449,203 @@ function Workbench({
             Script — “{scene.textExcerpt.trim()}”
           </p>
         )}
-        {ticked.length > 0 && (
+        {references.length > 0 && (
+          <div>
+            <span
+              style={{
+                display: 'block',
+                color: 'var(--color-text-muted)',
+                fontSize: 'var(--text-sm)',
+                marginBottom: 'var(--space-1)',
+              }}
+            >
+              References — click to tick or untick for this scene
+            </span>
+            <div
+              style={{
+                display: 'flex',
+                gap: 'var(--space-2)',
+                flexWrap: 'wrap',
+              }}
+            >
+              {references.map((r) => {
+                const isTicked = scene.referenceIds.includes(r.id)
+                const label =
+                  r.name.trim().length > 0 ? r.name : 'Unnamed reference'
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    aria-label={`Scene ${n} uses ${label}`}
+                    aria-pressed={isTicked}
+                    onClick={() => void toggleSceneReference(scene.id, r.id)}
+                    style={{
+                      fontSize: '12px',
+                      padding: 'var(--space-1) var(--space-3)',
+                      borderRadius: 'var(--radius-pill)',
+                      boxShadow: 'none',
+                      background:
+                        isTicked && r.activeImageVersionId !== null
+                          ? 'var(--color-accent-soft)'
+                          : 'transparent',
+                      border: isTicked
+                        ? '1px solid var(--color-accent)'
+                        : '1px dashed var(--color-border)',
+                      color: isTicked
+                        ? 'var(--color-text)'
+                        : 'var(--color-text-muted)',
+                      fontWeight: isTicked ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                    {isTicked && r.activeImageVersionId !== null && ' ✓'}
+                    {isTicked && r.descriptor.trim().length === 0 && (
+                      <span style={{ color: 'var(--color-accent)' }}>
+                        {' '}
+                        · no description
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        {/* Save the scene's image as a NEW reference (22.13): the exiled
+            emperor no longer wears the crown — this take becomes the
+            reference for the scenes that follow. */}
+        {activeVersion !== null && (
           <div
-            style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-1)',
+            }}
           >
-            {ticked.map((r) => (
-              <span
-                key={r.id}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <input
+                type="text"
+                value={newRefName}
+                placeholder="Name the new reference (e.g. Jack in exile)"
+                aria-label={`New reference name for scene ${n}`}
+                onChange={(e) => {
+                  setNewRefName(e.target.value)
+                }}
                 style={{
-                  fontSize: '12px',
-                  padding: 'var(--space-1) var(--space-3)',
-                  borderRadius: 'var(--radius-pill)',
-                  background:
-                    r.activeImageVersionId !== null
-                      ? 'var(--color-accent-soft)'
-                      : 'transparent',
+                  flex: 1,
+                  minWidth: '12rem',
+                  background: 'var(--color-surface-2)',
+                  color: 'var(--color-text)',
                   border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius)',
+                  padding: 'var(--space-1) var(--space-2)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Save scene ${n} image as reference`}
+                onClick={() => {
+                  void createReferenceFromSceneImage(scene.id, newRefName).then(
+                    (id) => {
+                      if (id !== null) {
+                        setNewRefName('')
+                        setSavedRefId(id)
+                      }
+                    },
+                  )
+                }}
+                style={{
+                  fontSize: 'var(--text-sm)',
+                  padding: 'var(--space-1) var(--space-3)',
                 }}
               >
-                {r.name.trim().length > 0 ? r.name : 'Unnamed reference'}
-                {r.activeImageVersionId !== null && ' ✓'}
-              </span>
-            ))}
+                Save image as reference
+              </button>
+            </div>
+            {savedRefId !== null && (
+              <p
+                role="status"
+                // The pulse makes the "one step left" hard to miss
+                // (22.14, Angel's idea) — a few beats, not an infinite
+                // loop.
+                className="attention-pulse"
+                style={{
+                  margin: 0,
+                  color: 'var(--color-accent)',
+                  fontSize: 'var(--text-sm)',
+                  border: '1px solid var(--color-accent)',
+                  borderRadius: 'var(--radius)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span style={{ flex: 1, minWidth: '14rem' }}>
+                  Saved and ticked for this scene (free) — but it has no
+                  description yet, and the description is what rides the
+                  prompts, so without one the look will drift.
+                </span>
+                <button
+                  type="button"
+                  aria-label="Describe the new reference"
+                  onClick={() => {
+                    setHighlightReference(savedRefId)
+                    setStage('scenes')
+                  }}
+                  style={{
+                    fontSize: 'var(--text-sm)',
+                    padding: 'var(--space-1) var(--space-3)',
+                  }}
+                >
+                  Describe it now →
+                </button>
+              </p>
+            )}
           </div>
+        )}
+        {tickedWithoutDescription.length > 0 && (
+          <p
+            role="alert"
+            style={{
+              margin: 0,
+              color: 'var(--color-accent)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            {tickedWithoutDescription
+              .map((r) =>
+                r.name.trim().length > 0 ? r.name : 'An unnamed reference',
+              )
+              .join(', ')}{' '}
+            {tickedWithoutDescription.length === 1 ? 'has' : 'have'} no
+            description — the description is what rides the prompt, so an empty
+            one adds nothing (and with a model that skips images, nothing of the
+            reference reaches the model at all). Describe everything that must
+            stay identical on the References panel.
+          </p>
         )}
         {attachableCount > 0 && model !== null && (
           <p
             style={{
               margin: 0,
-              color: 'var(--color-text-muted)',
+              // The skipped-images case is the "why did my references do
+              // nothing?" trap (22.2, Angel's report) — it must not
+              // whisper in muted gray.
+              color: model.supportsImageToImage
+                ? 'var(--color-text-muted)'
+                : 'var(--color-accent)',
               fontSize: 'var(--text-sm)',
+              fontWeight: model.supportsImageToImage ? 400 : 600,
             }}
           >
             {model.supportsImageToImage
@@ -480,7 +705,7 @@ function Workbench({
             >
               {model.resolutions.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {resolutionLabel(r)}
                   {getPerImagePriceUsd(model, r) !== null
                     ? ` — ${formatUsd(getPerImagePriceUsd(model, r) ?? 0)}`
                     : ''}
@@ -620,6 +845,7 @@ function Workbench({
                 />
               ))}
             </div>
+            <HandoffTakeNote scene={scene} />
             <GenerationHistory
               versions={scene.imageVersions}
               activeVersionId={scene.activeImageVersionId}

@@ -4,6 +4,12 @@ import { createPortal } from 'react-dom'
 interface ConfirmDialogProps {
   title: string
   message: string
+  /**
+   * Optional accent-colored caution shown between message and buttons
+   * (22.16): for a confirmation that is technically fine but probably a
+   * mistake — e.g. a clip shorter than its narration.
+   */
+  warning?: string
   confirmLabel: string
   onConfirm: () => void
   onCancel: () => void
@@ -12,6 +18,7 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   title,
   message,
+  warning,
   confirmLabel,
   onConfirm,
   onCancel,
@@ -61,6 +68,20 @@ export function ConfirmDialog({
       >
         <h2 style={{ marginTop: 0, fontSize: 'var(--text-lg)' }}>{title}</h2>
         <p style={{ color: 'var(--color-text-muted)' }}>{message}</p>
+        {warning !== undefined && (
+          <p
+            role="alert"
+            style={{
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              border: '1px solid var(--color-accent)',
+              borderRadius: 'var(--radius)',
+              padding: 'var(--space-2) var(--space-3)',
+            }}
+          >
+            {warning}
+          </p>
+        )}
         <div
           style={{
             display: 'flex',

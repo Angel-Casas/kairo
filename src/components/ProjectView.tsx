@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useProjectStore } from '../state/project'
+import { useUiStore } from '../state/ui'
 import { AnimationStage } from './AnimationStage'
 import { AudioStage } from './AudioStage'
 import { ExportStage } from './ExportStage'
@@ -62,7 +63,10 @@ export function ProjectView({
   const closeProject = useProjectStore((s) => s.closeProject)
   const flushProject = useProjectStore((s) => s.flushProject)
   const setFormat = useProjectStore((s) => s.setFormat)
-  const [stage, setStage] = useState<Stage>('script')
+  // The stage lives in the UI store (22.14) so any stage can send the
+  // user to another one (e.g. "describe the new reference" → Scenes).
+  const stage = useUiStore((s) => s.stage)
+  const setStage = useUiStore((s) => s.setStage)
   // Remember where we came from so the incoming stage knows which way the
   // film is travelling (forward advance vs. rewind).
   const prevStageRef = useRef<Stage>('script')
@@ -75,6 +79,9 @@ export function ProjectView({
 
   useEffect(() => {
     void loadProject(projectId)
+    // Every project opens at the top of its pipeline, as before the
+    // stage moved into the store.
+    useUiStore.getState().setStage('script')
     return () => {
       closeProject()
     }
@@ -86,7 +93,7 @@ export function ProjectView({
     if (project === null) return
     const item = buildStages(project).find((s) => s.id === stage)
     if (item !== undefined && !item.available) setStage('script')
-  }, [project, stage])
+  }, [project, stage, setStage])
 
   if (status !== 'ready') {
     return <p style={{ color: 'var(--color-text-muted)' }}>Loading project…</p>

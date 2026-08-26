@@ -8,6 +8,8 @@ import type {
 import {
   buildImagePrompt,
   buildVideoPrompt,
+  describeReferenceSystemPrompt,
+  describeReferenceUserText,
   sceneBreakdownSystemPrompt,
   sceneBreakdownUserPrompt,
   scriptSystemPrompt,
@@ -31,6 +33,7 @@ import type {
 } from '../domain/types'
 import {
   computeActualChatCostUsd,
+  DESCRIBE_REFERENCE_OUTPUT_TOKEN_BUDGET,
   estimateChatCostUsd,
   SCENES_OUTPUT_TOKEN_BUDGET,
   SCRIPT_OUTPUT_TOKEN_BUDGET,
@@ -106,6 +109,17 @@ interface ProjectState {
   ) => Promise<string | null>
   /** Add an empty reference of the given kind (Slice 10). */
   addReference: (kind: ReferenceKind) => Promise<void>
+  /**
+   * Copy a scene's ACTIVE image into a NEW reference (22.13, Angel's
+   * exiled-emperor case: the story moved on but the reference image
+   * still wore the crown). The copy is free, the new reference starts
+   * ticked on the scene it came from, and its kind/name/description
+   * are editable on the References panel like any other.
+   */
+  createReferenceFromSceneImage: (
+    sceneId: string,
+    name: string,
+  ) => Promise<string | null>
   /** Update reference text fields in memory; debounced persist. */
   updateReference: (
     referenceId: string,
@@ -124,6 +138,34 @@ interface ProjectState {
     referenceId: string,
     versionId: string,
   ) => Promise<void>
+  /**
+   * Remove a FREE reference image version (22.8, Angel: an unwanted
+   * import had no way out). Same discipline as scene takes: only free
+   * versions (imports) are removable — paid generations never are.
+   */
+  removeFreeReferenceImageVersion: (
+    referenceId: string,
+    versionId: string,
+  ) => Promise<boolean>
+  /**
+   * Per-reference describe-from-image status (22.3), keyed by reference id.
+   * Separate from referenceImageStatus — that one drives the image
+   * generation/import buttons; this one drives the describe button.
+   */
+  referenceDescribeStatus: Record<
+    string,
+    { generating: boolean; error: string | null }
+  >
+  /**
+   * Describe-from-image (22.3): a vision model looks at the reference's
+   * ACTIVE image and writes the descriptor — the text that rides every
+   * ticked scene's prompt. Overwrites the descriptor on success (the UI
+   * confirms first when one exists). Returns true on success.
+   */
+  describeReferenceFromImage: (
+    referenceId: string,
+    model: TextModel,
+  ) => Promise<boolean>
   /** Import a user-provided image file as a new reference image version. */
   importReferenceImage: (referenceId: string, file: Blob) => Promise<boolean>
   /**
@@ -243,6 +285,26 @@ interface ProjectState {
    * clip from NanoGPT's site, then bring it in here — no regeneration cost.
    */
   importSceneClip: (sceneId: string, file: Blob) => Promise<boolean>
+  /**
+   * The handoff (Slice 21): save a frame grabbed from one scene's clip as
+   * a new image version on another scene — free, no generation. The next
+   * scene can then be animated from exactly where the previous one ended.
+   */
+  addSceneImageVersion: (
+    sceneId: string,
+    image: Blob,
+    note: string,
+  ) => Promise<boolean>
+  /**
+   * Remove a FREE image take (21.1) — a handoff frame the user changed
+   * their mind about. Guarded to costUsd === null: paid takes are never
+   * deleted (the founding principle). The previous take becomes active
+   * again (or the scene returns to "no image").
+   */
+  removeFreeSceneImageVersion: (
+    sceneId: string,
+    versionId: string,
+  ) => Promise<boolean>
   /** Resume polling for interrupted video jobs (called on project load). */
   resumeVideoJobs: () => Promise<void>
 }
@@ -265,6 +327,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   allAudioProgress: null,
   sceneVideoStatus: {},
   referenceImageStatus: {},
+  referenceDescribeStatus: {},
 
   loadProject: async (id: string) => {
     set({
@@ -279,6 +342,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       allAudioProgress: null,
       sceneVideoStatus: {},
       referenceImageStatus: {},
+      referenceDescribeStatus: {},
       styleFromImageStatus: 'idle',
       styleFromImageError: null,
     })
@@ -672,6 +736,61 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await persistProject(updated)
   },
 
+  createReferenceFromSceneImage: async (sceneId: string, name: string) => {
+    const { project } = get()
+    if (project === null) return null
+    const scene = project.scenes.find((s) => s.id === sceneId)
+    if (scene === undefined) return null
+    const source = scene.imageVersions.find(
+      (v) => v.id === scene.activeImageVersionId,
+    )
+    if (source === undefined) return null
+    const repo = await getRepository()
+    const sourceBlob = await repo.blobs.get(source.blobPath)
+    if (sourceBlob === null) return null
+
+    const n = String(
+      [...project.scenes]
+        .sort((a, b) => a.order - b.order)
+        .findIndex((s) => s.id === sceneId) + 1,
+    )
+    const versionId = crypto.randomUUID()
+    const blobPath = `${project.id}/${versionId}`
+    await repo.blobs.put(blobPath, sourceBlob)
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'image',
+      model: 'scene-image',
+      prompt: `Saved from scene ${n}`,
+      // A free copy — removable with the thumbnail X like any import.
+      costUsd: null,
+      blobPath,
+      mimeType: source.mimeType,
+      createdAt: nowIso(),
+    }
+    const reference: ReferenceAsset = {
+      ...createReference('character', nowIso),
+      name: name.trim(),
+      imageVersions: [version],
+      activeImageVersionId: versionId,
+    }
+    const updated: Project = {
+      ...project,
+      references: [...project.references, reference],
+      // The new reference starts ticked on the scene it came from — that
+      // is the clip the user is styling right now.
+      scenes: project.scenes.map((s) =>
+        s.id === sceneId
+          ? { ...s, referenceIds: [...s.referenceIds, reference.id] }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+    return reference.id
+  },
+
   updateReference: (referenceId, fields) => {
     const { project } = get()
     if (project === null) return
@@ -745,6 +864,158 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
     set({ project: updated })
     await persistProject(updated)
+  },
+
+  describeReferenceFromImage: async (referenceId: string, model: TextModel) => {
+    const { project } = get()
+    const apiKey = useSettingsStore.getState().apiKey
+    if (project === null || apiKey === null) return false
+    const reference = project.references.find((r) => r.id === referenceId)
+    if (reference === undefined) return false
+    const activeImage =
+      reference.imageVersions.find(
+        (v) => v.id === reference.activeImageVersionId,
+      ) ?? null
+    const setStatus = (generating: boolean, error: string | null) => {
+      set({
+        referenceDescribeStatus: {
+          ...get().referenceDescribeStatus,
+          [referenceId]: { generating, error },
+        },
+      })
+    }
+    if (activeImage === null) {
+      setStatus(false, 'This reference has no image to describe yet.')
+      return false
+    }
+    setStatus(true, null)
+
+    const repo = await getRepository()
+    const imageBlob = await repo.blobs.get(activeImage.blobPath)
+    if (imageBlob === null) {
+      setStatus(false, 'The reference image could not be loaded.')
+      return false
+    }
+
+    const kind = reference.kind
+    const promptText = `${describeReferenceSystemPrompt(kind)}\n${describeReferenceUserText(kind)}`
+    // Text-side estimate only — the image adds model-dependent prompt
+    // tokens the catalog does not price upfront; actuals cover them.
+    const estimatedUsd = estimateChatCostUsd({
+      promptText,
+      outputTokenBudget: DESCRIBE_REFERENCE_OUTPUT_TOKEN_BUDGET,
+      promptPricePerMTok: model.promptPricePerMTok,
+      completionPricePerMTok: model.completionPricePerMTok,
+    })
+
+    const imageDataUrl = await blobToDataUrl(imageBlob, activeImage.mimeType)
+    const outcome = await withGenerationJob({
+      projectId: project.id,
+      sceneId: null,
+      kind: 'text',
+      model: model.id,
+      estimatedUsd,
+      run: () =>
+        getClient(apiKey).chatComplete(
+          model.id,
+          [
+            { role: 'system', content: describeReferenceSystemPrompt(kind) },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: describeReferenceUserText(kind) },
+                { type: 'image_url', image_url: { url: imageDataUrl } },
+              ],
+            },
+          ],
+          { maxTokens: DESCRIBE_REFERENCE_OUTPUT_TOKEN_BUDGET },
+        ),
+    })
+
+    if (!outcome.ok) {
+      setStatus(false, outcome.error.message)
+      return false
+    }
+    const result = outcome.value
+    const descriptor = result.content.trim()
+    if (descriptor.length === 0) {
+      setStatus(false, 'The model returned an empty description — try again.')
+      return false
+    }
+
+    const actualUsd =
+      result.usage === null
+        ? null
+        : computeActualChatCostUsd({
+            promptTokens: result.usage.promptTokens,
+            completionTokens: result.usage.completionTokens,
+            promptPricePerMTok: model.promptPricePerMTok,
+            completionPricePerMTok: model.completionPricePerMTok,
+          })
+
+    const current = get().project
+    if (current === null || current.id !== project.id) return false
+    const updated: Project = {
+      ...current,
+      references: current.references.map((r) =>
+        r.id === referenceId ? { ...r, descriptor } : r,
+      ),
+      costLog: [
+        ...current.costLog,
+        {
+          id: crypto.randomUUID(),
+          at: nowIso(),
+          kind: 'text',
+          model: model.id,
+          estimatedUsd,
+          actualUsd,
+          note: 'Reference description from image',
+        },
+      ],
+      updatedAt: nowIso(),
+    }
+    const { [referenceId]: _done, ...restStatus } =
+      get().referenceDescribeStatus
+    set({ project: updated, referenceDescribeStatus: restStatus })
+    await persistProject(updated)
+    return true
+  },
+
+  removeFreeReferenceImageVersion: async (
+    referenceId: string,
+    versionId: string,
+  ) => {
+    const { project } = get()
+    if (project === null) return false
+    const reference = project.references.find((r) => r.id === referenceId)
+    const version = reference?.imageVersions.find((v) => v.id === versionId)
+    if (reference === undefined || version === undefined) return false
+    // Only free versions are removable — money is never deleted.
+    if (version.costUsd !== null) return false
+    const remaining = reference.imageVersions.filter((v) => v.id !== versionId)
+    const updated: Project = {
+      ...project,
+      references: project.references.map((r) =>
+        r.id === referenceId
+          ? {
+              ...r,
+              imageVersions: remaining,
+              activeImageVersionId:
+                r.activeImageVersionId === versionId
+                  ? (remaining[remaining.length - 1]?.id ?? null)
+                  : r.activeImageVersionId,
+            }
+          : r,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+    // The blob goes last: a crash above leaves an orphan file at worst,
+    // never a version pointing at nothing.
+    const repo = await getRepository()
+    await repo.blobs.deletePrefix(version.blobPath)
+    return true
   },
 
   importReferenceImage: async (referenceId: string, file: Blob) => {
@@ -1010,8 +1281,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (active === undefined) continue
         const referenceBlob = await repo.blobs.get(active.blobPath)
         if (referenceBlob === null) continue
-        referenceImageUrls.push(await blobToDataUrl(referenceBlob))
+        referenceImageUrls.push(
+          await blobToDataUrl(referenceBlob, active.mimeType),
+        )
       }
+    }
+    // The workbench promised these references would attach — if none of
+    // their images could actually be loaded, fail BEFORE spending money
+    // on a generation the user did not ask for (22.11: a silent skip
+    // here turned into an opaque provider error).
+    const promisedAttachments =
+      model.supportsImageToImage &&
+      sceneReferences.some((r) => r.activeImageVersionId !== null)
+    if (promisedAttachments && referenceImageUrls.length === 0) {
+      set({
+        sceneImageStatus: {
+          ...get().sceneImageStatus,
+          [sceneId]: {
+            generating: false,
+            error:
+              'The reference images could not be loaded from storage — open the References panel and re-import or regenerate them.',
+          },
+        },
+      })
+      return false
     }
 
     const outcome = await withGenerationJob({
@@ -1043,10 +1336,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
 
     if (!outcome.ok) {
+      // If the provider claims no input image arrived while we DID attach
+      // references, say so — the mismatch is the diagnostic (22.11).
+      const message =
+        referenceImageUrls.length > 0 &&
+        /input image/i.test(outcome.error.message)
+          ? `${outcome.error.message} (Kairo attached ${String(referenceImageUrls.length)} reference ${referenceImageUrls.length === 1 ? 'image' : 'images'} to the request — the provider may not support reference input for this model yet; try another image model.)`
+          : outcome.error.message
       set({
         sceneImageStatus: {
           ...get().sceneImageStatus,
-          [sceneId]: { generating: false, error: outcome.error.message },
+          [sceneId]: { generating: false, error: message },
         },
       })
       return false
@@ -1498,10 +1798,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
     }
 
-    // An override (Slice 11.1) is sent verbatim — no re-derivation.
+    // An override (Slice 11.1) is sent verbatim — no re-derivation. The
+    // project style rides the motion prompt too (21.3): reference-style
+    // video models take the look from the TEXT, not the image's pixels.
     const prompt =
       promptOverride ??
-      buildVideoPrompt(scene.visualDescription, scene.cameraNotes)
+      buildVideoPrompt(scene.visualDescription, scene.cameraNotes, [
+        getStylePreset(project.stylePresetId)?.promptFragment ?? '',
+        project.styleNotes,
+      ])
 
     let job: GenerationJob = {
       id: crypto.randomUUID(),
@@ -1524,7 +1829,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await repo.putJob(job)
 
     try {
-      const imageDataUrl = await blobToDataUrl(imageBlob)
+      const imageDataUrl = await blobToDataUrl(imageBlob, imageVersion.mimeType)
       // Frame-based models (Wan) ignore `duration` — translate the target
       // seconds into the cheapest frame plan that reaches them (15.14).
       const framePlan =
@@ -1608,6 +1913,79 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       })
       return false
     }
+  },
+
+  removeFreeSceneImageVersion: async (sceneId: string, versionId: string) => {
+    const { project } = get()
+    if (project === null) return false
+    const scene = project.scenes.find((s) => s.id === sceneId)
+    const version = scene?.imageVersions.find((v) => v.id === versionId)
+    if (scene === undefined || version === undefined) return false
+    // Only free takes are removable — money is never deleted.
+    if (version.costUsd !== null) return false
+    const remaining = scene.imageVersions.filter((v) => v.id !== versionId)
+    const updated: Project = {
+      ...project,
+      scenes: project.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              imageVersions: remaining,
+              activeImageVersionId:
+                s.activeImageVersionId === versionId
+                  ? (remaining[remaining.length - 1]?.id ?? null)
+                  : s.activeImageVersionId,
+            }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+    // The blob goes last: a crash above leaves an orphan file at worst,
+    // never a take pointing at nothing.
+    const repo = await getRepository()
+    await repo.blobs.deletePrefix(version.blobPath)
+    return true
+  },
+
+  addSceneImageVersion: async (sceneId: string, image: Blob, note: string) => {
+    const { project } = get()
+    if (project === null) return false
+    const scene = project.scenes.find((s) => s.id === sceneId)
+    if (scene === undefined) return false
+    const repo = await getRepository()
+    const versionId = crypto.randomUUID()
+    const blobPath = `${project.id}/${versionId}`
+    await repo.blobs.put(blobPath, image)
+    const version: AssetVersion = {
+      id: versionId,
+      kind: 'image',
+      model: 'handoff-frame',
+      prompt: note,
+      costUsd: null,
+      blobPath,
+      mimeType: image.type.length > 0 ? image.type : 'image/png',
+      createdAt: nowIso(),
+    }
+    const current = get().project
+    if (current === null) return false
+    const updated: Project = {
+      ...current,
+      scenes: current.scenes.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              imageVersions: [...s.imageVersions, version],
+              activeImageVersionId: version.id,
+            }
+          : s,
+      ),
+      updatedAt: nowIso(),
+    }
+    set({ project: updated })
+    await persistProject(updated)
+    return true
   },
 
   importSceneClip: async (sceneId: string, file: Blob) => {
@@ -1948,13 +2326,29 @@ async function imageResultToBlob(image: {
   throw new Error('The response contained no image data.')
 }
 
-async function blobToDataUrl(blob: Blob): Promise<string> {
+/**
+ * OPFS strips MIME types on read-back, and the old fallback stamped every
+ * type-less blob `image/png` — so an imported JPEG went to the API as
+ * `data:image/png;base64,/9j/…`, declared PNG with JPEG bytes. A strict
+ * provider (Grok Imagine 2.0 Edit, 22.11 — Angel's "requires at least one
+ * input image") drops such a reference as not-an-image. Callers that hold
+ * the version's STORED mimeType pass it here; it is authoritative.
+ */
+async function blobToDataUrl(
+  blob: Blob,
+  storedMimeType?: string,
+): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer())
   let binary = ''
   const chunk = 0x8000
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
-  const mime = blob.type.length > 0 ? blob.type : 'image/png'
+  const mime =
+    blob.type.length > 0
+      ? blob.type
+      : storedMimeType !== undefined && storedMimeType.length > 0
+        ? storedMimeType
+        : 'image/png'
   return `data:${mime};base64,${btoa(binary)}`
 }

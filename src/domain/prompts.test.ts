@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildImagePrompt,
   buildVideoPrompt,
+  describeReferenceSystemPrompt,
+  describeReferenceUserText,
   sceneBreakdownSystemPrompt,
 } from './prompts'
 import { getStylePreset, STYLE_PRESETS } from './stylePresets'
@@ -91,6 +93,23 @@ describe('unterminated (15.13 — no more double periods)', () => {
 })
 
 describe('buildVideoPrompt', () => {
+  it('weaves the project style ahead of the description (21.3)', () => {
+    const prompt = buildVideoPrompt('A castle at dawn', '', [
+      'romantic realist oil painting.',
+      'muted turquoise palette',
+    ])
+    expect(prompt.startsWith('romantic realist oil painting. ')).toBe(true)
+    expect(prompt.indexOf('muted turquoise palette')).toBeLessThan(
+      prompt.indexOf('A castle at dawn'),
+    )
+    expect(prompt).toContain('keep the original style')
+  })
+
+  it('skips empty style fragments', () => {
+    const prompt = buildVideoPrompt('A castle at dawn', '', ['', '  '])
+    expect(prompt.startsWith('A castle at dawn')).toBe(true)
+  })
+
   it('pairs the camera with an action and forbids frozen figures and text', () => {
     const prompt = buildVideoPrompt('A castle at dawn')
     expect(prompt).toContain('A castle at dawn')
@@ -125,6 +144,34 @@ describe('sceneBreakdownSystemPrompt craft rules', () => {
     expect(prompt).toContain('exactly ONE action')
     expect(prompt).toContain('never a sequence')
     expect(prompt).toContain('render text badly')
+  })
+})
+
+describe('describeReference prompts (22.3 — descriptor from image)', () => {
+  it('focuses each kind on what must stay identical', () => {
+    expect(describeReferenceSystemPrompt('character')).toContain('CHARACTER')
+    expect(describeReferenceSystemPrompt('character')).toContain('clothing')
+    expect(describeReferenceSystemPrompt('location')).toContain('PLACE')
+    expect(describeReferenceSystemPrompt('location')).toContain('architecture')
+    expect(describeReferenceSystemPrompt('style')).toContain('STYLE')
+    // Style stays the opposite discipline: never leak the subject.
+    expect(describeReferenceSystemPrompt('style')).toContain(
+      'Never mention the subject',
+    )
+  })
+
+  it('always demands one paste-ready line of fragments', () => {
+    for (const kind of ['character', 'location', 'style'] as const) {
+      const prompt = describeReferenceSystemPrompt(kind)
+      expect(prompt).toContain('ONLY one line of comma-separated fragments')
+      expect(prompt).toContain('No preamble')
+    }
+  })
+
+  it('user text matches the kind', () => {
+    expect(describeReferenceUserText('character')).toContain('character')
+    expect(describeReferenceUserText('location')).toContain('location')
+    expect(describeReferenceUserText('style')).toContain('style')
   })
 })
 
