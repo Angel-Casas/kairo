@@ -2,6 +2,35 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 22.21.2 — The palette picker comes back on-screen in RTL (2026-08-26, Angel's report)
+
+- The palette dropdown anchored itself with a physical `right: 0` —
+  correct in LTR where the nav icons hug the right edge, but in
+  Arabic/Urdu the icons sit at the LEFT of the screen, so the panel
+  opened straight off-screen to the left. It now anchors with
+  `inset-inline-end: 0`, exactly like the language menu, and a sweep
+  of the components found no other one-sided physical anchors (every
+  remaining left/right pair is a full-width stretch, safe in both
+  directions).
+
+## Slice 22.21.1 — The stage rail learns to mirror (2026-08-26, Angel's report)
+
+- In Arabic/Urdu the rail's end segments kept rounding their PHYSICAL
+  corners — "round the left" stayed the left even though RTL puts the
+  first segment on the RIGHT — so the white active fill poked square
+  past the pill's curve at both ends. The end segments now use logical
+  corner radii (border-start-start-radius & friends) and the hairline
+  separator moved to border-inline-end, so the curves follow the
+  reading direction with no per-direction branching at all.
+- The transport deck above it mirrors properly too: the tape fill,
+  stop dots, and playhead are positioned from inset-inline-start (with
+  translateX signs flipped in RTL, since transforms stay physical),
+  the fill gradient runs toward the inline end, and the prev/next
+  glyphs flip with scaleX(-1) — in Arabic the film now spools
+  right-to-left, matching the page.
+- New `useLanguageDir()` in src/i18n for the few components that
+  position things physically and must know the reading direction.
+
 ## Slice 22.21 — Kairo speaks ten languages (2026-08-26, Angel's request)
 
 - The last empty seat in the navbar is filled: a globe button opens a

@@ -1,5 +1,5 @@
 import type { Stage, StageItem } from '../domain/stages'
-import { useT } from '../i18n'
+import { useLanguageDir, useT } from '../i18n'
 
 /**
  * The transport deck (ADR-011, Filmstrip design): pipeline navigation as a
@@ -129,6 +129,11 @@ export function StagesNav({
   progressNote?: string | null
 }) {
   const t = useT()
+  // The deck is drawn with absolute offsets and directional glyphs, so
+  // an RTL language must mirror it by hand (22.21.1, Angel's report):
+  // the tape fills from the inline start, the dots and playhead measure
+  // from the same edge, and the transport arrows flip.
+  const rtl = useLanguageDir() === 'rtl'
   const activeIndex = stages.findIndex((s) => s.id === active)
   const prev = activeIndex > 0 ? stages[activeIndex - 1] : undefined
   const next =
@@ -174,7 +179,14 @@ export function StagesNav({
             flexShrink: 0,
           }}
         >
-          <PrevGlyph />
+          <span
+            style={{
+              display: 'inline-flex',
+              transform: rtl ? 'scaleX(-1)' : undefined,
+            }}
+          >
+            <PrevGlyph />
+          </span>
         </button>
 
         <div
@@ -198,12 +210,11 @@ export function StagesNav({
             <div
               style={{
                 position: 'absolute',
-                left: 0,
+                insetInlineStart: 0,
                 top: 0,
                 bottom: 0,
                 width: `${String(fillPct)}%`,
-                background:
-                  'linear-gradient(90deg, var(--color-accent-soft), var(--color-accent))',
+                background: `linear-gradient(${rtl ? '270deg' : '90deg'}, var(--color-accent-soft), var(--color-accent))`,
                 // The tape spools to the new stage instead of teleporting.
                 transition: 'width var(--t-slow) var(--ease-film)',
               }}
@@ -223,9 +234,21 @@ export function StagesNav({
               key={stage.id}
               style={{
                 position: 'absolute',
-                left: `${String((i / (stages.length - 1)) * 100)}%`,
+                insetInlineStart: `${String((i / (stages.length - 1)) * 100)}%`,
                 top: '50%',
-                transform: `translate(${i === 0 ? '0' : i === stages.length - 1 ? '-100%' : '-50%'}, -50%)`,
+                // translateX is physical, so RTL flips its sign: the
+                // inline-start edge is the RIGHT edge there.
+                transform: `translate(${
+                  i === 0
+                    ? '0'
+                    : i === stages.length - 1
+                      ? rtl
+                        ? '100%'
+                        : '-100%'
+                      : rtl
+                        ? '50%'
+                        : '-50%'
+                }, -50%)`,
                 width: '8px',
                 height: '8px',
                 borderRadius: 'var(--radius-pill)',
@@ -245,28 +268,30 @@ export function StagesNav({
           <div
             style={{
               position: 'absolute',
-              left: `${String(fillPct)}%`,
+              insetInlineStart: `${String(fillPct)}%`,
               top: '2px',
-              transform: 'translateX(-50%)',
+              transform: `translateX(${rtl ? '50%' : '-50%'})`,
               width: '3px',
               height: '40px',
               background: 'var(--color-cta-bg)',
               borderRadius: '2px',
               boxShadow: '0 0 14px var(--color-accent-soft)',
-              transition: 'left var(--t-slow) var(--ease-film)',
+              transition:
+                'left var(--t-slow) var(--ease-film), right var(--t-slow) var(--ease-film)',
             }}
           />
           <div
             style={{
               position: 'absolute',
-              left: `${String(fillPct)}%`,
+              insetInlineStart: `${String(fillPct)}%`,
               top: '-4px',
-              transform: 'translateX(-50%)',
+              transform: `translateX(${rtl ? '50%' : '-50%'})`,
               width: '15px',
               height: '11px',
               background: 'var(--color-cta-bg)',
               clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
-              transition: 'left var(--t-slow) var(--ease-film)',
+              transition:
+                'left var(--t-slow) var(--ease-film), right var(--t-slow) var(--ease-film)',
             }}
           />
         </div>
@@ -317,7 +342,14 @@ export function StagesNav({
               ),
             )}
           </span>
-          <NextGlyph />
+          <span
+            style={{
+              display: 'inline-flex',
+              transform: rtl ? 'scaleX(-1)' : undefined,
+            }}
+          >
+            <NextGlyph />
+          </span>
         </button>
       </div>
 
@@ -364,19 +396,23 @@ export function StagesNav({
                 gap: 'var(--space-2)',
                 fontSize: 'var(--text-sm)',
                 border: 'none',
-                borderRight: showSeparator
+                borderInlineEnd: showSeparator
                   ? '1px solid var(--color-border)'
                   : 'none',
                 // The end segments carry the rail's pill curve themselves
                 // (18.2): relying on the scroll container's rounded-corner
                 // clipping left a dark crescent where a square active fill
                 // poked into the curve. Middle segments stay square.
-                borderRadius:
-                  i === 0
-                    ? 'var(--radius-pill) 0 0 var(--radius-pill)'
-                    : i === stages.length - 1
-                      ? '0 var(--radius-pill) var(--radius-pill) 0'
-                      : 0,
+                // LOGICAL corners (22.21.1, Angel's report): the physical
+                // "round the left" shorthand kept rounding the left in
+                // RTL, where the first segment sits on the RIGHT — the
+                // white Export fill poked square past the pill's curve.
+                borderStartStartRadius: i === 0 ? 'var(--radius-pill)' : 0,
+                borderEndStartRadius: i === 0 ? 'var(--radius-pill)' : 0,
+                borderStartEndRadius:
+                  i === stages.length - 1 ? 'var(--radius-pill)' : 0,
+                borderEndEndRadius:
+                  i === stages.length - 1 ? 'var(--radius-pill)' : 0,
                 margin: 0,
                 cursor: stage.available ? 'pointer' : 'not-allowed',
                 fontWeight: isActive ? 700 : 500,

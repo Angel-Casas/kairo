@@ -84,6 +84,16 @@ export function useT() {
   )
 }
 
+/**
+ * The active language's reading direction — for the few components that
+ * position things physically (absolute offsets, hardcoded gradients) and
+ * must mirror themselves by hand when the page flips to RTL (22.21.1).
+ */
+export function useLanguageDir(): 'ltr' | 'rtl' {
+  const lang = useI18nStore((s) => s.lang)
+  return getLanguage(lang)?.dir ?? 'ltr'
+}
+
 /** Mirror the choice onto the document: lang for a11y, dir for RTL. */
 export function applyDocumentLanguage(lang: LanguageId): void {
   const language = getLanguage(lang)

@@ -118,7 +118,12 @@ export function PalettePicker() {
           style={{
             position: 'absolute',
             top: 'calc(100% + var(--space-2))',
-            right: 0,
+            // Logical, not physical (22.21.2, Angel's report): `right: 0`
+            // kept anchoring the panel's right edge in RTL too, where the
+            // nav icons sit at the LEFT of the screen — the palette list
+            // opened straight off-screen. inset-inline-end follows the
+            // reading direction, same as the language menu.
+            insetInlineEnd: 0,
             minWidth: '13rem',
             background: 'var(--color-bg)',
             border: '1px solid var(--color-border)',
