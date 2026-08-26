@@ -9,6 +9,7 @@ import {
   DESCRIBE_REFERENCE_OUTPUT_TOKEN_BUDGET,
   estimateChatCostUsd,
 } from '../lib/costEstimate'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import {
   getPerImagePriceUsd,
@@ -42,6 +43,7 @@ const KIND_LABELS: Record<ReferenceKind, string> = {
  * verbatim into the image prompts of the scenes that tick them.
  */
 export function ReferencesPanel() {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const project = useProjectStore((s) => s.project)
   const addReference = useProjectStore((s) => s.addReference)
@@ -106,7 +108,7 @@ export function ReferencesPanel() {
       }}
     >
       <h4 style={{ marginTop: 0, marginBottom: 'var(--space-1)' }}>
-        References
+        {t('References')}
       </h4>
       <p
         style={{
@@ -116,11 +118,9 @@ export function ReferencesPanel() {
           marginBottom: 'var(--space-3)',
         }}
       >
-        Define recurring characters, locations, or art styles once, then tick
-        them on the scenes that use them. The description is added word for word
-        to those scenes&apos; image prompts, so the same subject looks the same
-        across scenes. Describe everything that must stay identical (face, hair,
-        clothing, colors); a variant belongs in a separate reference.
+        {t(
+          "Define recurring characters, locations, or art styles once, then tick them on the scenes that use them. The description is added word for word to those scenes' image prompts, so the same subject looks the same across scenes. Describe everything that must stay identical (face, hair, clothing, colors); a variant belongs in a separate reference.",
+        )}
       </p>
 
       {project.references.length > 0 && (
@@ -171,7 +171,7 @@ export function ReferencesPanel() {
             type="button"
             onClick={() => void addReference(kind)}
           >
-            Add {KIND_LABELS[kind].toLowerCase()}
+            {t(`Add ${KIND_LABELS[kind].toLowerCase()}`)}
           </button>
         ))}
       </div>
@@ -202,6 +202,7 @@ function ReferenceCard({
   highlight: boolean
   onHighlightDone: () => void
 }) {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const updateReference = useProjectStore((s) => s.updateReference)
   const removeReference = useProjectStore((s) => s.removeReference)
@@ -316,7 +317,7 @@ function ReferenceCard({
               <button
                 type="button"
                 aria-label={`Remove imported image for ${displayName}`}
-                title="Remove this imported image"
+                title={t('Remove this imported image')}
                 disabled={generating}
                 onClick={() => {
                   setConfirmingRemoveImport(true)
@@ -411,7 +412,7 @@ function ReferenceCard({
               overflow: 'hidden',
             }}
           >
-            {generating ? 'Generating…' : 'No image'}
+            {generating ? t('Generating…') : t('No image')}
             {generating && <DevelopingVeil />}
           </div>
         )}
@@ -441,7 +442,7 @@ function ReferenceCard({
             padding: 'var(--space-1) var(--space-2)',
           }}
         >
-          Import image
+          {t('Import image')}
         </button>
       </div>
 
@@ -467,14 +468,14 @@ function ReferenceCard({
           >
             {(Object.keys(KIND_LABELS) as ReferenceKind[]).map((kind) => (
               <option key={kind} value={kind}>
-                {KIND_LABELS[kind]}
+                {t(KIND_LABELS[kind])}
               </option>
             ))}
           </select>
           <input
             type="text"
             value={reference.name}
-            placeholder="Name (e.g. Captain Mara)"
+            placeholder={t('Name (e.g. Captain Mara)')}
             aria-label={`Reference ${displayName} name`}
             onChange={(e) => {
               updateReference(reference.id, { name: e.target.value })
@@ -497,7 +498,7 @@ function ReferenceCard({
               setConfirmingDelete(true)
             }}
           >
-            Delete
+            {t('Delete')}
           </button>
         </div>
         <label style={{ display: 'block' }}>
@@ -508,7 +509,7 @@ function ReferenceCard({
               fontSize: 'var(--text-sm)',
             }}
           >
-            Description (added word for word to ticked scenes&apos; prompts)
+            {t("Description (added word for word to ticked scenes' prompts)")}
           </span>
           <textarea
             value={reference.descriptor}
@@ -516,7 +517,9 @@ function ReferenceCard({
               updateReference(reference.id, { descriptor: e.target.value })
             }}
             onBlur={() => void flushProject()}
-            placeholder="e.g. a tall woman in her 40s with cropped silver hair, a scar over her left eyebrow, a navy-blue captain's coat with brass buttons"
+            placeholder={t(
+              "e.g. a tall woman in her 40s with cropped silver hair, a scar over her left eyebrow, a navy-blue captain's coat with brass buttons",
+            )}
             aria-label={`Reference ${displayName} description`}
             rows={2}
             style={{
@@ -604,7 +607,7 @@ function ReferenceCard({
                       : 'var(--color-text-muted)',
                 }}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -642,11 +645,11 @@ function ReferenceCard({
             >
               {genMode === 'image'
                 ? generating
-                  ? 'Generating…'
-                  : 'Generate'
+                  ? t('Generating…')
+                  : t('Generate')
                 : describing
-                  ? 'Describing…'
-                  : 'Generate'}
+                  ? t('Describing…')
+                  : t('Generate')}
             </button>
             <div style={{ flex: 1, minWidth: '16rem' }}>
               {genMode === 'image' ? (
@@ -684,7 +687,7 @@ function ReferenceCard({
                       marginRight: 'var(--space-2)',
                     }}
                   >
-                    Resolution
+                    {t('Resolution')}
                   </span>
                   <select
                     aria-label={`Reference ${displayName} resolution`}
@@ -712,17 +715,30 @@ function ReferenceCard({
             >
               {genMode === 'image'
                 ? model === null
-                  ? 'Pick a model to generate the image from the description; importing is free.'
+                  ? t(
+                      'Pick a model to generate the image from the description; importing is free.',
+                    )
                   : perImageUsd === null
-                    ? 'Cost unknown for this model; importing is free.'
-                    : `Cost: ${formatUsd(perImageUsd)}; importing is free.`
+                    ? t('Cost unknown for this model; importing is free.')
+                    : t('Cost: {usd}; importing is free.', {
+                        usd: formatUsd(perImageUsd),
+                      })
                 : activeVersion === null
-                  ? 'Import an image first — the description is written from it.'
+                  ? t(
+                      'Import an image first — the description is written from it.',
+                    )
                   : describeModel === null
-                    ? 'A text model that can read images writes the description for you — pick one to see the cost. The image is sent only to NanoGPT.'
+                    ? t(
+                        'A text model that can read images writes the description for you — pick one to see the cost. The image is sent only to NanoGPT.',
+                      )
                     : describeUsd === null
-                      ? 'The model reads this image and writes the description; cost unknown for this model.'
-                      : `The model reads this image and writes the description — up to ~${formatUsd(describeUsd)} plus the image input.`}
+                      ? t(
+                          'The model reads this image and writes the description; cost unknown for this model.',
+                        )
+                      : t(
+                          'The model reads this image and writes the description — up to ~{usd} plus the image input.',
+                          { usd: formatUsd(describeUsd) },
+                        )}
             </span>
           </div>
           {/* The developing strip while the model works (22.9.2) — the
@@ -731,11 +747,17 @@ function ReferenceCard({
               phrasing: aria labels match by substring, and the strip
               must never shadow the textarea. */}
           {generating && (
-            <FilmProgress label={`Generating the image for ${displayName}`} />
+            <FilmProgress
+              label={t('Generating the image for {name}', {
+                name: displayName,
+              })}
+            />
           )}
           {describing && (
             <FilmProgress
-              label={`Writing the description for ${displayName}`}
+              label={t('Writing the description for {name}', {
+                name: displayName,
+              })}
             />
           )}
         </div>
@@ -760,7 +782,7 @@ function ReferenceCard({
                 marginBottom: 'var(--space-1)',
               }}
             >
-              Versions (click to make active)
+              {t('Versions (click to make active)')}
             </span>
             <div
               style={{
@@ -804,23 +826,29 @@ function ReferenceCard({
           regenerateDisabled={model === null || generating}
           regenerateDisabledHint={
             model === null
-              ? 'Pick the image model in this panel first.'
-              : 'Another generation is running.'
+              ? t('Pick the image model in this panel first.')
+              : t('Another generation is running.')
           }
           regenerateCostUsd={perImageUsd}
-          editorHint="This exact text will be sent as the prompt — style and references are not re-added."
+          editorHint={t(
+            'This exact text will be sent as the prompt — style and references are not re-added.',
+          )}
         />
       </div>
 
       {confirmingRemoveImport && activeVersion !== null && (
         <ConfirmDialog
-          title="Remove this imported image?"
+          title={t('Remove this imported image?')}
           message={
             reference.imageVersions.length > 1
-              ? 'The previous version becomes the active image again. The import was free — you can import it again any time.'
-              : 'The reference returns to having no image. The import was free — you can import it again any time.'
+              ? t(
+                  'The previous version becomes the active image again. The import was free — you can import it again any time.',
+                )
+              : t(
+                  'The reference returns to having no image. The import was free — you can import it again any time.',
+                )
           }
-          confirmLabel="Remove image"
+          confirmLabel={t('Remove image')}
           onConfirm={() => {
             setConfirmingRemoveImport(false)
             void removeFreeReferenceImageVersion(reference.id, activeVersion.id)
@@ -833,9 +861,11 @@ function ReferenceCard({
 
       {confirmingDescribe && (
         <ConfirmDialog
-          title="Replace the description?"
-          message="The vision model writes a new description from the reference image, replacing the current one. Scenes that tick this reference will use the new text."
-          confirmLabel="Replace description"
+          title={t('Replace the description?')}
+          message={t(
+            'The vision model writes a new description from the reference image, replacing the current one. Scenes that tick this reference will use the new text.',
+          )}
+          confirmLabel={t('Replace description')}
           onConfirm={() => {
             setConfirmingDescribe(false)
             runDescribe()
@@ -848,9 +878,11 @@ function ReferenceCard({
 
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete ${displayName}?`}
-          message="The reference will be removed from every scene that uses it. Any reference images it holds will no longer be used for generation."
-          confirmLabel="Delete reference"
+          title={t('Delete {name}?', { name: displayName })}
+          message={t(
+            'The reference will be removed from every scene that uses it. Any reference images it holds will no longer be used for generation.',
+          )}
+          confirmLabel={t('Delete reference')}
           onConfirm={() => {
             setConfirmingDelete(false)
             void removeReference(reference.id)

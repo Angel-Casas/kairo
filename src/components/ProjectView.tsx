@@ -9,6 +9,7 @@ import { ScenesStage } from './ScenesStage'
 import { ScriptStage } from './ScriptStage'
 import { buildStages, type Stage } from '../domain/stages'
 import type { Project, ProjectFormat } from '../domain/types'
+import { useT } from '../i18n'
 import { StagesNav } from './StagesNav'
 import { VIDEO_FORMATS } from '../domain/formats'
 
@@ -57,6 +58,7 @@ export function ProjectView({
   projectId: string
   onBack: () => void
 }) {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const status = useProjectStore((s) => s.projectStatus)
   const loadProject = useProjectStore((s) => s.loadProject)
@@ -96,16 +98,20 @@ export function ProjectView({
   }, [project, stage, setStage])
 
   if (status !== 'ready') {
-    return <p style={{ color: 'var(--color-text-muted)' }}>Loading project…</p>
+    return (
+      <p style={{ color: 'var(--color-text-muted)' }}>
+        {t('Loading project…')}
+      </p>
+    )
   }
   if (project === null) {
     return (
       <section>
         <p role="alert" style={{ color: 'var(--color-danger)' }}>
-          This project could not be found.
+          {t('This project could not be found.')}
         </p>
         <button type="button" onClick={onBack}>
-          ← All projects
+          {t('← All projects')}
         </button>
       </section>
     )
@@ -127,7 +133,7 @@ export function ProjectView({
             void flushProject().then(onBack)
           }}
         >
-          ← All projects
+          {t('← All projects')}
         </button>
         <h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>
           {project.title}
@@ -142,11 +148,13 @@ export function ProjectView({
             void setFormat(e.target.value as ProjectFormat)
           }}
           style={{ marginLeft: 'auto' }}
-          title="New generations use this format — already-generated takes keep their shape"
+          title={t(
+            'New generations use this format — already-generated takes keep their shape',
+          )}
         >
           {VIDEO_FORMATS.map((f) => (
             <option key={f.id} value={f.id}>
-              {f.name} {f.ratioLabel}
+              {t(f.name)} {f.ratioLabel}
             </option>
           ))}
         </select>

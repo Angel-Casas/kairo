@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useT } from '../i18n'
 
 /**
  * The reel shell (ADR-011): the glass panel that frames a horizontal strip
@@ -37,6 +38,7 @@ export function ReelShell({
   frameHeight?: string
   children: ReactNode
 }) {
+  const t = useT()
   return (
     <div
       className="card"
@@ -61,7 +63,7 @@ export function ReelShell({
             color: 'var(--color-text-muted)',
           }}
         >
-          The reel
+          {t('The reel')}
         </span>
         <span
           style={{

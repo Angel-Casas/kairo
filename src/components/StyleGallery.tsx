@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useT } from '../i18n'
 import { STYLE_PRESETS } from '../domain/stylePresets'
 import { useProjectStore } from '../state/project'
 import { StyleFromImage } from './StyleFromImage'
@@ -9,6 +10,7 @@ import { StyleFromImage } from './StyleFromImage'
  * missing (e.g. before scripts/generate-style-thumbnails.mjs has been run).
  */
 export function StyleGallery() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const setStylePreset = useProjectStore((s) => s.setStylePreset)
   const updateStyleNotes = useProjectStore((s) => s.updateStyleNotes)
@@ -30,20 +32,22 @@ export function StyleGallery() {
       {/* The collapsed bar still tells the whole story: which preset is on,
           and whether Scenes-stage style notes are riding along. */}
       <summary style={{ cursor: 'pointer' }}>
-        <strong style={{ fontSize: 'var(--text-base)' }}>Artistic style</strong>{' '}
+        <strong style={{ fontSize: 'var(--text-base)' }}>
+          {t('Artistic style')}
+        </strong>{' '}
         <span
           style={{
             color: 'var(--color-text-muted)',
             fontSize: 'var(--text-sm)',
           }}
         >
-          — {selectedPreset !== null ? selectedPreset.name : 'no preset'}
+          — {selectedPreset !== null ? selectedPreset.name : t('no preset')}
           {styleNotes.length > 0 && (
             <>
               {' '}
               ·{' '}
               <span style={{ color: 'var(--color-accent)' }}>
-                style notes ✓
+                {t('style notes')} ✓
               </span>
             </>
           )}
@@ -56,8 +60,9 @@ export function StyleGallery() {
           margin: 'var(--space-3) 0 var(--space-2)',
         }}
       >
-        Applied to every scene image; the preset and the style notes below
-        travel together into each prompt.
+        {t(
+          'Applied to every scene image; the preset and the style notes below travel together into each prompt.',
+        )}
       </p>
       <div
         role="radiogroup"
@@ -70,7 +75,7 @@ export function StyleGallery() {
       >
         <StyleCard
           key="none"
-          name="No preset"
+          name={t('No preset')}
           thumbnail={null}
           selected={selectedId === null}
           onSelect={() => void setStylePreset(null)}
@@ -93,14 +98,14 @@ export function StyleGallery() {
         }}
       >
         <p style={{ margin: '0 0 var(--space-2)' }}>
-          <strong>Style notes</strong>{' '}
+          <strong>{t('Style notes')}</strong>{' '}
           <span
             style={{
               color: 'var(--color-text-muted)',
               fontSize: 'var(--text-sm)',
             }}
           >
-            — added word for word to every image prompt
+            — {t('added word for word to every image prompt')}
           </span>
         </p>
         <textarea
@@ -109,7 +114,7 @@ export function StyleGallery() {
             updateStyleNotes(e.target.value)
           }}
           onBlur={() => void flushProject()}
-          placeholder="e.g. watercolor, warm tones, 1800s naval setting"
+          placeholder={t('e.g. watercolor, warm tones, 1800s naval setting')}
           aria-label="Visual style notes"
           rows={2}
           style={{

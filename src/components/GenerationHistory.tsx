@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AssetVersion } from '../domain/types'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 
 /**
@@ -36,6 +37,7 @@ export function GenerationHistory({
   /** Explainer above the editor; defaults to the generic verbatim note. */
   editorHint?: string
 }) {
+  const t = useT()
   const [copiedVersionId, setCopiedVersionId] = useState<string | null>(null)
   const [tweakVersionId, setTweakVersionId] = useState<string | null>(null)
   const [tweakText, setTweakText] = useState('')
@@ -71,7 +73,7 @@ export function GenerationHistory({
           color: 'var(--color-text)',
         }}
       >
-        History ({versions.length})
+        {t('History')} ({versions.length})
       </summary>
       <ol
         style={{
@@ -100,19 +102,23 @@ export function GenerationHistory({
                 fontSize: 'var(--text-sm)',
               }}
             >
-              <strong>Version {number}</strong>
+              <strong>{t('Version {n}', { n: number })}</strong>
               {version.id === activeVersionId && (
-                <span style={{ color: 'var(--color-accent)' }}>active</span>
+                <span style={{ color: 'var(--color-accent)' }}>
+                  {t('active')}
+                </span>
               )}
               <span style={{ color: 'var(--color-text-muted)' }}>
-                {version.model === 'imported' ? 'imported file' : version.model}
+                {version.model === 'imported'
+                  ? t('imported file')
+                  : version.model}
               </span>
               <span style={{ color: 'var(--color-text-muted)' }}>
                 {version.model === 'imported'
-                  ? 'free'
+                  ? t('free')
                   : version.costUsd !== null
                     ? formatUsd(version.costUsd)
-                    : 'cost unknown'}
+                    : t('cost unknown')}
               </span>
               <span style={{ color: 'var(--color-text-muted)' }}>
                 {new Date(version.createdAt).toLocaleString()}
@@ -127,7 +133,7 @@ export function GenerationHistory({
                   margin: 'var(--space-1) 0 0',
                 }}
               >
-                No prompt was stored for this version.
+                {t('No prompt was stored for this version.')}
               </p>
             ) : (
               <>
@@ -159,7 +165,9 @@ export function GenerationHistory({
                     aria-label={`Copy ${label} version ${String(number)} prompt`}
                     onClick={() => void copyPrompt(version)}
                   >
-                    {copiedVersionId === version.id ? 'Copied' : 'Copy prompt'}
+                    {copiedVersionId === version.id
+                      ? t('Copied')
+                      : t('Copy prompt')}
                   </button>
                   {onRegenerate !== undefined &&
                     tweakVersionId !== version.id && (
@@ -171,7 +179,7 @@ export function GenerationHistory({
                           setTweakText(version.prompt)
                         }}
                       >
-                        Edit &amp; regenerate
+                        {t('Edit & regenerate')}
                       </button>
                     )}
                 </div>
@@ -225,7 +233,7 @@ export function GenerationHistory({
                             setTweakVersionId(null)
                           }}
                         >
-                          Generate with this prompt
+                          {t('Generate with this prompt')}
                         </button>
                         <button
                           type="button"
@@ -233,7 +241,7 @@ export function GenerationHistory({
                             setTweakVersionId(null)
                           }}
                         >
-                          Cancel
+                          {t('Cancel')}
                         </button>
                         <span
                           style={{
@@ -243,11 +251,13 @@ export function GenerationHistory({
                         >
                           {regenerateDisabled
                             ? (regenerateDisabledHint ??
-                              'Generation is unavailable right now.')
+                              t('Generation is unavailable right now.'))
                             : (regenerateCostText ??
                               (regenerateCostUsd !== null
-                                ? `Cost: ${formatUsd(regenerateCostUsd)}`
-                                : 'Cost unknown for this model.'))}
+                                ? t('Cost: {usd}', {
+                                    usd: formatUsd(regenerateCostUsd),
+                                  })
+                                : t('Cost unknown for this model.')))}
                         </span>
                       </div>
                     </div>

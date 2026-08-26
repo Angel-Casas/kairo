@@ -9,6 +9,7 @@ import {
   estimateChatCostUsd,
   SCENES_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
@@ -21,6 +22,7 @@ import { ReferencesPanel } from './ReferencesPanel'
 import { referenceDisplayName } from './referenceDisplay'
 
 export function ScenesStage() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const addScene = useProjectStore((s) => s.addScene)
   const generateScenes = useProjectStore((s) => s.generateScenes)
@@ -55,14 +57,17 @@ export function ScenesStage() {
 
   return (
     <section>
-      <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Scenes</h3>
+      <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>
+        {t('Scenes')}
+      </h3>
 
       <ReferencesPanel />
 
       {scenes.length === 0 ? (
         <p style={{ color: 'var(--color-text-muted)' }}>
-          No scenes yet. Generate a breakdown below or add scenes manually. Aim
-          for 5–10 scenes for a short.
+          {t(
+            'No scenes yet. Generate a breakdown below or add scenes manually. Aim for 5–10 scenes for a short.',
+          )}
         </p>
       ) : (
         <ol
@@ -87,7 +92,7 @@ export function ScenesStage() {
         </ol>
       )}
       <button type="button" onClick={() => void addScene()}>
-        Add scene
+        {t('Add scene')}
       </button>
 
       <div
@@ -101,7 +106,7 @@ export function ScenesStage() {
         }}
       >
         {genStatus === 'generating' && <DevelopingVeil />}
-        <h4 style={{ marginTop: 0 }}>Break into scenes with AI</h4>
+        <h4 style={{ marginTop: 0 }}>{t('Break into scenes with AI')}</h4>
         <div
           style={{
             display: 'flex',
@@ -129,21 +134,25 @@ export function ScenesStage() {
                 }
               }}
             >
-              {genStatus === 'generating' ? 'Generating…' : 'Generate scenes'}
+              {genStatus === 'generating'
+                ? t('Generating…')
+                : t('Generate scenes')}
             </button>
             <span
               aria-label="Estimated cost"
               style={{ color: 'var(--color-text-muted)' }}
             >
               {model === null
-                ? 'Pick a model to see the estimated cost.'
+                ? t('Pick a model to see the estimated cost.')
                 : estimatedUsd === null
-                  ? 'Cost unknown for this model.'
-                  : `Estimated cost: up to ~${formatUsd(estimatedUsd)}`}
+                  ? t('Cost unknown for this model.')
+                  : t('Estimated cost: up to ~{usd}', {
+                      usd: formatUsd(estimatedUsd),
+                    })}
             </span>
           </div>
           {genStatus === 'generating' && (
-            <FilmProgress label="Scene breakdown generating" />
+            <FilmProgress label={t('Scene breakdown generating')} />
           )}
           {genStatus === 'error' && genError !== null && (
             <p role="alert" style={{ color: 'var(--color-danger)' }}>
@@ -155,9 +164,11 @@ export function ScenesStage() {
 
       {confirmingReplace && (
         <ConfirmDialog
-          title="Replace the current scenes?"
-          message="Generating a new breakdown will replace all existing scenes and their descriptions. This cannot be undone."
-          confirmLabel="Replace and generate"
+          title={t('Replace the current scenes?')}
+          message={t(
+            'Generating a new breakdown will replace all existing scenes and their descriptions. This cannot be undone.',
+          )}
+          confirmLabel={t('Replace and generate')}
           onConfirm={() => {
             setConfirmingReplace(false)
             runGeneration()
@@ -186,6 +197,7 @@ function SceneCard({
   const moveScene = useProjectStore((s) => s.moveScene)
   const references = useProjectStore((s) => s.project?.references ?? [])
   const toggleSceneReference = useProjectStore((s) => s.toggleSceneReference)
+  const t = useT()
 
   return (
     <li
@@ -203,7 +215,7 @@ function SceneCard({
           marginBottom: 'var(--space-2)',
         }}
       >
-        <strong>Scene {index + 1}</strong>
+        <strong>{t('Scene {n}', { n: index + 1 })}</strong>
         <span style={{ flex: 1 }} />
         <button
           type="button"
@@ -226,7 +238,7 @@ function SceneCard({
           aria-label={`Delete scene ${String(index + 1)}`}
           onClick={() => void removeScene(scene.id)}
         >
-          Delete
+          {t('Delete')}
         </button>
       </div>
       <label style={{ display: 'block', marginBottom: 'var(--space-2)' }}>
@@ -237,7 +249,7 @@ function SceneCard({
             fontSize: 'var(--text-sm)',
           }}
         >
-          Script excerpt
+          {t('Script excerpt')}
         </span>
         <textarea
           value={scene.textExcerpt}
@@ -266,7 +278,7 @@ function SceneCard({
             fontSize: 'var(--text-sm)',
           }}
         >
-          Visual description (image prompt basis)
+          {t('Visual description (image prompt basis)')}
         </span>
         <textarea
           value={scene.visualDescription}
@@ -303,7 +315,7 @@ function SceneCard({
               marginBottom: 'var(--space-1)',
             }}
           >
-            References used in this scene
+            {t('References used in this scene')}
           </legend>
           <div
             style={{

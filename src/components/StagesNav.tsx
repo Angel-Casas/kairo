@@ -1,4 +1,5 @@
 import type { Stage, StageItem } from '../domain/stages'
+import { useT } from '../i18n'
 
 /**
  * The transport deck (ADR-011, Filmstrip design): pipeline navigation as a
@@ -127,6 +128,7 @@ export function StagesNav({
   /** Short status for the current stage shown in its segment, e.g. "4/6". */
   progressNote?: string | null
 }) {
+  const t = useT()
   const activeIndex = stages.findIndex((s) => s.id === active)
   const prev = activeIndex > 0 ? stages[activeIndex - 1] : undefined
   const next =
@@ -135,7 +137,7 @@ export function StagesNav({
 
   return (
     <nav
-      aria-label="Pipeline stages"
+      aria-label={t('Pipeline stages')}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -155,8 +157,8 @@ export function StagesNav({
           type="button"
           aria-label={
             prev !== undefined
-              ? `Previous stage: ${prev.label}`
-              : 'No earlier stage'
+              ? t('Previous stage: {label}', { label: t(prev.label) })
+              : t('No earlier stage')
           }
           disabled={prev === undefined || !prev.available}
           onClick={() => {
@@ -273,9 +275,11 @@ export function StagesNav({
           type="button"
           className="primary"
           aria-label={
-            next !== undefined ? `Next stage: ${next.label}` : 'Final stage'
+            next !== undefined
+              ? t('Next stage: {label}', { label: t(next.label) })
+              : t('Final stage')
           }
-          title={next?.hint ?? undefined}
+          title={next?.hint != null ? t(next.hint) : undefined}
           disabled={next === undefined || !next.available}
           onClick={() => {
             if (next !== undefined) onSelect(next.id)
@@ -308,7 +312,7 @@ export function StagesNav({
                         : 'hidden',
                   }}
                 >
-                  {label}
+                  {t(label)}
                 </span>
               ),
             )}
@@ -347,7 +351,7 @@ export function StagesNav({
               className="rail-segment"
               disabled={!stage.available}
               aria-current={isActive ? 'step' : undefined}
-              title={stage.hint ?? undefined}
+              title={stage.hint != null ? t(stage.hint) : undefined}
               onClick={() => {
                 onSelect(stage.id)
               }}
@@ -406,7 +410,7 @@ export function StagesNav({
                 ) : stage.available ? null : (
                   <LockIcon />
                 )}
-                {stage.label}
+                {t(stage.label)}
                 {isActive && progressNote != null && (
                   <span
                     aria-hidden="true"

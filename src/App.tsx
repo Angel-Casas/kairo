@@ -3,6 +3,7 @@ import { ApiKeySettings } from './components/ApiKeySettings'
 import { AppBackground } from './components/AppBackground'
 import { FeedbackOverlay } from './components/FeedbackOverlay'
 import { KairoMark } from './components/KairoMark'
+import { LanguageMenu } from './components/LanguageMenu'
 import { MotionSettings } from './components/MotionSettings'
 import { PalettePicker } from './components/PalettePicker'
 import { ProjectList } from './components/ProjectList'
@@ -10,6 +11,7 @@ import { ProjectView } from './components/ProjectView'
 import { SpendMenu } from './components/SpendMenu'
 import { useOnlineStatus } from './components/useOnlineStatus'
 import { applyTheme, getTheme } from './domain/themes'
+import { applyDocumentLanguage, useI18nStore, useT } from './i18n'
 import { formatUsd } from './lib/format'
 import { useAppStore } from './state/store'
 import { activeThemeId, useSettingsStore } from './state/settings'
@@ -31,6 +33,14 @@ function App() {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const online = useOnlineStatus()
+  const lang = useI18nStore((s) => s.lang)
+  const t = useT()
+
+  // The language rides the document root: `lang` for assistive tech,
+  // `dir` so Arabic and Urdu read right to left (22.21).
+  useEffect(() => {
+    applyDocumentLanguage(lang)
+  }, [lang])
 
   useEffect(() => {
     void init()
@@ -120,7 +130,7 @@ function App() {
               aria-label="NanoGPT balance"
               style={{ color: 'var(--color-text-muted)' }}
             >
-              Balance:{' '}
+              {t('Balance:')}{' '}
               <strong style={{ color: 'var(--color-text)' }}>
                 {/* Keyed: a refreshed balance ticks in like a counter. */}
                 <span key={balanceUsd} className="tick-in">
@@ -153,7 +163,9 @@ function App() {
                 padding: 'var(--space-1) var(--space-2)',
               }}
             >
-              Offline — generation needs a connection; your work is safe here.
+              {t(
+                'Offline — generation needs a connection; your work is safe here.',
+              )}
             </span>
           )}
           {/* The suggestion box (Slice 19): bugs and ideas go to GitHub
@@ -161,8 +173,8 @@ function App() {
           <button
             type="button"
             className="nav-icon"
-            aria-label={feedbackOpen ? 'Close feedback' : 'Send feedback'}
-            title="Found a bug, or wishing for something?"
+            aria-label={feedbackOpen ? t('Close feedback') : t('Send feedback')}
+            title={t('Found a bug, or wishing for something?')}
             onClick={() => {
               setFeedbackOpen(!feedbackOpen)
               setSettingsOpen(false)
@@ -246,11 +258,12 @@ function App() {
               </span>
             </span>
           </button>
+          <LanguageMenu />
           <PalettePicker />
           <button
             type="button"
             className="nav-icon"
-            aria-label={settingsOpen ? 'Close settings' : 'Settings'}
+            aria-label={settingsOpen ? t('Close settings') : t('Settings')}
             onClick={() => {
               setSettingsOpen(!settingsOpen)
               setFeedbackOpen(false)
@@ -345,7 +358,7 @@ function App() {
       </header>
       <main>
         {!loaded ? (
-          <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
+          <p style={{ color: 'var(--color-text-muted)' }}>{t('Loading…')}</p>
         ) : selectedProject !== undefined ? (
           <ProjectView
             projectId={selectedProject.id}
@@ -364,15 +377,16 @@ function App() {
                   color: 'var(--color-text-muted)',
                 }}
               >
-                Kairo needs your NanoGPT API key before it can generate
-                anything.{' '}
+                {t(
+                  'Kairo needs your NanoGPT API key before it can generate anything.',
+                )}{' '}
                 <button
                   type="button"
                   onClick={() => {
                     setSettingsOpen(true)
                   }}
                 >
-                  Set up your key
+                  {t('Set up your key')}
                 </button>
               </p>
             )}
@@ -394,7 +408,7 @@ function App() {
           ref={overlayRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Settings"
+          aria-label={t('Settings')}
           tabIndex={-1}
           className="settings-overlay"
         >

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import { useProjectStore } from '../state/project'
 import { useSettingsStore } from '../state/settings'
@@ -46,6 +47,7 @@ const SPEND_COLORS: Record<'dark' | 'light', Record<GenerationKind, string>> = {
  * screen spent on it.
  */
 export function SpendMenu() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const themeMode = useSettingsStore((s) => s.themeMode)
   const [open, setOpen] = useState(false)
@@ -120,7 +122,7 @@ export function SpendMenu() {
             background: colors[kind],
           }}
         />
-        {KIND_LABELS[kind]}
+        {t(KIND_LABELS[kind])}
       </span>
       <span>
         {formatUsd(agg.usd)} · {agg.count}
@@ -162,7 +164,7 @@ export function SpendMenu() {
         }}
       >
         <span>
-          Spent{' '}
+          {t('Spent')}{' '}
           <strong style={{ color: 'var(--color-text)' }}>
             {/* Keyed by value: each change re-runs the counter-wheel tick. */}
             <span key={totalUsd} className="tick-in">
@@ -211,7 +213,7 @@ export function SpendMenu() {
         >
           {entries.length === 0 ? (
             <span style={{ color: 'var(--color-text-muted)' }}>
-              Nothing spent yet in this project.
+              {t('Nothing spent yet in this project.')}
             </span>
           ) : (
             <>
@@ -225,7 +227,7 @@ export function SpendMenu() {
                   marginBottom: 'var(--space-1)',
                 }}
               >
-                <strong>Total</strong>
+                <strong>{t('Total')}</strong>
                 <strong>
                   {approx}
                   {formatUsd(totalUsd)} · {entries.length}
@@ -238,7 +240,7 @@ export function SpendMenu() {
                   marginTop: 'var(--space-2)',
                 }}
               >
-                Click for the full breakdown.
+                {t('Click for the full breakdown.')}
               </div>
             </>
           )}
@@ -312,7 +314,7 @@ export function SpendMenu() {
                       color: 'var(--color-text-muted)',
                     }}
                   >
-                    Production ledger
+                    {t('Production ledger')}
                   </div>
                   <div
                     style={{
@@ -326,7 +328,7 @@ export function SpendMenu() {
                         counter wheel. Keep the literal "Spent $X" text —
                         the e2e contract greps for it. */}
                     <span key={totalUsd} className="tick-in">
-                      Spent {approx}
+                      {t('Spent')} {approx}
                       {formatUsd(totalUsd)}
                     </span>
                   </div>
@@ -338,10 +340,10 @@ export function SpendMenu() {
                     }}
                   >
                     {entries.length}{' '}
-                    {entries.length === 1 ? 'generation' : 'generations'}
+                    {entries.length === 1 ? t('generation') : t('generations')}
                     {allActual
-                      ? ' · every cost is the reported actual'
-                      : ' · ~ marks an estimate until the actual lands'}
+                      ? ` · ${t('every cost is the reported actual')}`
+                      : ` · ${t('~ marks an estimate until the actual lands')}`}
                   </div>
                 </div>
                 <button
@@ -356,7 +358,7 @@ export function SpendMenu() {
                     padding: 'var(--space-1) var(--space-3)',
                   }}
                 >
-                  Close
+                  {t('Close')}
                 </button>
               </div>
 
@@ -367,7 +369,7 @@ export function SpendMenu() {
                     margin: 'var(--space-3) 0 0',
                   }}
                 >
-                  Nothing spent yet in this project.
+                  {t('Nothing spent yet in this project.')}
                 </p>
               ) : (
                 <>
@@ -479,7 +481,7 @@ export function SpendMenu() {
                                 background: colors[kind],
                               }}
                             />
-                            {KIND_LABELS[kind]}
+                            {t(KIND_LABELS[kind])}
                           </span>
                           <span
                             style={{
@@ -557,14 +559,15 @@ export function SpendMenu() {
                               fontSize: '12px',
                             }}
                           >
-                            {new Date(entry.at).toLocaleString()} — estimated{' '}
+                            {new Date(entry.at).toLocaleString()} —{' '}
+                            {t('estimated')}{' '}
                             {entry.estimatedUsd !== null
-                              ? `up to ~${formatUsd(entry.estimatedUsd)}`
-                              : 'unknown'}
-                            , actual{' '}
+                              ? `${t('up to')} ~${formatUsd(entry.estimatedUsd)}`
+                              : t('unknown')}
+                            , {t('actual')}{' '}
                             {entry.actualUsd !== null
                               ? formatUsd(entry.actualUsd)
-                              : 'not reported'}
+                              : t('not reported')}
                           </span>
                         </span>
                         <span
@@ -590,8 +593,9 @@ export function SpendMenu() {
                       fontSize: '12px',
                     }}
                   >
-                    Booked the moment a job is submitted — nothing is spent
-                    without a stated price first.
+                    {t(
+                      'Booked the moment a job is submitted — nothing is spent without a stated price first.',
+                    )}
                   </p>
                 </>
               )}

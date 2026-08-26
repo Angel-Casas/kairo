@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useT } from '../i18n'
 import {
   buildIssueUrl,
   FEEDBACK_KINDS,
@@ -15,6 +16,7 @@ import {
  * submit, on GitHub, before submitting it.
  */
 export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const [kind, setKind] = useState<FeedbackKind>('bug')
   const [summary, setSummary] = useState('')
   const [details, setDetails] = useState('')
@@ -78,9 +80,11 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
                 fontWeight: 700,
               }}
             >
-              From the audience
+              {t('From the audience')}
             </div>
-            <h3 style={{ margin: 'var(--space-1) 0 0' }}>Make Kairo better</h3>
+            <h3 style={{ margin: 'var(--space-1) 0 0' }}>
+              {t('Make Kairo better')}
+            </h3>
             <p
               style={{
                 margin: 'var(--space-2) 0 0',
@@ -88,15 +92,15 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
                 fontSize: 'var(--text-sm)',
               }}
             >
-              Found a bug, or wishing for something? Write it up here and it
-              opens as a prefilled GitHub issue — you see exactly what gets
-              posted before you post it.
+              {t(
+                'Found a bug, or wishing for something? Write it up here and it opens as a prefilled GitHub issue — you see exactly what gets posted before you post it.',
+              )}
             </p>
           </div>
 
           <div>
             <label style={fieldLabel} htmlFor="feedback-kind">
-              What kind of note is this?
+              {t('What kind of note is this?')}
             </label>
             <select
               id="feedback-kind"
@@ -108,7 +112,7 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
             >
               {FEEDBACK_KINDS.map((k) => (
                 <option key={k.id} value={k.id}>
-                  {k.label}
+                  {t(k.label)}
                 </option>
               ))}
             </select>
@@ -116,7 +120,7 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
 
           <div>
             <label style={fieldLabel} htmlFor="feedback-summary">
-              One line that says it all
+              {t('One line that says it all')}
             </label>
             <input
               id="feedback-summary"
@@ -124,8 +128,8 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
               value={summary}
               placeholder={
                 kind === 'bug'
-                  ? 'e.g. The export button stays disabled after…'
-                  : 'e.g. It would be great if scenes could…'
+                  ? t('e.g. The export button stays disabled after…')
+                  : t('e.g. It would be great if scenes could…')
               }
               onChange={(e) => {
                 setSummary(e.target.value)
@@ -136,14 +140,16 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
 
           <div>
             <label style={fieldLabel} htmlFor="feedback-details">
-              The full story (optional)
+              {t('The full story (optional)')}
             </label>
             <textarea
               id="feedback-details"
               aria-label="Feedback details"
               value={details}
               rows={5}
-              placeholder="What happened, what you expected, steps to reproduce — or the idea in as much detail as you like."
+              placeholder={t(
+                'What happened, what you expected, steps to reproduce — or the idea in as much detail as you like.',
+              )}
               onChange={(e) => {
                 setDetails(e.target.value)
               }}
@@ -178,15 +184,15 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
                   fontWeight: 600,
                 }}
               >
-                Open on GitHub ↗
+                {t('Open on GitHub ↗')}
               </a>
             ) : (
               <button type="button" className="primary" disabled>
-                Open on GitHub ↗
+                {t('Open on GitHub ↗')}
               </button>
             )}
             <button type="button" onClick={onClose}>
-              Never mind
+              {t('Never mind')}
             </button>
             <a
               href={`${GITHUB_REPO_URL}/issues`}
@@ -198,7 +204,7 @@ export function FeedbackOverlay({ onClose }: { onClose: () => void }) {
                 color: 'var(--color-text-muted)',
               }}
             >
-              browse existing issues
+              {t('browse existing issues')}
             </a>
           </div>
         </div>

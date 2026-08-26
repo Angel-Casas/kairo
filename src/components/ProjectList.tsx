@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { getFormatSpec, VIDEO_FORMATS } from '../domain/formats'
 import type { Project, ProjectFormat } from '../domain/types'
+import { useT } from '../i18n'
 import { useAppStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { KairoMark } from './KairoMark'
@@ -60,6 +61,7 @@ export function ProjectList() {
   const [title, setTitle] = useState('')
   const [format, setFormat] = useState<ProjectFormat>('vertical')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const t = useT()
 
   return (
     <section>
@@ -81,7 +83,7 @@ export function ProjectList() {
           }}
         >
           <h2 style={{ margin: 0, fontSize: 'var(--text-xl)' }}>
-            Your productions
+            {t('Your productions')}
           </h2>
           <span
             style={{
@@ -89,7 +91,7 @@ export function ProjectList() {
               fontSize: 'var(--text-sm)',
             }}
           >
-            posters on the wall — newest first
+            {t('posters on the wall — newest first')}
           </span>
         </div>
         <form
@@ -103,7 +105,7 @@ export function ProjectList() {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="New project title"
+            placeholder={t('New project title')}
             aria-label="New project title"
           />
           <select
@@ -113,7 +115,7 @@ export function ProjectList() {
           >
             {VIDEO_FORMATS.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.name} {f.ratioLabel} — {f.hint}
+                {t(f.name)} {f.ratioLabel} — {t(f.hint)}
               </option>
             ))}
           </select>
@@ -122,7 +124,7 @@ export function ProjectList() {
             className="primary"
             disabled={title.trim().length === 0}
           >
-            Create project
+            {t('Create project')}
           </button>
           <button
             type="button"
@@ -130,7 +132,7 @@ export function ProjectList() {
               fileInputRef.current?.click()
             }}
           >
-            Import project (.kairo)
+            {t('Import project (.kairo)')}
           </button>
           <input
             ref={fileInputRef}
@@ -153,7 +155,7 @@ export function ProjectList() {
       )}
       {projects.length === 0 ? (
         <p style={{ color: 'var(--color-text-muted)' }}>
-          No projects yet. Create one to get started.
+          {t('No projects yet. Create one to get started.')}
         </p>
       ) : (
         <ul
@@ -176,6 +178,7 @@ export function ProjectList() {
 }
 
 function PosterCard({ project }: { project: Project }) {
+  const t = useT()
   const select = useAppStore((s) => s.select)
   const renameProject = useAppStore((s) => s.renameProject)
   const removeProject = useAppStore((s) => s.removeProject)
@@ -279,9 +282,9 @@ function PosterCard({ project }: { project: Project }) {
           >
             {getFormatSpec(project.format).ratioLabel}
             {sceneCount > 0 &&
-              ` · ${String(sceneCount)} ${sceneCount === 1 ? 'scene' : 'scenes'}`}
+              ` · ${String(sceneCount)} ${sceneCount === 1 ? t('scene') : t('scenes')}`}
             {clipCount > 0 &&
-              ` · ${String(clipCount)} ${clipCount === 1 ? 'clip' : 'clips'}`}
+              ` · ${String(clipCount)} ${clipCount === 1 ? t('clip') : t('clips')}`}
           </span>
           <span
             style={{
@@ -291,7 +294,9 @@ function PosterCard({ project }: { project: Project }) {
               marginTop: '2px',
             }}
           >
-            updated {new Date(project.updatedAt).toLocaleString()}
+            {t('updated {when}', {
+              when: new Date(project.updatedAt).toLocaleString(),
+            })}
           </span>
         </span>
         {/* Fades in with the hover lift — the poster says what a click does. */}
@@ -308,7 +313,7 @@ function PosterCard({ project }: { project: Project }) {
             textShadow: '0 1px 8px rgba(0, 0, 0, 0.7)',
           }}
         >
-          Open →
+          {t('Open →')}
         </span>
       </button>
       {editing ? (
@@ -328,9 +333,9 @@ function PosterCard({ project }: { project: Project }) {
             /* eslint-disable-next-line jsx-a11y/no-autofocus -- inline rename, focus follows intent */
             autoFocus
           />
-          <button type="submit">Save</button>
+          <button type="submit">{t('Save')}</button>
           <button type="button" onClick={() => setEditing(false)}>
-            Cancel
+            {t('Cancel')}
           </button>
         </form>
       ) : (
@@ -352,7 +357,7 @@ function PosterCard({ project }: { project: Project }) {
               setEditing(true)
             }}
           >
-            Rename
+            {t('Rename')}
           </button>
           <button
             type="button"
@@ -362,15 +367,17 @@ function PosterCard({ project }: { project: Project }) {
             }}
             onClick={() => setConfirmingDelete(true)}
           >
-            Delete
+            {t('Delete')}
           </button>
         </div>
       )}
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Delete "${project.title}"?`}
-          message="This permanently deletes the project and every generated image and video in it. Assets you paid for cannot be recovered afterwards."
-          confirmLabel="Delete project"
+          title={t('Delete "{title}"?', { title: project.title })}
+          message={t(
+            'This permanently deletes the project and every generated image and video in it. Assets you paid for cannot be recovered afterwards.',
+          )}
+          confirmLabel={t('Delete project')}
           onConfirm={() => {
             void removeProject(project.id)
             setConfirmingDelete(false)

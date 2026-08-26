@@ -1,4 +1,5 @@
 import type { Scene } from '../domain/types'
+import { useT } from '../i18n'
 import { useProjectStore } from '../state/project'
 
 /**
@@ -19,6 +20,7 @@ export function SceneDescriptionEditor({
   /** 1-based scene number as a string, for labels. */
   n: string
 }) {
+  const t = useT()
   const updateScene = useProjectStore((s) => s.updateScene)
 
   return (
@@ -26,7 +28,9 @@ export function SceneDescriptionEditor({
       <textarea
         aria-label={`Scene ${n} prompt editor`}
         value={scene.visualDescription}
-        placeholder="Describe the shot — subject, setting, mood. Add it here or on the Scenes stage."
+        placeholder={t(
+          'Describe the shot — subject, setting, mood. Add it here or on the Scenes stage.',
+        )}
         rows={3}
         onChange={(e) => {
           updateScene(scene.id, { visualDescription: e.target.value })
@@ -40,8 +44,9 @@ export function SceneDescriptionEditor({
           fontSize: 'var(--text-sm)',
         }}
       >
-        Saves as you type — Scenes, Images and Animation all see it. Existing
-        takes keep the prompt they were made with.
+        {t(
+          'Saves as you type — Scenes, Images and Animation all see it. Existing takes keep the prompt they were made with.',
+        )}
       </p>
     </>
   )

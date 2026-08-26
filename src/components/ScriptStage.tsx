@@ -6,6 +6,7 @@ import {
   estimateChatCostUsd,
   SCRIPT_OUTPUT_TOKEN_BUDGET,
 } from '../lib/costEstimate'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
 import { useProjectStore } from '../state/project'
@@ -15,6 +16,7 @@ import { FilmProgress } from './FilmProgress'
 import { TextModelPicker } from './ModelPicker'
 
 export function ScriptStage() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const updateScriptText = useProjectStore((s) => s.updateScriptText)
   const flushProject = useProjectStore((s) => s.flushProject)
@@ -59,7 +61,9 @@ export function ScriptStage() {
 
   return (
     <section style={{ maxWidth: '64rem', margin: '0 auto' }}>
-      <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Script</h3>
+      <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>
+        {t('Script')}
+      </h3>
 
       <div className="card" style={{ padding: 'var(--space-4)' }}>
         <textarea
@@ -69,7 +73,9 @@ export function ScriptStage() {
           }}
           onBlur={() => void flushProject()}
           disabled={script.locked}
-          placeholder="Write your narration script here, or generate one below."
+          placeholder={t(
+            'Write your narration script here, or generate one below.',
+          )}
           aria-label="Script text"
           rows={10}
           style={{
@@ -92,10 +98,12 @@ export function ScriptStage() {
           }}
         >
           {script.locked
-            ? 'Script is locked — it is the basis for the scene breakdown.'
-            : 'Autosaves as you type. Lock it when you are happy with it.'}{' '}
+            ? t('Script is locked — it is the basis for the scene breakdown.')
+            : t(
+                'Autosaves as you type. Lock it when you are happy with it.',
+              )}{' '}
           {script.text.length > 0 &&
-            `${String(script.text.length)} characters.`}
+            t('{count} characters.', { count: script.text.length })}
         </p>
 
         {script.locked ? (
@@ -105,7 +113,7 @@ export function ScriptStage() {
               setConfirmingUnlock(true)
             }}
           >
-            Unlock script
+            {t('Unlock script')}
           </button>
         ) : (
           <button
@@ -113,7 +121,7 @@ export function ScriptStage() {
             disabled={script.text.trim().length === 0}
             onClick={() => void setScriptLocked(true)}
           >
-            Lock script
+            {t('Lock script')}
           </button>
         )}
       </div>
@@ -126,7 +134,7 @@ export function ScriptStage() {
             padding: 'var(--space-4)',
           }}
         >
-          <h4 style={{ marginTop: 0 }}>Generate with AI</h4>
+          <h4 style={{ marginTop: 0 }}>{t('Generate with AI')}</h4>
           <div
             style={{
               display: 'flex',
@@ -139,7 +147,9 @@ export function ScriptStage() {
               onChange={(e) => {
                 setInstructions(e.target.value)
               }}
-              placeholder="What should the video be about? Topic, angle, tone…"
+              placeholder={t(
+                'What should the video be about? Topic, angle, tone…',
+              )}
               aria-label="Generation instructions"
               rows={3}
               style={{
@@ -173,21 +183,25 @@ export function ScriptStage() {
                   }
                 }}
               >
-                {genStatus === 'generating' ? 'Generating…' : 'Generate script'}
+                {genStatus === 'generating'
+                  ? t('Generating…')
+                  : t('Generate script')}
               </button>
               <span
                 aria-label="Estimated cost"
                 style={{ color: 'var(--color-text-muted)' }}
               >
                 {model === null
-                  ? 'Pick a model to see the estimated cost.'
+                  ? t('Pick a model to see the estimated cost.')
                   : estimatedUsd === null
-                    ? 'Cost unknown for this model.'
-                    : `Estimated cost: up to ~${formatUsd(estimatedUsd)}`}
+                    ? t('Cost unknown for this model.')
+                    : t('Estimated cost: up to ~{usd}', {
+                        usd: formatUsd(estimatedUsd),
+                      })}
               </span>
             </div>
             {genStatus === 'generating' && (
-              <FilmProgress label="Script generating" />
+              <FilmProgress label={t('Script generating')} />
             )}
             {genStatus === 'error' && genError !== null && (
               <p role="alert" style={{ color: 'var(--color-danger)' }}>
@@ -200,9 +214,11 @@ export function ScriptStage() {
 
       {confirmingOverwrite && (
         <ConfirmDialog
-          title="Replace the current script?"
-          message="Generating will replace the text already in the editor. This cannot be undone."
-          confirmLabel="Replace and generate"
+          title={t('Replace the current script?')}
+          message={t(
+            'Generating will replace the text already in the editor. This cannot be undone.',
+          )}
+          confirmLabel={t('Replace and generate')}
           onConfirm={() => {
             setConfirmingOverwrite(false)
             runGeneration()
@@ -214,9 +230,11 @@ export function ScriptStage() {
       )}
       {confirmingUnlock && (
         <ConfirmDialog
-          title="Unlock the script?"
-          message="Scenes, images and clips built from this script will need to be redone if you change it."
-          confirmLabel="Unlock"
+          title={t('Unlock the script?')}
+          message={t(
+            'Scenes, images and clips built from this script will need to be redone if you change it.',
+          )}
+          confirmLabel={t('Unlock')}
           onConfirm={() => {
             setConfirmingUnlock(false)
             void setScriptLocked(false)

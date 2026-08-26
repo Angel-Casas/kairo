@@ -3,6 +3,7 @@ import type { TtsModel } from '../api/nanogpt'
 import { ttsCostUsd, ttsPriceNote, ttsSpeedRange } from '../domain/ttsModels'
 import type { Scene } from '../domain/types'
 import { FilmProgress } from './FilmProgress'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import { useModelsStore } from '../state/models'
 import { useRememberedChoice } from '../state/modelChoices'
@@ -21,6 +22,7 @@ import { VoicePicker } from './VoicePicker'
  * with no "~" anywhere.
  */
 export function AudioStage() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const generateAllAudio = useProjectStore((s) => s.generateAllAudio)
   const allAudioProgress = useProjectStore((s) => s.allAudioProgress)
@@ -61,9 +63,11 @@ export function AudioStage() {
   if (scenes.length === 0) {
     return (
       <section>
-        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Audio</h3>
+        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>
+          {t('Audio')}
+        </h3>
         <p style={{ color: 'var(--color-text-muted)' }}>
-          No scenes yet — build the scene breakdown first.
+          {t('No scenes yet — build the scene breakdown first.')}
         </p>
       </section>
     )
@@ -71,7 +75,7 @@ export function AudioStage() {
 
   return (
     <section>
-      <ReelShell hint="select a frame to narrate it below">
+      <ReelShell hint={t('select a frame to narrate it below')}>
         {scenes.map((scene, index) => (
           <AudioFrame
             key={scene.id}
@@ -122,6 +126,7 @@ function AudioFrame({
   selected: boolean
   onSelect: () => void
 }) {
+  const t = useT()
   const status = useProjectStore((s) => s.sceneAudioStatus[scene.id])
   const generating = status?.generating === true
   const narrated = scene.audioVersions.length > 0
@@ -168,10 +173,10 @@ function AudioFrame({
       >
         {n} ·{' '}
         {generating
-          ? 'narrating…'
+          ? t('narrating…')
           : narrated
-            ? `♪ narrated (${String(scene.audioVersions.length)})`
-            : 'no narration'}
+            ? `♪ ${t('narrated')} (${String(scene.audioVersions.length)})`
+            : t('no narration')}
       </span>
       <span
         style={{
@@ -190,7 +195,7 @@ function AudioFrame({
       >
         {excerpt.length > 0
           ? excerpt
-          : 'No script excerpt — add one on the Scenes stage.'}
+          : t('No script excerpt — add one on the Scenes stage.')}
       </span>
     </button>
   )
@@ -223,6 +228,7 @@ function AudioWorkbench({
   allAudioProgress: { done: number; total: number } | null
   onGenerateAll: () => void
 }) {
+  const t = useT()
   const generateSceneAudio = useProjectStore((s) => s.generateSceneAudio)
   const setActiveAudioVersion = useProjectStore((s) => s.setActiveAudioVersion)
   const status = useProjectStore((s) => s.sceneAudioStatus[scene.id])
@@ -256,11 +262,11 @@ function AudioWorkbench({
     <div aria-label={`Scene ${n} audio workbench`} className="workbench-grid">
       {/* Narration text panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Scene {n} — narration text</div>
+        <div style={panelTitle}>{t('Scene {n} — narration text', { n })}</div>
         <p style={{ margin: 0, lineHeight: 1.6 }}>
           {text.length > 0
             ? `“${text}”`
-            : 'No script excerpt — add one on the Scenes stage.'}
+            : t('No script excerpt — add one on the Scenes stage.')}
         </p>
         {text.length > 0 && (
           <p
@@ -272,9 +278,11 @@ function AudioWorkbench({
               paddingTop: 'var(--space-3)',
             }}
           >
-            {text.length} characters.{' '}
+            {t('{count} characters.', { count: text.length })}{' '}
             {model === null
-              ? 'TTS is billed by character, so the price shown is exact — not an estimate.'
+              ? t(
+                  'TTS is billed by character, so the price shown is exact — not an estimate.',
+                )
               : ttsPriceNote(model.pricing)}
           </p>
         )}
@@ -282,7 +290,7 @@ function AudioWorkbench({
 
       {/* Voice panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Narrate</div>
+        <div style={panelTitle}>{t('Narrate')}</div>
         <TtsModelPicker
           selectedId={model?.id ?? null}
           onSelect={onSelectModel}
@@ -301,7 +309,7 @@ function AudioWorkbench({
                     fontSize: 'var(--text-sm)',
                   }}
                 >
-                  Speed fixed by model
+                  {t('Speed fixed by model')}
                 </span>
               )
             }
@@ -316,7 +324,7 @@ function AudioWorkbench({
                 }}
               >
                 <span style={{ whiteSpace: 'nowrap' }}>
-                  Speed {speed.toFixed(2).replace(/\.?0+$/, '')}×
+                  {t('Speed')} {speed.toFixed(2).replace(/\.?0+$/, '')}×
                 </span>
                 <input
                   type="range"
@@ -363,10 +371,10 @@ function AudioWorkbench({
             }}
           >
             {generating
-              ? 'Narrating…'
+              ? t('Narrating…')
               : scene.audioVersions.length > 0
-                ? 'Re-narrate'
-                : 'Narrate scene'}
+                ? t('Re-narrate')
+                : t('Narrate scene')}
           </button>
           <span
             style={{
@@ -375,10 +383,10 @@ function AudioWorkbench({
             }}
           >
             {model === null
-              ? 'Pick a model to see the price.'
+              ? t('Pick a model to see the price.')
               : exactUsd === null
-                ? 'Price varies — charged at submission.'
-                : `Exact cost: ${formatUsd(exactUsd)}`}
+                ? t('Price varies — charged at submission.')
+                : t('Exact cost: {usd}', { usd: formatUsd(exactUsd) })}
           </span>
         </div>
         {generating && (
@@ -406,8 +414,14 @@ function AudioWorkbench({
               onClick={onGenerateAll}
             >
               {allAudioProgress !== null
-                ? `Narrating ${String(allAudioProgress.done)}/${String(allAudioProgress.total)}…`
-                : `Narrate ${String(pendingCount)} remaining ${pendingCount === 1 ? 'scene' : 'scenes'}`}
+                ? t('Narrating {done}/{total}…', {
+                    done: allAudioProgress.done,
+                    total: allAudioProgress.total,
+                  })
+                : t('Narrate {count} remaining {noun}', {
+                    count: pendingCount,
+                    noun: pendingCount === 1 ? t('scene') : t('scenes'),
+                  })}
             </button>
             <span
               aria-label="Exact total cost"
@@ -417,10 +431,10 @@ function AudioWorkbench({
               }}
             >
               {model === null
-                ? 'Pick a model to see the total.'
+                ? t('Pick a model to see the total.')
                 : allExactUsd === null
-                  ? 'Prices vary — charged at submission.'
-                  : `Exact total: ${formatUsd(allExactUsd)}`}
+                  ? t('Prices vary — charged at submission.')
+                  : t('Exact total: {usd}', { usd: formatUsd(allExactUsd) })}
             </span>
             {allAudioProgress !== null && (
               <div style={{ flexBasis: '100%' }}>
@@ -440,7 +454,7 @@ function AudioWorkbench({
 
       {/* Takes panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Takes — scene {n}</div>
+        <div style={panelTitle}>{t('Takes — scene {n}', { n })}</div>
         {activeUrl !== null ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption -- generated narration; the text IS the caption, shown beside it
           <audio
@@ -457,7 +471,7 @@ function AudioWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            No narration yet — the first take lands here.
+            {t('No narration yet — the first take lands here.')}
           </p>
         )}
         {scene.audioVersions.length > 1 && (
@@ -486,7 +500,7 @@ function AudioWorkbench({
                   fontSize: 'var(--text-sm)',
                 }}
               >
-                Take {vIndex + 1}
+                {t('Take {n}', { n: vIndex + 1 })}
               </button>
             ))}
           </div>
@@ -511,11 +525,15 @@ function AudioWorkbench({
           }
           regenerateDisabledHint={
             model === null
-              ? 'Pick a narration model first.'
-              : 'Another narration is running.'
+              ? t('Pick a narration model first.')
+              : t('Another narration is running.')
           }
-          regenerateCostText="Billed by character count — editing the text changes the exact price accordingly."
-          editorHint="This exact text will be narrated — nothing is added or removed."
+          regenerateCostText={t(
+            'Billed by character count — editing the text changes the exact price accordingly.',
+          )}
+          editorHint={t(
+            'This exact text will be narrated — nothing is added or removed.',
+          )}
         />
       </div>
     </div>

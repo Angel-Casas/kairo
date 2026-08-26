@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useT } from '../i18n'
 
 interface ConfirmDialogProps {
   title: string
@@ -24,6 +25,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement | null>(null)
+  const t = useT()
 
   // Move focus into the dialog on open (onto the safe choice) and let
   // Escape cancel — basic dialog a11y.
@@ -90,7 +92,7 @@ export function ConfirmDialog({
           }}
         >
           <button ref={cancelRef} type="button" onClick={onCancel}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button
             type="button"

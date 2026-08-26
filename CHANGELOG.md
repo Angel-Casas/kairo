@@ -2,6 +2,62 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 22.21 — Kairo speaks ten languages (2026-08-26, Angel's request)
+
+- The last empty seat in the navbar is filled: a globe button opens a
+  language dropdown with the ten most-spoken languages in the world
+  (Ethnologue, total speakers) — English, 中文, हिन्दी, Español,
+  Français, العربية, বাংলা, Português, Русский, اردو. Each row shows
+  the language's own name for itself with the English name as a quiet
+  second line; the rows are plain buttons ON PURPOSE, so every one
+  wears the same spinning pastel hover ring as the rest of the app
+  (Angel's ask) — the panel keeps padding/gap room for the -4px ring
+  and never gains overflow:hidden (the 22.9/22.19 trap).
+- The i18n core is deliberately tiny (src/i18n/): English source text
+  IS its own key. `useT()` hands components a `t()` that looks the
+  sentence up in the active language's dictionary and falls back to
+  the English it was handed — an untranslated string simply stays
+  English, never blank, never a crash. `{slots}` interpolate after
+  lookup so translations reorder them freely.
+- English stays the default, so every pinned e2e keeps passing
+  untouched. The choice persists like the theme (localStorage
+  `kairo.lang`) and rides the document root: `lang` for assistive
+  tech, `dir` so Arabic and Urdu flip the whole layout right-to-left
+  — the header, posters, and forms all mirror.
+- Nine hand-written dictionaries (~410 entries each) cover the app
+  chrome, the stage rail, all six pipeline stages, References,
+  Settings, Feedback, the spend ledger, model pickers, and every
+  confirm dialog. Model-facing prompts (src/domain/prompts.ts) stay
+  English on purpose — they are instructions to the generation
+  models, not UI. A few deep corners (voice picker, lightbox chrome,
+  batch overlay, camera-help essay) fall back to English for now and
+  pick up translations in a follow-up.
+- Tests: 13 i18n unit tests (fallback, interpolation, persistence,
+  RTL, and a dictionary-integrity check that no translation invents a
+  `{slot}` the English key lacks — it caught one real miss on the
+  first run) plus a new e2e suite: all ten languages listed, Spanish
+  translates and survives reload, Arabic flips `dir` and back.
+
+## Slice 22.20.1 — README joins the referral policy (2026-08-26, Angel's call)
+
+- The README's NanoGPT link now uses the referral URL the app already
+  ships in config.ts (ADR-005: Kairo's only monetization), WITH the
+  disclosure spelled out — "supports Kairo's development at no extra
+  cost to you". Transparent everywhere the link appears.
+- Caught in passing: the landing footer claimed "MIT license" while
+  LICENSE is AGPL-3.0 — the label now tells the truth.
+
+## Slice 22.20 — The GitHub links go live (2026-08-26, Angel's repo)
+
+- The repository has a home: https://github.com/Angel-Casas/kairo.
+  feedback.ts drops its "your-user" placeholder and now re-exports
+  REPO_URL from config.ts — one source of truth — so the Support
+  overlay's "Open on GitHub ↗" and prefilled issue links point at the
+  real issues page.
+- The landing page's four dead links wired: the "Star on GitHub"
+  pill, "Read the code", and the footer's GitHub + MIT license (the
+  license links straight to LICENSE on GitHub).
+
 ## Slice 22.19 — Posters come off the wall (2026-08-26, Angel's request)
 
 - The poster wall had no hover response at all — the global pastel

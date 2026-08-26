@@ -4,6 +4,7 @@ import type { Scene } from '../domain/types'
 import { DevelopingVeil } from './DevelopingVeil'
 import { FilmProgress } from './FilmProgress'
 import { HandoffTakeNote } from './HandoffTakeNote'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import {
   getPerImagePriceUsd,
@@ -34,6 +35,7 @@ import { VersionThumb } from './VersionThumb'
  * screen.
  */
 export function ImagesStage() {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const project = useProjectStore((s) => s.project)
   const generateAllImages = useProjectStore((s) => s.generateAllImages)
@@ -97,9 +99,11 @@ export function ImagesStage() {
   if (scenes.length === 0) {
     return (
       <section>
-        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Images</h3>
+        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>
+          {t('Images')}
+        </h3>
         <p style={{ color: 'var(--color-text-muted)' }}>
-          No scenes yet — build the scene breakdown first.
+          {t('No scenes yet — build the scene breakdown first.')}
         </p>
       </section>
     )
@@ -110,7 +114,7 @@ export function ImagesStage() {
       {/* The reel leads (15.17.3, Angel's request): Images and Animation
           both open on their reel, so the two stages line up. */}
       <ReelShell
-        hint="select a frame to work on it below"
+        hint={t('select a frame to work on it below')}
         // Selected frame: 11.5rem wide at the project's aspect, plus
         // the strip's own vertical padding (border-box).
         frameHeight={`calc(11.5rem / ${String(formatSpec.ratio)} + 2 * var(--space-2))`}
@@ -188,6 +192,7 @@ function SceneFrame({
   onSelect: () => void
   onExpand: () => void
 }) {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const status = useProjectStore((s) => s.sceneImageStatus[scene.id])
   const activeVersion =
@@ -269,14 +274,14 @@ function SceneFrame({
             }}
           >
             <span style={{ fontSize: '20px' }}>◌</span>
-            {generating ? 'Generating…' : 'No image yet'}
+            {generating ? t('Generating…') : t('No image yet')}
           </div>
         )}
         {generating && (
           // The empty-frame placeholder already says "Generating…" in the
           // middle; the badge covers the regenerate-over-an-image case.
           <DevelopingVeil
-            label={activeUrl !== null ? 'Generating…' : undefined}
+            label={activeUrl !== null ? t('Generating…') : undefined}
           />
         )}
         <span
@@ -298,8 +303,8 @@ function SceneFrame({
         >
           {n} ·{' '}
           {scene.visualDescription.trim().split(/\s+/).slice(0, 3).join(' ') ||
-            'untitled'}
-          {generating && ' · generating…'}
+            t('untitled')}
+          {generating && ` · ${t('generating…')}`}
         </span>
       </button>
       {activeUrl !== null && (
@@ -369,6 +374,7 @@ function Workbench({
   allImagesProgress: { done: number; total: number } | null
   onGenerateAll: () => void
 }) {
+  const t = useT()
   const generateSceneImage = useProjectStore((s) => s.generateSceneImage)
   const setActiveImageVersion = useProjectStore((s) => s.setActiveImageVersion)
   const toggleSceneReference = useProjectStore((s) => s.toggleSceneReference)
@@ -415,13 +421,13 @@ function Workbench({
     <div aria-label={`Scene ${n} workbench`} className="workbench-grid">
       {/* Prompt panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Scene {n} — prompt</div>
+        <div style={panelTitle}>{t('Scene {n} — prompt', { n })}</div>
         <SceneDescriptionEditor scene={scene} n={n} />
         {/* The prompt recipe's receipt (22): the exact image prompt as
             sent — preset + style notes + references + description +
             format, composed live. */}
         <ComposedPrompt
-          label="The exact image prompt, as sent"
+          label={t('The exact image prompt, as sent')}
           text={buildImagePrompt({
             stylePromptFragment:
               getStylePreset(stylePresetId)?.promptFragment ?? null,
@@ -432,8 +438,12 @@ function Workbench({
           })}
           note={
             model !== null && !model.supportsImageToImage && attachableCount > 0
-              ? 'Editing the prompt at generation time replaces this text verbatim. This model SKIPS reference images — only the words above reach it.'
-              : 'Editing the prompt at generation time replaces this text verbatim — reference images still attach.'
+              ? t(
+                  'Editing the prompt at generation time replaces this text verbatim. This model SKIPS reference images — only the words above reach it.',
+                )
+              : t(
+                  'Editing the prompt at generation time replaces this text verbatim — reference images still attach.',
+                )
           }
         />
         {scene.textExcerpt.trim().length > 0 && (
@@ -446,7 +456,7 @@ function Workbench({
               paddingTop: 'var(--space-3)',
             }}
           >
-            Script — “{scene.textExcerpt.trim()}”
+            {t('Script')} — “{scene.textExcerpt.trim()}”
           </p>
         )}
         {references.length > 0 && (
@@ -459,7 +469,7 @@ function Workbench({
                 marginBottom: 'var(--space-1)',
               }}
             >
-              References — click to tick or untick for this scene
+              {t('References — click to tick or untick for this scene')}
             </span>
             <div
               style={{
@@ -471,7 +481,7 @@ function Workbench({
               {references.map((r) => {
                 const isTicked = scene.referenceIds.includes(r.id)
                 const label =
-                  r.name.trim().length > 0 ? r.name : 'Unnamed reference'
+                  r.name.trim().length > 0 ? r.name : t('Unnamed reference')
                 return (
                   <button
                     key={r.id}
@@ -502,7 +512,7 @@ function Workbench({
                     {isTicked && r.descriptor.trim().length === 0 && (
                       <span style={{ color: 'var(--color-accent)' }}>
                         {' '}
-                        · no description
+                        · {t('no description')}
                       </span>
                     )}
                   </button>
@@ -533,7 +543,7 @@ function Workbench({
               <input
                 type="text"
                 value={newRefName}
-                placeholder="Name the new reference (e.g. Jack in exile)"
+                placeholder={t('Name the new reference (e.g. Rómulo in exile)')}
                 aria-label={`New reference name for scene ${n}`}
                 onChange={(e) => {
                   setNewRefName(e.target.value)
@@ -567,7 +577,7 @@ function Workbench({
                   padding: 'var(--space-1) var(--space-3)',
                 }}
               >
-                Save image as reference
+                {t('Save image as reference')}
               </button>
             </div>
             {savedRefId !== null && (
@@ -591,9 +601,9 @@ function Workbench({
                 }}
               >
                 <span style={{ flex: 1, minWidth: '14rem' }}>
-                  Saved and ticked for this scene (free) — but it has no
-                  description yet, and the description is what rides the
-                  prompts, so without one the look will drift.
+                  {t(
+                    'Saved and ticked for this scene (free) — but it has no description yet, and the description is what rides the prompts, so without one the look will drift.',
+                  )}
                 </span>
                 <button
                   type="button"
@@ -607,7 +617,7 @@ function Workbench({
                     padding: 'var(--space-1) var(--space-3)',
                   }}
                 >
-                  Describe it now →
+                  {t('Describe it now →')}
                 </button>
               </p>
             )}
@@ -624,14 +634,14 @@ function Workbench({
           >
             {tickedWithoutDescription
               .map((r) =>
-                r.name.trim().length > 0 ? r.name : 'An unnamed reference',
+                r.name.trim().length > 0 ? r.name : t('An unnamed reference'),
               )
               .join(', ')}{' '}
-            {tickedWithoutDescription.length === 1 ? 'has' : 'have'} no
-            description — the description is what rides the prompt, so an empty
-            one adds nothing (and with a model that skips images, nothing of the
-            reference reaches the model at all). Describe everything that must
-            stay identical on the References panel.
+            {t(
+              tickedWithoutDescription.length === 1
+                ? 'has no description — the description is what rides the prompt, so an empty one adds nothing (and with a model that skips images, nothing of the reference reaches the model at all). Describe everything that must stay identical on the References panel.'
+                : 'have no description — the description is what rides the prompt, so an empty one adds nothing (and with a model that skips images, nothing of the reference reaches the model at all). Describe everything that must stay identical on the References panel.',
+            )}
           </p>
         )}
         {attachableCount > 0 && model !== null && (
@@ -650,16 +660,21 @@ function Workbench({
           >
             {model.supportsImageToImage
               ? attachableCount === 1
-                ? 'One reference image will be attached to this generation.'
-                : `${String(attachableCount)} reference images will be attached to this generation.`
-              : 'This model cannot use reference images — descriptions still apply, but the images will be skipped.'}
+                ? t('One reference image will be attached to this generation.')
+                : t(
+                    '{count} reference images will be attached to this generation.',
+                    { count: attachableCount },
+                  )
+              : t(
+                  'This model cannot use reference images — descriptions still apply, but the images will be skipped.',
+                )}
           </p>
         )}
       </div>
 
       {/* Generate panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Generate</div>
+        <div style={panelTitle}>{t('Generate')}</div>
         {hasReferenceImages && (
           <label
             style={{
@@ -677,7 +692,7 @@ function Workbench({
                 onToggleOnlyImageToImage(e.target.checked)
               }}
             />
-            Only show models that can use reference images
+            {t('Only show models that can use reference images')}
           </label>
         )}
         <ImageModelPicker
@@ -694,7 +709,7 @@ function Workbench({
                 marginRight: 'var(--space-2)',
               }}
             >
-              Resolution
+              {t('Resolution')}
             </span>
             <select
               aria-label="Resolution"
@@ -738,10 +753,10 @@ function Workbench({
             }}
           >
             {generating
-              ? 'Generating…'
+              ? t('Generating…')
               : scene.imageVersions.length > 0
-                ? 'Regenerate'
-                : 'Generate image'}
+                ? t('Regenerate')
+                : t('Generate image')}
           </button>
           <span
             style={{
@@ -750,10 +765,10 @@ function Workbench({
             }}
           >
             {model === null
-              ? 'Pick a model to see the cost.'
+              ? t('Pick a model to see the cost.')
               : perImageUsd === null
-                ? 'Cost unknown for this model.'
-                : `Cost: ${formatUsd(perImageUsd)}`}
+                ? t('Cost unknown for this model.')
+                : t('Cost: {usd}', { usd: formatUsd(perImageUsd) })}
           </span>
         </div>
         {generating && <FilmProgress label={`Scene ${n} image generating`} />}
@@ -779,8 +794,14 @@ function Workbench({
               onClick={onGenerateAll}
             >
               {allImagesProgress !== null
-                ? `Generating ${String(allImagesProgress.done)}/${String(allImagesProgress.total)}…`
-                : `Generate ${String(missingCount)} missing ${missingCount === 1 ? 'image' : 'images'}`}
+                ? t('Generating {done}/{total}…', {
+                    done: allImagesProgress.done,
+                    total: allImagesProgress.total,
+                  })
+                : t('Generate {count} missing {noun}', {
+                    count: missingCount,
+                    noun: missingCount === 1 ? t('image') : t('images'),
+                  })}
             </button>
             <span
               aria-label="Estimated total cost"
@@ -790,10 +811,10 @@ function Workbench({
               }}
             >
               {model === null
-                ? 'Pick a model to see the cost.'
+                ? t('Pick a model to see the cost.')
                 : allEstimate === null
-                  ? 'Cost unknown for this model.'
-                  : `Total cost: ${formatUsd(allEstimate)}`}
+                  ? t('Cost unknown for this model.')
+                  : t('Total cost: {usd}', { usd: formatUsd(allEstimate) })}
             </span>
             {allImagesProgress !== null && (
               <div style={{ flexBasis: '100%' }}>
@@ -813,7 +834,7 @@ function Workbench({
 
       {/* Takes panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Takes — scene {n}</div>
+        <div style={panelTitle}>{t('Takes — scene {n}', { n })}</div>
         {scene.imageVersions.length === 0 ? (
           <p
             style={{
@@ -822,7 +843,7 @@ function Workbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            No takes yet — the first generation lands here.
+            {t('No takes yet — the first generation lands here.')}
           </p>
         ) : (
           <>
@@ -860,11 +881,13 @@ function Workbench({
               }
               regenerateDisabledHint={
                 model === null
-                  ? 'Pick an image model first.'
-                  : 'Another generation is running.'
+                  ? t('Pick an image model first.')
+                  : t('Another generation is running.')
               }
               regenerateCostUsd={perImageUsd}
-              editorHint="This exact text will be sent as the prompt — style and references are not re-added."
+              editorHint={t(
+                'This exact text will be sent as the prompt — style and references are not re-added.',
+              )}
             />
           </>
         )}

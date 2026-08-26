@@ -6,6 +6,7 @@ import type { Scene } from '../domain/types'
 import { narrationCutoffWarning, planFrames } from '../lib/clipDuration'
 import { audioBlobDuration } from '../lib/audioBlob'
 import { getRepository } from '../state/repo'
+import { useT, type Translator } from '../i18n'
 import { formatUsd } from '../lib/format'
 import {
   resolutionLabel,
@@ -52,15 +53,23 @@ export function lipSyncEstimate(
   return { resolution, usd }
 }
 
-function describeClipPrice(model: VideoModel): string {
+function describeClipPrice(model: VideoModel, t: Translator): string {
   if (model.priceRangeUsd === null) {
-    return 'This model does not list a price — NanoGPT charges the exact amount at submission and Kairo records it in the project spend log.'
+    return t(
+      'This model does not list a price — NanoGPT charges the exact amount at submission and Kairo records it in the project spend log.',
+    )
   }
   const { min, max } = model.priceRangeUsd
   if (min === max) {
-    return `Listed price: about ${formatUsd(min)} per clip. The exact amount is charged at submission and recorded in the spend log.`
+    return t(
+      'Listed price: about {usd} per clip. The exact amount is charged at submission and recorded in the spend log.',
+      { usd: formatUsd(min) },
+    )
   }
-  return `Listed price: between ${formatUsd(min)} and ${formatUsd(max)} per clip depending on resolution and duration — lower resolution and shorter clips cost less. The exact amount is charged at submission and recorded in the spend log.`
+  return t(
+    'Listed price: between {min} and {max} per clip depending on resolution and duration — lower resolution and shorter clips cost less. The exact amount is charged at submission and recorded in the spend log.',
+    { min: formatUsd(min), max: formatUsd(max) },
+  )
 }
 
 type PendingConfirm =
@@ -105,6 +114,7 @@ async function measureNarrationSeconds(scene: Scene): Promise<number | null> {
  * cost-confirmation dialog (Slice 6.1) — video is the expensive kind.
  */
 export function AnimationStage() {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const project = useProjectStore((s) => s.project)
   const generateSceneVideo = useProjectStore((s) => s.generateSceneVideo)
@@ -170,7 +180,14 @@ export function AnimationStage() {
   const confirmMessage = (countLabel: string) =>
     model === null
       ? ''
-      : `${countLabel} with ${model.name} at ${effectiveResolution ?? "the model's fixed resolution"}, ${effectiveDuration === null ? 'fixed length' : `${effectiveDuration}s`}. ${describeClipPrice(model)}`
+      : `${countLabel} ${t('with {model} at {resolution}, {length}.', {
+          model: model.name,
+          resolution: effectiveResolution ?? t("the model's fixed resolution"),
+          length:
+            effectiveDuration === null
+              ? t('fixed length')
+              : `${effectiveDuration}s`,
+        })} ${describeClipPrice(model, t)}`
 
   // The lightbox walks the scenes' media in reel order: the active clip
   // where one exists, otherwise the still image that will be animated.
@@ -216,9 +233,11 @@ export function AnimationStage() {
   if (scenes.length === 0) {
     return (
       <section>
-        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>Animation</h3>
+        <h3 style={{ fontSize: 'var(--text-lg)', marginTop: 0 }}>
+          {t('Animation')}
+        </h3>
         <p style={{ color: 'var(--color-text-muted)' }}>
-          No scenes yet — build the scene breakdown first.
+          {t('No scenes yet — build the scene breakdown first.')}
         </p>
       </section>
     )
@@ -227,7 +246,7 @@ export function AnimationStage() {
   return (
     <section>
       <ReelShell
-        hint="select a frame to animate it below"
+        hint={t('select a frame to animate it below')}
         // Selected frame: 11.5rem wide at the project's aspect, plus
         // the strip's own vertical padding (border-box).
         frameHeight={`calc(11.5rem / ${String(formatSpec.ratio)} + 2 * var(--space-2))`}
@@ -273,7 +292,7 @@ export function AnimationStage() {
                 setConfirming({
                   type: 'one',
                   sceneId: selectedScene.id,
-                  label: `Animate scene ${String(selectedIndex + 1)}`,
+                  label: t('Animate scene {n}', { n: selectedIndex + 1 }),
                   narrationSeconds,
                 })
               },
@@ -285,7 +304,9 @@ export function AnimationStage() {
                 setConfirming({
                   type: 'tweak',
                   sceneId: selectedScene.id,
-                  label: `Animate scene ${String(selectedIndex + 1)} with the edited motion prompt`,
+                  label: t('Animate scene {n} with the edited motion prompt', {
+                    n: selectedIndex + 1,
+                  }),
                   prompt,
                   narrationSeconds,
                 })
@@ -301,7 +322,9 @@ export function AnimationStage() {
             setConfirming({
               type: 'lipsync',
               sceneId: selectedScene.id,
-              label: `Lip-sync scene ${String(selectedIndex + 1)} to its narration`,
+              label: t('Lip-sync scene {n} to its narration', {
+                n: selectedIndex + 1,
+              }),
             })
           }}
         />
@@ -349,9 +372,17 @@ export function AnimationStage() {
               confirming.type === 'lipsync' && lipSyncModel !== null
                 ? (() => {
                     const est = lipSyncEstimate(lipSyncModel, null)
-                    return `This submits one lip-sync job with ${lipSyncModel.name} at ${est.resolution ?? 'the model\u2019s default resolution'}. The clip follows the scene's narration; billed per second, charged at submission.`
+                    return t(
+                      "This submits one lip-sync job with {model} at {resolution}. The clip follows the scene's narration; billed per second, charged at submission.",
+                      {
+                        model: lipSyncModel.name,
+                        resolution:
+                          est.resolution ??
+                          t('the model\u2019s default resolution'),
+                      },
+                    )
                   })()
-                : confirmMessage('This submits one video job')
+                : confirmMessage(t('This submits one video job'))
             }
             warning={
               confirming.type !== 'lipsync'
@@ -363,7 +394,7 @@ export function AnimationStage() {
                   ) ?? undefined)
                 : undefined
             }
-            confirmLabel="Submit and charge"
+            confirmLabel={t('Submit and charge')}
             onConfirm={() => {
               const pending = confirming
               setConfirming(null)
@@ -431,6 +462,7 @@ function AnimationFrame({
   onSelect: () => void
   onExpand: () => void
 }) {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const status = useProjectStore((s) => s.sceneVideoStatus[scene.id])
   const activeImage =
@@ -511,7 +543,7 @@ function AnimationFrame({
             }}
           >
             <span style={{ fontSize: '20px' }}>◌</span>
-            No image — generate one on the Images stage
+            {t('No image — generate one on the Images stage')}
           </div>
         )}
         <span
@@ -533,12 +565,12 @@ function AnimationFrame({
         >
           {n} ·{' '}
           {generating
-            ? 'animating…'
+            ? t('animating…')
             : hasClip
-              ? `clip ✓ (${String(scene.videoVersions.length)})`
-              : 'no clip yet'}
+              ? `${t('clip')} ✓ (${String(scene.videoVersions.length)})`
+              : t('no clip yet')}
         </span>
-        {generating && <DevelopingVeil label="Animating…" />}
+        {generating && <DevelopingVeil label={t('Animating…')} />}
       </button>
       {hasMedia && (
         <button
@@ -615,6 +647,7 @@ function AnimationWorkbench({
   onSelectLipSyncModel: (m: VideoModel) => void
   onRequestLipSync: () => void
 }) {
+  const t = useT()
   const formatSpec = useFormatSpec()
   const [handoffOpen, setHandoffOpen] = useState(false)
   const stylePresetId = useProjectStore((s) => s.project?.stylePresetId ?? null)
@@ -698,7 +731,7 @@ function AnimationWorkbench({
     >
       {/* Motion panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Scene {n} — motion</div>
+        <div style={panelTitle}>{t('Scene {n} — motion', { n })}</div>
         {/* If the start image is a carried-in frame, the undo lives HERE
             too — same stage as the carry button (21.2, Angel's call). */}
         <HandoffTakeNote scene={scene} />
@@ -707,19 +740,21 @@ function AnimationWorkbench({
             lives — and the exact composed prompt below. */}
         {stylePresetFragment !== null && (
           <RecipeRow
-            label="Artistic style"
-            hint={`${stylePresetName ?? 'preset'} — change it on the Images stage`}
+            label={t('Artistic style')}
+            hint={`${stylePresetName ?? t('preset')} — ${t('change it on the Images stage')}`}
           >
             <RecipeFixedText text={stylePresetFragment} />
           </RecipeRow>
         )}
         <RecipeRow
-          label="Style notes"
-          hint="shared with every prompt in the project"
+          label={t('Style notes')}
+          hint={t('shared with every prompt in the project')}
         >
           <textarea
             aria-label="Style notes"
-            placeholder="Palette, medium, lighting — travels word for word into every prompt."
+            placeholder={t(
+              'Palette, medium, lighting — travels word for word into every prompt.',
+            )}
             value={styleNotes}
             onChange={(e) => {
               updateStyleNotes(e.target.value)
@@ -732,21 +767,26 @@ function AnimationWorkbench({
             }}
           />
         </RecipeRow>
-        <RecipeRow label="Scene description" hint="the action of this shot">
+        <RecipeRow
+          label={t('Scene description')}
+          hint={t('the action of this shot')}
+        >
           <SceneDescriptionEditor scene={scene} n={n} />
         </RecipeRow>
         <RecipeRow
-          label="Camera direction"
+          label={t('Camera direction')}
           hint={
             <>
-              optional — steers the motion prompt
+              {t('optional — steers the motion prompt')}
               <CameraHelp />
             </>
           }
         >
           <textarea
             aria-label="Camera direction"
-            placeholder="Say what the camera DOES: “static shot, fixed tripod, the framing never changes” · “slow push-in” · “pan left following the subject” — models ignore negations like “no zoom”."
+            placeholder={t(
+              'Say what the camera DOES: “static shot, fixed tripod, the framing never changes” · “slow push-in” · “pan left following the subject” — models ignore negations like “no zoom”.',
+            )}
             value={scene.cameraNotes}
             onChange={(e) => {
               updateScene(scene.id, { cameraNotes: e.target.value })
@@ -759,13 +799,15 @@ function AnimationWorkbench({
             }}
           />
         </RecipeRow>
-        <RecipeRow label="Always added" hint="Kairo's guardrails">
+        <RecipeRow label={t('Always added')} hint={t("Kairo's guardrails")}>
           <RecipeFixedText text="one continuous natural action · no frozen figures, no readable text or lettering · keep the style, palette, and composition of the image" />
         </RecipeRow>
         <ComposedPrompt
-          label="The exact motion prompt, as sent"
+          label={t('The exact motion prompt, as sent')}
           text={composedMotionPrompt}
-          note="Using “Tweak” at generation time replaces this with your text, verbatim."
+          note={t(
+            'Using “Tweak” at generation time replaces this with your text, verbatim.',
+          )}
         />
         {/* The handoff (Slice 21; moved into the recipe in 22): the next
             shot can start exactly where this one ends — free. */}
@@ -780,7 +822,7 @@ function AnimationWorkbench({
               alignSelf: 'flex-start',
             }}
           >
-            Carry final frame → scene {String(index + 2)}
+            {t('Carry final frame → scene {n}', { n: index + 2 })}
           </button>
         )}
         {handoffOpen && nextScene !== null && activeVideo !== null && (
@@ -802,16 +844,19 @@ function AnimationWorkbench({
           }}
         >
           {model === null
-            ? 'Pick a model to see its price. Resolution and duration are the main cost drivers — Kairo defaults to the cheapest resolution.'
-            : describeClipPrice(model)}{' '}
-          Generation can take a few minutes per clip — you can close the tab,
-          Kairo resumes and collects finished clips when you return.
+            ? t(
+                'Pick a model to see its price. Resolution and duration are the main cost drivers — Kairo defaults to the cheapest resolution.',
+              )
+            : describeClipPrice(model, t)}{' '}
+          {t(
+            'Generation can take a few minutes per clip — you can close the tab, Kairo resumes and collects finished clips when you return.',
+          )}
         </p>
       </div>
 
       {/* Animate panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Animate</div>
+        <div style={panelTitle}>{t('Animate')}</div>
         <VideoModelPicker
           selectedId={model?.id ?? null}
           onSelect={onSelectModel}
@@ -832,7 +877,7 @@ function AnimationWorkbench({
                 marginRight: 'var(--space-2)',
               }}
             >
-              Duration
+              {t('Duration')}
             </span>
             {durationOptions.length > 0 ? (
               <select
@@ -855,7 +900,7 @@ function AnimationWorkbench({
                   fontSize: 'var(--text-sm)',
                 }}
               >
-                {model === null ? '—' : 'fixed by model'}
+                {model === null ? '—' : t('fixed by model')}
               </span>
             )}
           </label>
@@ -873,9 +918,14 @@ function AnimationWorkbench({
                     fontSize: 'var(--text-sm)',
                   }}
                 >
-                  frame-based model: {String(plan.frames)} frames @{' '}
-                  {String(plan.fps)} fps = {plan.seconds.toFixed(1)}s (lower fps
-                  = choppier motion)
+                  {t(
+                    'frame-based model: {frames} frames @ {fps} fps = {seconds}s (lower fps = choppier motion)',
+                    {
+                      frames: plan.frames,
+                      fps: plan.fps,
+                      seconds: plan.seconds.toFixed(1),
+                    },
+                  )}
                 </span>
               )
             })()}
@@ -887,8 +937,9 @@ function AnimationWorkbench({
                 fontSize: 'var(--text-sm)',
               }}
             >
-              narration runs {narrationSeconds.toFixed(1)}s — pick a clip
-              duration to match
+              {t('narration runs {seconds}s — pick a clip duration to match', {
+                seconds: narrationSeconds.toFixed(1),
+              })}
             </span>
           )}
           <label>
@@ -899,7 +950,7 @@ function AnimationWorkbench({
                 marginRight: 'var(--space-2)',
               }}
             >
-              Resolution
+              {t('Resolution')}
             </span>
             {resolutionOptions.length > 0 ? (
               <select
@@ -922,7 +973,7 @@ function AnimationWorkbench({
                   fontSize: 'var(--text-sm)',
                 }}
               >
-                {model === null ? '—' : 'fixed by model'}
+                {model === null ? '—' : t('fixed by model')}
               </span>
             )}
           </label>
@@ -935,9 +986,9 @@ function AnimationWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            This model does not take a clip length — every clip comes out at the
-            length the model chooses, so Kairo sends no duration at all. The
-            clip&apos;s real length shows beside it once it lands.
+            {t(
+              "This model does not take a clip length — every clip comes out at the length the model chooses, so Kairo sends no duration at all. The clip's real length shows beside it once it lands.",
+            )}
           </p>
         )}
         <div
@@ -955,12 +1006,12 @@ function AnimationWorkbench({
             onClick={onRequestGenerate}
           >
             {generating
-              ? 'Generating… (safe to close the tab)'
+              ? t('Generating… (safe to close the tab)')
               : scene.videoVersions.length > 0
-                ? 'Regenerate clip'
+                ? t('Regenerate clip')
                 : status?.error != null
-                  ? 'Retry'
-                  : 'Animate scene'}
+                  ? t('Retry')
+                  : t('Animate scene')}
           </button>
           {activeVideo?.costUsd != null && (
             <span
@@ -969,7 +1020,7 @@ function AnimationWorkbench({
                 fontSize: 'var(--text-sm)',
               }}
             >
-              Cost: {formatUsd(activeVideo.costUsd)}
+              {t('Cost: {usd}', { usd: formatUsd(activeVideo.costUsd) })}
             </span>
           )}
         </div>
@@ -999,7 +1050,7 @@ function AnimationWorkbench({
               color: 'var(--color-text-muted)',
             }}
           >
-            Lip-sync
+            {t('Lip-sync')}
           </div>
           <VideoModelPicker
             selectedId={lipSyncModel?.id ?? null}
@@ -1014,9 +1065,9 @@ function AnimationWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            Turns the scene image into a talking clip synced to the narration.
-            Works when the image shows a person with a visible face — the
-            clip&rsquo;s length follows the narration
+            {t(
+              "Turns the scene image into a talking clip synced to the narration. Works when the image shows a person with a visible face — the clip's length follows the narration",
+            )}
             {narrationSeconds !== null
               ? ` (${narrationSeconds.toFixed(1)}s)`
               : ''}
@@ -1041,7 +1092,7 @@ function AnimationWorkbench({
               }
               onClick={onRequestLipSync}
             >
-              Lip-sync narration
+              {t('Lip-sync narration')}
             </button>
             <span
               style={{
@@ -1050,17 +1101,30 @@ function AnimationWorkbench({
               }}
             >
               {narrationSeconds === null
-                ? 'Narrate the scene first (Audio stage).'
+                ? t('Narrate the scene first (Audio stage).')
                 : lipSyncModel === null
-                  ? 'Pick a lip-sync model to see the price.'
+                  ? t('Pick a lip-sync model to see the price.')
                   : (() => {
                       const est = lipSyncEstimate(
                         lipSyncModel,
                         narrationSeconds,
                       )
                       return est.usd === null
-                        ? `At ${est.resolution ?? 'default resolution'} — price varies, charged at submission.`
-                        : `≈${formatUsd(est.usd)} at ${est.resolution ?? 'default resolution'} (cheapest), charged at submission.`
+                        ? t(
+                            'At {resolution} — price varies, charged at submission.',
+                            {
+                              resolution:
+                                est.resolution ?? t('default resolution'),
+                            },
+                          )
+                        : t(
+                            '≈{usd} at {resolution} (cheapest), charged at submission.',
+                            {
+                              usd: formatUsd(est.usd),
+                              resolution:
+                                est.resolution ?? t('default resolution'),
+                            },
+                          )
                     })()}
             </span>
           </div>
@@ -1077,7 +1141,10 @@ function AnimationWorkbench({
               disabled={model === null}
               onClick={onRequestAll}
             >
-              {`Animate ${String(pendingCount)} remaining ${pendingCount === 1 ? 'scene' : 'scenes'}`}
+              {t('Animate {count} remaining {noun}', {
+                count: pendingCount,
+                noun: pendingCount === 1 ? t('scene') : t('scenes'),
+              })}
             </button>
           </div>
         )}
@@ -1085,7 +1152,7 @@ function AnimationWorkbench({
 
       {/* Clips panel */}
       <div className="card" style={panel}>
-        <div style={panelTitle}>Clips — scene {n}</div>
+        <div style={panelTitle}>{t('Clips — scene {n}', { n })}</div>
         {videoUrl !== null ? (
           <>
             <video
@@ -1140,15 +1207,20 @@ function AnimationWorkbench({
                       : 'var(--color-text-muted)',
                 }}
               >
-                clip runs {clipSeconds.toFixed(1)}s
+                {t('clip runs {seconds}s', { seconds: clipSeconds.toFixed(1) })}
                 {!narrationEmbedded &&
                   narrationSeconds !== null &&
                   Math.abs(clipSeconds - narrationSeconds) > 0.75 &&
-                  ` — the narration runs ${narrationSeconds.toFixed(1)}s, so it will be ${
-                    clipSeconds < narrationSeconds
-                      ? 'cut off'
-                      : 'over before the clip ends'
-                  }`}
+                  ` — ${t(
+                    'the narration runs {seconds}s, so it will be {outcome}',
+                    {
+                      seconds: narrationSeconds.toFixed(1),
+                      outcome:
+                        clipSeconds < narrationSeconds
+                          ? t('cut off')
+                          : t('over before the clip ends'),
+                    },
+                  )}`}
               </p>
             )}
           </>
@@ -1160,7 +1232,7 @@ function AnimationWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            No clip yet — the first animation lands here.
+            {t('No clip yet — the first animation lands here.')}
           </p>
         )}
         {scene.videoVersions.length > 1 && (
@@ -1189,7 +1261,7 @@ function AnimationWorkbench({
                   fontSize: 'var(--text-sm)',
                 }}
               >
-                Clip {vIndex + 1}
+                {t('Clip {n}', { n: vIndex + 1 })}
               </button>
             ))}
           </div>
@@ -1212,7 +1284,7 @@ function AnimationWorkbench({
             >
               <p style={{ margin: 0 }}>
                 <strong style={{ fontSize: 'var(--text-sm)' }}>
-                  Narration
+                  {t('Narration')}
                 </strong>{' '}
                 <span
                   style={{
@@ -1221,10 +1293,10 @@ function AnimationWorkbench({
                   }}
                 >
                   {narrationEmbedded
-                    ? '— embedded in this lip-sync clip'
+                    ? t('— embedded in this lip-sync clip')
                     : narrationSilenced
-                      ? '— silenced for this take, here and in the export'
-                      : '— plays along with the clip'}
+                      ? t('— silenced for this take, here and in the export')
+                      : t('— plays along with the clip')}
                 </span>
               </p>
               {!narrationEmbedded && (
@@ -1253,7 +1325,7 @@ function AnimationWorkbench({
                     padding: 'var(--space-1) var(--space-3)',
                   }}
                 >
-                  {narrationSilenced ? 'Unmute' : 'Mute'}
+                  {narrationSilenced ? t('Unmute') : t('Mute')}
                 </button>
               )}
             </div>
@@ -1292,7 +1364,7 @@ function AnimationWorkbench({
             onClick={() => clipFileRef.current?.click()}
             style={{ fontSize: 'var(--text-sm)' }}
           >
-            Import clip
+            {t('Import clip')}
           </button>
           <span
             style={{
@@ -1301,7 +1373,7 @@ function AnimationWorkbench({
               fontSize: 'var(--text-sm)',
             }}
           >
-            — a video file from your computer becomes a take (free)
+            {t('— a video file from your computer becomes a take (free)')}
           </span>
         </div>
         <GenerationHistory
@@ -1314,12 +1386,14 @@ function AnimationWorkbench({
           }
           regenerateDisabledHint={
             model === null
-              ? 'Pick a video model first.'
+              ? t('Pick a video model first.')
               : activeImage === null
-                ? 'The scene needs an active image first.'
-                : 'A generation is already running for this scene.'
+                ? t('The scene needs an active image first.')
+                : t('A generation is already running for this scene.')
           }
-          regenerateCostText="You will confirm the exact price before the job is submitted."
+          regenerateCostText={t(
+            'You will confirm the exact price before the job is submitted.',
+          )}
         />
       </div>
     </div>
@@ -1333,6 +1407,7 @@ function AnimationWorkbench({
  * backfire (mentioning a concept makes it MORE likely to appear).
  */
 function CameraHelp() {
+  const t = useT()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -1417,7 +1492,7 @@ function CameraHelp() {
               }}
             >
               <h3 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>
-                Directing the camera
+                {t('Directing the camera')}
               </h3>
               <p style={{ margin: 0, lineHeight: 1.6 }}>
                 Video models are bad at <strong>negations</strong>. &ldquo;No
@@ -1457,7 +1532,7 @@ function CameraHelp() {
                     setOpen(false)
                   }}
                 >
-                  Close
+                  {t('Close')}
                 </button>
               </div>
             </div>

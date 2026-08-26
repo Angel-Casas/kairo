@@ -10,6 +10,7 @@ import { StitchError, stitchClips } from '../lib/stitcher'
 import { exportProject } from '../persistence/projectFile'
 import { useProjectStore } from '../state/project'
 import { getRepository } from '../state/repo'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import { Perforation } from './Reel'
 import { useBlobUrl } from './useBlobUrl'
@@ -73,6 +74,7 @@ function premiereProgram(scenes: Scene[]): PremiereItem[] {
  * with their narration — watch the Short before you take it home.
  */
 function PremierePlayer({ items }: { items: PremiereItem[] }) {
+  const t = useT()
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [finished, setFinished] = useState(false)
@@ -141,15 +143,15 @@ function PremierePlayer({ items }: { items: PremiereItem[] }) {
 
   const caption = finished ? (
     <span>
-      That was{' '}
+      {t('That was')}{' '}
       <strong style={{ color: fullscreen ? '#ffffff' : 'var(--color-text)' }}>
-        the whole reel
+        {t('the whole reel')}
       </strong>{' '}
-      {fullscreen ? '— encore?' : '— encore, or take it home below.'}
+      {fullscreen ? t('— encore?') : t('— encore, or take it home below.')}
     </span>
   ) : (
     <span>
-      Scene {item.n} of {items.length}
+      {t('Scene {n} of {total}', { n: item.n, total: items.length })}
       {item.scene.textExcerpt.trim().length > 0 && (
         <span style={{ fontStyle: 'italic' }}>
           {' '}
@@ -179,7 +181,7 @@ function PremierePlayer({ items }: { items: PremiereItem[] }) {
           alignSelf: 'flex-start',
         }}
       >
-        Tonight&rsquo;s screening
+        {t('Tonight’s screening')}
       </div>
       <div
         ref={frameRef}
@@ -245,7 +247,9 @@ function PremierePlayer({ items }: { items: PremiereItem[] }) {
         )}
         <button
           type="button"
-          aria-label={playing ? 'Pause the premiere' : 'Play the premiere'}
+          aria-label={
+            playing ? t('Pause the premiere') : t('Play the premiere')
+          }
           onClick={playing ? pause : play}
           style={{
             position: 'absolute',
@@ -308,7 +312,7 @@ function PremierePlayer({ items }: { items: PremiereItem[] }) {
             the play overlay; Escape (or the button again) comes back. */}
         <button
           type="button"
-          aria-label={fullscreen ? 'Exit fullscreen' : 'Watch fullscreen'}
+          aria-label={fullscreen ? t('Exit fullscreen') : t('Watch fullscreen')}
           onClick={toggleFullscreen}
           style={{
             position: 'absolute',
@@ -423,6 +427,7 @@ const KIND_DEPARTMENTS: [GenerationKind, string][] = [
 ]
 
 export function ExportStage() {
+  const t = useT()
   const project = useProjectStore((s) => s.project)
   const [busy, setBusy] = useState<Busy>(null)
   const [error, setError] = useState<string | null>(null)
@@ -439,7 +444,7 @@ export function ExportStage() {
       const { zip } = await buildClipsZip(project, repo.blobs)
       downloadBlob(zip, `${stem}.zip`)
     } catch {
-      setError('The clips zip could not be built. Try again.')
+      setError(t('The clips zip could not be built. Try again.'))
     } finally {
       setBusy(null)
     }
@@ -453,7 +458,7 @@ export function ExportStage() {
       const backup = await exportProject(project, repo.blobs)
       downloadBlob(backup, `${stem}.kairo`)
     } catch {
-      setError('The project backup could not be built. Try again.')
+      setError(t('The project backup could not be built. Try again.'))
     } finally {
       setBusy(null)
     }
@@ -485,7 +490,7 @@ export function ExportStage() {
       setError(
         stitchError instanceof StitchError
           ? stitchError.message
-          : 'Stitching failed unexpectedly.',
+          : t('Stitching failed unexpectedly.'),
       )
     } finally {
       setBusy(null)
@@ -526,7 +531,7 @@ export function ExportStage() {
               marginBottom: '2px',
             }}
           >
-            {label}
+            {t(label)}
           </div>
           {(credits[kind] ?? []).map((model) => (
             <div key={model} style={{ fontWeight: 600 }}>
@@ -545,9 +550,9 @@ export function ExportStage() {
             marginBottom: '2px',
           }}
         >
-          Directed and produced by
+          {t('Directed and produced by')}
         </div>
-        <div style={{ fontWeight: 600 }}>you</div>
+        <div style={{ fontWeight: 600 }}>{t('you')}</div>
       </div>
       <div
         style={{
@@ -556,7 +561,7 @@ export function ExportStage() {
           fontSize: 'var(--text-sm)',
         }}
       >
-        A Kairo production — made in your browser, on your key.
+        {t('A Kairo production — made in your browser, on your key.')}
       </div>
     </>
   )
@@ -583,7 +588,7 @@ export function ExportStage() {
               fontWeight: 700,
             }}
           >
-            Premiere night
+            {t('Premiere night')}
           </div>
           <h3
             style={{
@@ -602,12 +607,12 @@ export function ExportStage() {
             }}
           >
             {complete
-              ? `That's a wrap — ${String(clipCount)} of ${String(totalScenes)} ${totalScenes === 1 ? 'scene has' : 'scenes have'} a finished clip. `
-              : `Nearly there — ${String(clipCount)} of ${String(totalScenes)} ${clipCount === 1 ? 'scene has' : 'scenes have'} a finished clip. `}
+              ? `${t("That's a wrap — {done} of {total} {verb} a finished clip.", { done: clipCount, total: totalScenes, verb: totalScenes === 1 ? t('scene has') : t('scenes have') })} `
+              : `${t('Nearly there — {done} of {total} {verb} a finished clip.', { done: clipCount, total: totalScenes, verb: clipCount === 1 ? t('scene has') : t('scenes have') })} `}
             {plan.missingSceneNumbers.length > 0 &&
-              `Missing: scene${plan.missingSceneNumbers.length === 1 ? '' : 's'} ${plan.missingSceneNumbers.join(', ')} — you can premiere what's ready and add the rest later. `}
-            {String(totalScenes)} {totalScenes === 1 ? 'scene' : 'scenes'} ·{' '}
-            {project.costLog.length} generations · made for{' '}
+              `${t("Missing: {noun} {list} — you can premiere what's ready and add the rest later.", { noun: plan.missingSceneNumbers.length === 1 ? t('scene') : t('scenes'), list: plan.missingSceneNumbers.join(', ') })} `}
+            {String(totalScenes)} {totalScenes === 1 ? t('scene') : t('scenes')}{' '}
+            · {project.costLog.length} {t('generations')} · {t('made for')}{' '}
             {formatUsd(spentUsd)}
           </p>
         </div>
@@ -639,8 +644,9 @@ export function ExportStage() {
               color: 'var(--color-text-muted)',
             }}
           >
-            The screen is still dark — animate at least one scene and the
-            premiere begins here.
+            {t(
+              'The screen is still dark — animate at least one scene and the premiere begins here.',
+            )}
           </div>
         )}
 
@@ -654,11 +660,12 @@ export function ExportStage() {
             minHeight: 0,
           }}
         >
-          <div style={panelTitle}>The credits</div>
+          <div style={panelTitle}>{t('The credits')}</div>
           {creditRows.length === 0 ? (
             <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
-              The cast assembles as you generate — every model that works on
-              this project earns its line here.
+              {t(
+                'The cast assembles as you generate — every model that works on this project earns its line here.',
+              )}
             </p>
           ) : (
             <div className="credits-roll" aria-label="Production credits">
@@ -690,9 +697,9 @@ export function ExportStage() {
               padding: '0 var(--space-1) var(--space-2)',
             }}
           >
-            <span>The final cut</span>
+            <span>{t('The final cut')}</span>
             <span style={{ textTransform: 'none', letterSpacing: 0 }}>
-              frame by frame
+              {t('frame by frame')}
             </span>
           </div>
           <Perforation />
@@ -714,7 +721,7 @@ export function ExportStage() {
 
       {/* Take it home. */}
       <div style={{ ...panelTitle, margin: '0 0 var(--space-3)' }}>
-        Take it home
+        {t('Take it home')}
       </div>
       <div
         style={{
@@ -726,15 +733,16 @@ export function ExportStage() {
         }}
       >
         <div className="card" style={{ padding: 'var(--space-4)' }}>
-          <h4 style={{ marginTop: 0 }}>Take it to the edit</h4>
+          <h4 style={{ marginTop: 0 }}>{t('Take it to the edit')}</h4>
           <p
             style={{
               color: 'var(--color-text-muted)',
               fontSize: 'var(--text-sm)',
             }}
           >
-            A zip with your clips numbered in scene order plus the script as a
-            text file — bring them into any editor for the final polish.
+            {t(
+              'A zip with your clips numbered in scene order plus the script as a text file — bring them into any editor for the final polish.',
+            )}
           </p>
           <button
             type="button"
@@ -742,7 +750,7 @@ export function ExportStage() {
             disabled={busy !== null || clipCount === 0}
             onClick={() => void downloadClipsZip()}
           >
-            {busy === 'zip' ? 'Building zip…' : `Download clips (.zip)`}
+            {busy === 'zip' ? t('Building zip…') : t('Download clips (.zip)')}
           </button>
           {busy === 'zip' && (
             <div style={{ marginTop: 'var(--space-3)' }}>
@@ -752,16 +760,16 @@ export function ExportStage() {
         </div>
 
         <div className="card" style={{ padding: 'var(--space-4)' }}>
-          <h4 style={{ marginTop: 0 }}>The one-file premiere</h4>
+          <h4 style={{ marginTop: 0 }}>{t('The one-file premiere')}</h4>
           <p
             style={{
               color: 'var(--color-text-muted)',
               fontSize: 'var(--text-sm)',
             }}
           >
-            All your clips stitched back to back into one MP4 — a draft you can
-            watch anywhere or publish as-is. The video engine (~31 MB) downloads
-            the first time; if stitching fails, the clips zip always works.
+            {t(
+              'All your clips stitched back to back into one MP4 — a draft you can watch anywhere or publish as-is. The video engine (~31 MB) downloads the first time; if stitching fails, the clips zip always works.',
+            )}
           </p>
           <button
             type="button"
@@ -769,10 +777,10 @@ export function ExportStage() {
             onClick={() => void downloadStitchedDraft()}
           >
             {busy === 'stitch-loading'
-              ? 'Downloading video engine…'
+              ? t('Downloading video engine…')
               : busy === 'stitch-running'
-                ? 'Stitching…'
-                : 'Create stitched draft (.mp4)'}
+                ? t('Stitching…')
+                : t('Create stitched draft (.mp4)')}
           </button>
           {(busy === 'stitch-loading' || busy === 'stitch-running') && (
             <div style={{ marginTop: 'var(--space-3)' }}>
@@ -782,16 +790,16 @@ export function ExportStage() {
         </div>
 
         <div className="card" style={{ padding: 'var(--space-4)' }}>
-          <h4 style={{ marginTop: 0 }}>Keep the negatives</h4>
+          <h4 style={{ marginTop: 0 }}>{t('Keep the negatives')}</h4>
           <p
             style={{
               color: 'var(--color-text-muted)',
               fontSize: 'var(--text-sm)',
             }}
           >
-            The whole production — script, scenes, every take of every image and
-            clip — as one .kairo file. Bring it back with &ldquo;Import
-            project&rdquo; on any device and pick up where you left off.
+            {t(
+              'The whole production — script, scenes, every take of every image and clip — as one .kairo file. Bring it back with “Import project” on any device and pick up where you left off.',
+            )}
           </p>
           <button
             type="button"
@@ -799,8 +807,8 @@ export function ExportStage() {
             onClick={() => void downloadBackup()}
           >
             {busy === 'backup'
-              ? 'Building backup…'
-              : 'Download project backup (.kairo)'}
+              ? t('Building backup…')
+              : t('Download project backup (.kairo)')}
           </button>
           {busy === 'backup' && (
             <div style={{ marginTop: 'var(--space-3)' }}>

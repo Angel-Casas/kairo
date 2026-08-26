@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { useT } from '../i18n'
 import { useSettingsStore, type MotionMode } from '../state/settings'
 
 /** Live view of the OS-level reduced-motion preference. */
@@ -32,6 +33,7 @@ function useSystemReducedMotion(): boolean {
  * and lets the user override in either direction.
  */
 export function MotionSettings() {
+  const t = useT()
   const motionMode = useSettingsStore((s) => s.motionMode)
   const setMotionMode = useSettingsStore((s) => s.setMotionMode)
   const systemReduced = useSystemReducedMotion()
@@ -41,9 +43,11 @@ export function MotionSettings() {
       className="card"
       style={{ padding: 'var(--space-4)', marginTop: 'var(--space-4)' }}
     >
-      <h2 style={{ marginTop: 0, fontSize: 'var(--text-lg)' }}>Motion</h2>
+      <h2 style={{ marginTop: 0, fontSize: 'var(--text-lg)' }}>
+        {t('Motion')}
+      </h2>
       <p style={{ color: 'var(--color-text-muted)' }}>
-        Stage transitions, progress strips and the other animations.
+        {t('Stage transitions, progress strips and the other animations.')}
       </p>
       <label>
         <span
@@ -53,7 +57,7 @@ export function MotionSettings() {
             marginRight: 'var(--space-2)',
           }}
         >
-          Animations
+          {t('Animations')}
         </span>
         <select
           aria-label="Motion preference"
@@ -62,9 +66,9 @@ export function MotionSettings() {
             setMotionMode(e.target.value as MotionMode)
           }}
         >
-          <option value="system">Follow system setting</option>
-          <option value="on">Always on</option>
-          <option value="off">Off</option>
+          <option value="system">{t('Follow system setting')}</option>
+          <option value="on">{t('Always on')}</option>
+          <option value="off">{t('Off')}</option>
         </select>
       </label>
       {motionMode === 'system' && systemReduced && (
@@ -75,9 +79,9 @@ export function MotionSettings() {
             marginBottom: 0,
           }}
         >
-          Your system asks apps to reduce motion, so Kairo is currently showing
-          none of its animations. Choose &ldquo;Always on&rdquo; to see them
-          anyway.
+          {t(
+            'Your system asks apps to reduce motion, so Kairo is currently showing none of its animations. Choose “Always on” to see them anyway.',
+          )}
         </p>
       )}
     </section>

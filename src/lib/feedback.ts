@@ -5,9 +5,10 @@
  * app itself, and nothing but what the user typed goes into the URL.
  */
 
-// TODO(angel): point at the real repository URL (owner/repo), then the
-// landing page's GitHub links can share it too.
-export const GITHUB_REPO_URL = 'https://github.com/your-user/kairo'
+import { REPO_URL } from '../config'
+
+/** One source of truth: the repository URL lives in config.ts (22.20). */
+export const GITHUB_REPO_URL = REPO_URL
 
 export type FeedbackKind = 'bug' | 'suggestion' | 'question'
 

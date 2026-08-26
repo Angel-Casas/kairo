@@ -6,6 +6,7 @@ import type {
   TtsModel,
   VideoModel,
 } from '../api/nanogpt'
+import { useT } from '../i18n'
 import { formatUsd } from '../lib/format'
 import {
   formatReleaseMonth,
@@ -58,6 +59,7 @@ function PickerShell<M extends PickerModel>({
   onSelect: (model: M) => void
   onRetry: () => void
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<MenuSort>('provider')
@@ -113,14 +115,16 @@ function PickerShell<M extends PickerModel>({
   const selected = models.find((m) => m.id === selectedId)
 
   if (status === 'loading' || status === 'idle') {
-    return <p style={{ color: 'var(--color-text-muted)' }}>Loading models…</p>
+    return (
+      <p style={{ color: 'var(--color-text-muted)' }}>{t('Loading models…')}</p>
+    )
   }
   if (status === 'error') {
     return (
       <p role="alert" style={{ color: 'var(--color-danger)' }}>
-        Could not load the model list.{' '}
+        {t('Could not load the model list.')}{' '}
         <button type="button" onClick={onRetry}>
-          Retry
+          {t('Retry')}
         </button>
       </p>
     )
@@ -168,7 +172,9 @@ function PickerShell<M extends PickerModel>({
         >
           {selected !== undefined
             ? optionLabel(selected)
-            : `Choose a model… (${String(models.length)} available)`}
+            : t('Choose a model… ({count} available)', {
+                count: models.length,
+              })}
         </span>
         <svg
           width="9"
@@ -254,7 +260,7 @@ function PickerShell<M extends PickerModel>({
                       onChange={(e) => {
                         setFilter(e.target.value)
                       }}
-                      placeholder="Search models…"
+                      placeholder={t('Search models…')}
                       aria-label={`Filter ${ariaLabel.toLowerCase()}s`}
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
@@ -276,7 +282,7 @@ function PickerShell<M extends PickerModel>({
                           padding: 'var(--space-3)',
                         }}
                       >
-                        No models match.
+                        {t('No models match.')}
                       </p>
                     )}
                     {shown.map((e) => {
@@ -430,8 +436,11 @@ function PickerShell<M extends PickerModel>({
                     }}
                   >
                     <span>
-                      {shown.length} of {models.length}{' '}
-                      {models.length === 1 ? 'model' : 'models'}
+                      {t('{shown} of {total} {noun}', {
+                        shown: shown.length,
+                        total: models.length,
+                        noun: models.length === 1 ? t('model') : t('models'),
+                      })}
                     </span>
                     <button
                       type="button"
@@ -443,7 +452,7 @@ function PickerShell<M extends PickerModel>({
                         padding: 'var(--space-1) var(--space-3)',
                       }}
                     >
-                      Close
+                      {t('Close')}
                     </button>
                   </div>
                 </div>
@@ -457,7 +466,7 @@ function PickerShell<M extends PickerModel>({
                     minHeight: 0,
                   }}
                 >
-                  <p style={sectionTitle}>Sort by</p>
+                  <p style={sectionTitle}>{t('Sort by')}</p>
                   <div
                     style={{
                       display: 'flex',
@@ -503,7 +512,7 @@ function PickerShell<M extends PickerModel>({
                         >
                           {s.icon}
                         </span>
-                        {s.label}
+                        {t(s.label)}
                       </button>
                     ))}
                   </div>
@@ -515,7 +524,7 @@ function PickerShell<M extends PickerModel>({
                       justifyContent: 'space-between',
                     }}
                   >
-                    <p style={sectionTitle}>Providers</p>
+                    <p style={sectionTitle}>{t('Providers')}</p>
                     {provider !== null && (
                       <button
                         type="button"
@@ -527,7 +536,7 @@ function PickerShell<M extends PickerModel>({
                           padding: '0 var(--space-2)',
                         }}
                       >
-                        All
+                        {t('All')}
                       </button>
                     )}
                   </div>
@@ -608,6 +617,7 @@ export function TextModelPicker({
   /** Override when two pickers share a page (labels must stay unique). */
   ariaLabel?: string
 }) {
+  const t = useT()
   const models = useModelsStore((s) => s.textModels)
   const status = useModelsStore((s) => s.textModelsStatus)
   const load = useModelsStore((s) => s.loadTextModels)
@@ -627,10 +637,11 @@ export function TextModelPicker({
   if (status === 'ready' && onlyVision && shown.length === 0) {
     return (
       <p role="alert" style={{ color: 'var(--color-text-muted)', margin: 0 }}>
-        The model list reports no text models that can read images right now, so
-        nothing can describe one.{' '}
+        {t(
+          'The model list reports no text models that can read images right now, so nothing can describe one.',
+        )}{' '}
         <button type="button" onClick={() => void load(true)}>
-          Reload the list
+          {t('Reload the list')}
         </button>
       </p>
     )

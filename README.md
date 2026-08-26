@@ -2,8 +2,10 @@
 
 Generate videos in any format — Shorts, widescreen, square — through a step-by-step pipeline —
 **script → scenes → images → animation → export** — using your own
-[NanoGPT](https://nano-gpt.com) API key. Pick your preferred model at every step
-and pay only for what you actually generate. No subscription.
+[NanoGPT](https://nano-gpt.com/r/BnfJfghE) API key. Pick your preferred model
+at every step and pay only for what you actually generate. No subscription.
+(That NanoGPT link is a referral: signing up through it supports Kairo's
+development at no extra cost to you — it is the project's only monetization.)
 
 Kairo is a client-side PWA: your API key and all generated assets stay on your
 device. The code is open (AGPL-3.0) so you can verify that yourself.
