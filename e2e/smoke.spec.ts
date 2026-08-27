@@ -25,6 +25,12 @@ test('the app shell loads offline via the service worker', async ({
   await context.setOffline(true)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Kairo' })).toBeVisible()
-  await expect(page.getByRole('status')).toContainText('Offline')
+  // Separate "did offline propagate" from "did the banner render": on a
+  // slower CI runner the app shell can paint before the browser's own
+  // connectivity flag has settled, which isn't the banner's fault.
+  await page.waitForFunction(() => !navigator.onLine)
+  await expect(page.getByRole('status')).toContainText('Offline', {
+    timeout: 10_000,
+  })
   await context.setOffline(false)
 })

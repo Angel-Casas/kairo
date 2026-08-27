@@ -2,6 +2,22 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 22.22.1 — Two CI failures, two different causes (2026-08-27, Angel's report)
+
+- `npm run format:check` was failing on `landing.html`, which had drifted
+  out of Prettier's style unrelated to any of this session's changes —
+  reformatted it and it's clean.
+- `e2e/smoke.spec.ts`'s offline test ("the app shell loads offline via
+  the service worker") failed twice on CI's retries but passed 12/12
+  locally, repeated — not proof it's fine, since CI clearly disagreed.
+  The test asserted the offline banner appeared right after reload
+  without first confirming the browser had actually flipped
+  `navigator.onLine` to false, so a slower CI runner could paint the app
+  shell before that landed and get blamed on the banner instead. Split
+  the wait in two — `waitForFunction(() => !navigator.onLine)` before
+  asserting the banner text, with a longer 10s timeout on the banner
+  assertion itself — so a future failure points at the right half.
+
 ## Slice 22.22 — A README that shows, not just tells (2026-08-27)
 
 - Replaced the old README (which still read "Status: Function-complete",
