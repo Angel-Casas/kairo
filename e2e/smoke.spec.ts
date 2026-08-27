@@ -25,12 +25,22 @@ test('the app shell loads offline via the service worker', async ({
   await context.setOffline(true)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Kairo' })).toBeVisible()
-  // Separate "did offline propagate" from "did the banner render": on a
-  // slower CI runner the app shell can paint before the browser's own
-  // connectivity flag has settled, which isn't the banner's fault.
-  await page.waitForFunction(() => !navigator.onLine)
-  await expect(page.getByRole('status')).toContainText('Offline', {
-    timeout: 10_000,
+
+  // context.setOffline() reliably blocks the network — proven above, the
+  // reload only succeeded because the service worker served it from
+  // cache — but chrome-headless-shell (what `playwright test` actually
+  // launches, confirmed by reproducing this locally against the exact
+  // binary CI downloads) never flips `navigator.onLine` in response to
+  // it, unlike full headed/headless Chromium. That's a browser-emulation
+  // gap, not a claim about the app, so drive the app's own listener
+  // directly instead of waiting on a signal this environment won't send.
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('offline'))
   })
+  await expect(page.getByRole('status')).toContainText('Offline')
+
   await context.setOffline(false)
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('online'))
+  })
 })

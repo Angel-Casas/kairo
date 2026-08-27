@@ -8,15 +8,18 @@ Notable changes per slice. Dates are completion dates.
   out of Prettier's style unrelated to any of this session's changes —
   reformatted it and it's clean.
 - `e2e/smoke.spec.ts`'s offline test ("the app shell loads offline via
-  the service worker") failed twice on CI's retries but passed 12/12
-  locally, repeated — not proof it's fine, since CI clearly disagreed.
-  The test asserted the offline banner appeared right after reload
-  without first confirming the browser had actually flipped
-  `navigator.onLine` to false, so a slower CI runner could paint the app
-  shell before that landed and get blamed on the banner instead. Split
-  the wait in two — `waitForFunction(() => !navigator.onLine)` before
-  asserting the banner text, with a longer 10s timeout on the banner
-  assertion itself — so a future failure points at the right half.
+  the service worker") failed on CI. First fix (waiting on
+  `navigator.onLine` before asserting the banner) was the wrong
+  diagnosis — CI failed again, now timing out on that wait itself. Root
+  cause, found by reproducing against the exact `chrome-headless-shell`
+  binary CI actually launches (not the full Chromium this machine had
+  been silently substituting): that binary blocks network under
+  `context.setOffline()` — confirmed, the reload still rendered, served
+  entirely from the service worker's cache — but never flips
+  `navigator.onLine`. The test now drives the app's offline banner
+  directly via `window.dispatchEvent(new Event('offline'))` instead of
+  depending on a browser signal this environment doesn't emit; see
+  `docs/LESSONS.md` (2026-08-27) for the full diagnosis.
 
 ## Slice 22.22 — A README that shows, not just tells (2026-08-27)
 

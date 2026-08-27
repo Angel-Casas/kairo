@@ -445,3 +445,37 @@ world (data URLs, uploads) must restore it. The paired diagnostic —
 "Kairo attached N reference images" appended when a provider claims
 none arrived — turns the contradiction into a one-glance diagnosis:
 label bug on our side before 22.11, provider-side gap after.
+
+### 2026-08-27 — `playwright test` doesn't launch the browser you think it does
+
+**What happened:** the offline smoke test failed on CI —
+`getByRole('status')` never saw "Offline" after `context.setOffline(true)`
+and a reload. First diagnosis: a slow-CI timing race, so the fix waited on
+`navigator.onLine` flipping before asserting the banner. It didn't help:
+CI failed the same way, now timing out on the wait itself instead.
+
+**Root cause:** the local "12/12 passed" that seemed to rule out a real
+bug was measured against the wrong browser. `npx playwright install
+chromium` on this machine had only ever fetched the full Chromium binary,
+so every local run had been silently launched against it via an explicit
+`executablePath` override left over from an earlier session. But
+`playwright test`'s actual default — and what CI downloads — is
+`chrome-headless-shell`, a separate, thinner binary. Once forced to
+launch that one specifically, the failure reproduced locally on the first
+try: `context.setOffline()` blocks network under headless-shell (proven —
+the reload still rendered, served entirely from the service worker's
+cache) but never flips `navigator.onLine`, unlike full headless/headed
+Chromium.
+
+**Rule going forward:** two lessons. (1) A local pass doesn't clear a
+CI-only failure unless the binary is verified to match — `npx playwright
+--version` plus checking which `chromium-*` directory actually got
+launched, not just that some browser did. (2) The wrong diagnosis (a
+timing race) produced a fix that didn't change the symptom — CI still
+failed, just at a different line — which was the signal to retract it
+rather than stack a third layer on top. The real fix stopped depending on
+a browser-connectivity signal this environment doesn't emit: it drives
+the app's `online`/`offline` listener directly via
+`window.dispatchEvent`, while `context.setOffline` still does the one
+thing verified to matter — proving the reload was served from the
+service worker's cache, not the network.
