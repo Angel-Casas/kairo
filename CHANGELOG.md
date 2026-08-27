@@ -2,6 +2,21 @@
 
 Notable changes per slice. Dates are completion dates.
 
+## Slice 22.22 — A README that shows, not just tells (2026-08-27)
+
+- Replaced the old README (which still read "Status: Function-complete",
+  a leftover from before the design pass and i18n work) with a fuller
+  overview: what Kairo is and why it exists, a table walking through the
+  six pipeline stages, what makes it more than a thin API wrapper
+  (references for subject consistency, style presets, per-project
+  format, upfront cost transparency, offline PWA, ten languages with
+  real RTL), and where to read more (`docs/ROADMAP.md`,
+  `docs/DECISIONS.md`, `CLAUDE.md`).
+- Added three real screenshots (`docs/screenshots/`) captured from the
+  actual running app via a temporary Playwright probe against mocked
+  NanoGPT responses — the project list, the Script stage, and the
+  Scenes stage with its References panel — rather than mockups.
+
 ## Slice 22.21.2 — The palette picker comes back on-screen in RTL (2026-08-26, Angel's report)
 
 - The palette dropdown anchored itself with a physical `right: 0` —
